@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr"><head>
+  
+                           
+     
+
+
+<meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="generator" content="Hugo 0.123.8">
+<title>Using Stan for logistic regressions with detection error | GAMbler</title>
+
+
+<meta property="twitter:site" content="@twitter = &#34;nj_clark&#34;">
+<meta property="twitter:creator" content="@twitter = &#34;nj_clark&#34;">
+
+
+
+
+
+
+
+  
+    
+  
+<meta name="description" content="Example of how to simulate binary observations of an imperfectly observed data generating process (i.e. binary measurements that are made with error) and use Stan to estimate parameters of the model in a Bayesian framework.">
+
+
+<meta property="og:site_name" content="GAMbler">
+<meta property="og:title" content="Using Stan for logistic regressions with detection error | GAMbler">
+<meta property="og:description" content="Example of how to simulate binary observations of an imperfectly observed data generating process (i.e. binary measurements that are made with error) and use Stan to estimate parameters of the model in a Bayesian framework." />
+<meta property="og:type" content="page" />
+<meta property="og:url" content="https://ecogambler.netlify.app/blog/stan-detection-error/" />
+<meta property="og:locale" content="en">
+
+
+
+
+    
+        <meta property="og:image" content="https://ecogambler.netlify.app/blog/stan-detection-error/featured.png" >
+        <meta property="twitter:card" content="summary_large_image">
+        <meta name="twitter:image" content="https://ecogambler.netlify.app/blog/stan-detection-error/featured.png" >
+    
+    
+  <meta itemprop="name" content="Using Stan for logistic regressions with detection error">
+<meta itemprop="description" content="Required libraries cmdstanr
+Purpose and model introduction This script simulates binary observations of an imperfectly observed data generating process (i.e. our measurements are made with error). It also provides Stan code for estimating parameters of the model in a Bayesian framework. The true infection status \(z\) is assumed to be drawn from a Bernoulli distribution with probability \(p\):
+$$z\sim \text{Bernoulli}(p)$$
+A linear predictor is modeled on the \(logit\) scale to capture effects of covariates on \(p\):"><meta itemprop="datePublished" content="2024-03-10T00:00:00+00:00" />
+<meta itemprop="dateModified" content="2024-03-10T00:00:00+00:00" />
+<meta itemprop="wordCount" content="3778"><meta itemprop="image" content="https://ecogambler.netlify.app/blog/stan-detection-error/featured.png" />
+<meta itemprop="keywords" content="rstats,stan,simulation,confounding,tutorial," />
+  
+  <!--[if IE]><script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script><![endif]-->
+  <link rel="shortcut icon" href="/img/header_logo.ico" type="image/x-icon">
+  <link rel="icon" href="/img/header_logo.ico" type="image/x-icon">
+  
+  
+  <link rel="stylesheet" href="/style.main.min.13ba2c07d7acc52c13dbb9003240e2adf360a5d73e1392ede873916180ee1701.css" integrity="sha256-E7osB9esxSwT27kAMkDirfNgpdc&#43;E5Lt6HORYYDuFwE=" media="screen">
+  
+  
+  <script src="/panelset.min.ed1ac24b6e16f4e2481e3d1d098ae66f5bc77438aef619e6e266d8ac5b00dc72.js" type="text/javascript"></script>
+  
+  
+  <script src="/main.min.7c7401b27b903bdc8736f72a2f739f7602bf606c451e8cb5e7fab2bf6b4af582.js" type="text/javascript"></script>
+</head>
+<body>
+      <div class="grid-container single-sidebar">
+<header class="site-header pt4 pb2 mb4 bb b--transparent ph5 headroom z-max" role="banner">
+  <nav class="site-nav db dt-l w-100" role="navigation">
+    <a class="site-brand db dtc-l v-mid link no-underline w-100 w-33-l tc tl-l" href="https://ecogambler.netlify.app/" title="Home">
+      <img src="/img/header_logo.png" class="dib db-l h2 w-auto" alt="GAMbler">
+    </a>
+    <div class="site-links db dtc-l v-mid w-100 w-47-l tc tr-l mt3 mt0-l ttu tracked">
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 active" href="/blog/" title="Blog">Blog</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/project/" title="Project Portfolio">Software</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/talk/" title="Talks">Talks &amp; Workshops</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/opportunities/" title="Opportunities">Opportunities</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/archives/" title="Archive">Archive</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/blogroll/" title="Blogroll">Blogroll</a>
+      
+      
+    </div>
+  </nav>
+</header>
+
+<main class="page-main pa4" role="main">
+  <section class="page-content mw7 center">
+    <article class="post-content pa0 pr3-l">
+      <header class="post-header">
+        <h1 class="f1 lh-solid measure-narrow mb3 fw4">Using Stan for logistic regressions with detection error</h1>
+        
+        <p class="f6 measure lh-copy mv1">By Nicholas Clark in <a href="https://ecogambler.netlify.app/categories/stan">stan</a>  <a href="https://ecogambler.netlify.app/categories/simulation">simulation</a> </p>
+        <p class="f7 db mv0 ttu">March 10, 2024</p>
+      </header>
+      <section class="post-body pt5 pb4">
+        
+
+
+
+<h2 id="required-libraries">Required libraries
+  <a href="#required-libraries"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p><code>cmdstanr</code></p>
+
+
+
+
+<h2 id="purpose-and-model-introduction">Purpose and model introduction
+  <a href="#purpose-and-model-introduction"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>This script simulates binary observations of an imperfectly observed data generating process (i.e. our measurements are made with error). It also provides <code>Stan</code> code for estimating parameters of the model in a Bayesian framework. The true infection status <code>\(z\)</code> is assumed to be drawn from a Bernoulli distribution with probability <code>\(p\)</code>:</p>
+<p><code>$$z\sim \text{Bernoulli}(p)$$</code></p>
+<p>A linear predictor is modeled on the <code>\(logit\)</code> scale to capture effects of covariates on <code>\(p\)</code>:</p>
+<p><code>$$logit(p)={\alpha} + {\beta}*\boldsymbol{X}$$</code></p>
+<p><code>\(\alpha\)</code> is the intercept representing average infection probability when all predictor variables are set to their means, and <code>\(\beta\)</code> is the set of regression coefficients that describe associations between predictor variables in the model design matrix <code>\(\boldsymbol{X}\)</code> and <code>\(logit(p)\)</code>. Unfortunately, as is the case in most diagnostic test scenarios, our measurements are made with error. A classic example would be a Kato Katz faecal smear to detect eggs of soil-transmitted helminths. We know these tests are not perfect. It is easy to miss a parasite egg when the smear quality is low. Or when parasite eggs are not being shed. Or because eggs are damn small and hard to see. Assume <code>\(\hat{SN}\)</code> is our test&rsquo;s sensitivity (the proportion of subjects <em>with</em> the condition that tend to have a <em>positive</em> test) and <code>\(\hat{SP}\)</code> is the test&rsquo;s specificity (the proportion of subjects <em>without</em> the condition that tend to have a <em>negative</em> test). Observations <code>\(\boldsymbol{Y}\)</code> are assumed to be conditional on the latent, unobserved true infection status <code>\(z\)</code> through the following set of equations:</p>
+<p><code>$$\boldsymbol{Y}\sim \text{Bernoulli}(\hat{SN}),~if~~z~= 1$$</code>
+<code>$$\boldsymbol{Y}\sim \text{Bernoulli}(1 - \hat{SP}),~if~~z~= 0$$</code>
+Ignoring this detection error is bad. It can bias our estimates and lead to incorrect inferences. But there are several challenges with estimating such a model. First, we often do not know with precision what the test&rsquo;s specificity and sensitivity are. So we need to estimate them. The second issue is that the <code>\(z\)</code> represent latent discrete parameters. We do not know what the true infection status is. We could try to sample it, but it turns out that 
+<a href="https://mc-stan.org/docs/2_22/stan-users-guide/latent-discrete-chapter.html" target="_blank" rel="noopener">sampling these latent values is problematic for advanced MCMC routines such as <code>Stan</code>&rsquo;s Hamiltonian Monte Carlo algorithm</a>. Other types of samplers (i.e. Gibbs or Metropolis Hastings, like those used in <code>JAGS</code> or <code>BUGS</code>) will allow latent discrete parameters, but they are not efficient. Fortunately, probability theory tells us how we can account for the possibility that the true status <code>\(z\)</code> was either a <code>1</code> or a <code>0</code> using a 
+<a href="https://towardsdatascience.com/probability-concepts-explained-marginalisation-2296846344fc" target="_blank" rel="noopener">marginal likelihood</a>. The unconditional probability of the observed infection status <code>\(\boldsymbol{Y}\)</code> is the sum of the probability in each unknown state (truly infected or truly uninfected) times the chance of being in each unknown state. This actually leads to <em>better</em> estimates because the expectation at all possible values is being used, rather than being estimated by sampling a latent discrete parameter.</p>
+
+
+
+
+<h2 id="define-the-joint-probabilistic-model">Define the joint probabilistic model
+  <a href="#define-the-joint-probabilistic-model"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>First we will define the <code>Stan</code> model code for estimating parameters under the model outlined above. This code uses a logical flag to allow us to tell the sampler whether or not to account for detection error. This will be useful for investigating the consequences of model misspecification.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>model_code <span style="color:#000;font-weight:bold">&lt;-</span>
+</span></span><span style="display:flex;"><span><span style="color:#d14">&#34;data {
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  int&lt;lower=0&gt; N; // number of observations
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  int&lt;lower=0&gt; P; // number of (standardised) predictor variables
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  array[N] int&lt;lower=0, upper=1&gt; y; // binary infection observations
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  matrix[N, P] x; // predictor design matrix
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  real&lt;lower=-1,upper=1&gt; sensitivity_prior; // inerpretable prior on sensitivity
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  real&lt;lower=-1,upper=1&gt; specificity_prior; // inerpretable prior on specificity
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  int&lt;lower=0,upper=1&gt; estimate_accuracy; // logical (include detection error or not)
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">}
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">transformed data {
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // Convert diagnostic hyperpriors into values to feed to the dirichlet
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  real&lt;lower=0&gt; sens_hyp;
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  real&lt;lower=0&gt; spec_hyp;
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  real&lt;lower=0&gt; remainder_hyp;
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  sens_hyp = 1 / exp(sensitivity_prior);
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  spec_hyp = 1 / exp(specificity_prior);
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  remainder_hyp = exp(sensitivity_prior) + exp(specificity_prior);
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // QR decomposition to deal with (possibly) correlated predictor variables
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // https://betanalpha.github.io/assets/case_studies/qr_regression.html
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  matrix[N, P] Q_ast;
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  matrix[P, P] R_ast;
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  matrix[P, P] R_ast_inverse;
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  Q_ast = qr_thin_Q(x) * sqrt(N - 1);
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  R_ast = qr_thin_R(x) / sqrt(N - 1);
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  R_ast_inverse = inverse(R_ast);
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">}
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">parameters {
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  vector[P] theta; // QR decomposed regression coefficients
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  real alpha; // intercept coefficient
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  vector&lt;lower=1&gt;[3] theta_acc; // hyperprior for test accuracy
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  simplex[3] accuracy; // sum-to-1 constraint for misclassification error
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">}
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">transformed parameters {
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // test sensitivity and specificity
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  real&lt;lower=0, upper=1&gt; sens;
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  real&lt;lower=0, upper=1&gt; spec;
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // set both to 1 if we don&#39;t want to estimate detection error
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  if (estimate_accuracy)
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">   sens = 1 - accuracy[1];
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  else
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">   sens = 1;
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  if (estimate_accuracy)
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">   spec = 1 - accuracy[2];
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  else
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">   spec = 1;
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // linear predictor for the logistic regression; here we can also include
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // terms for spatial, temporal, and spatiotemporal effects; some examples found here:
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // https://mc-stan.org/docs/stan-users-guide/fit-gp.html
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // https://betanalpha.github.io/assets/case_studies/gp_part1/part1.html#1_gaussian_processes
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // https://github.com/nicholasjclark/mvgam
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  vector[N] logit_z = alpha + Q_ast * theta;
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">}
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">model {
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // informative hyperpriors on 1 - sensitivity and 1 - specificity
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  theta_acc[1] ~ normal(sens_hyp, 0.25);
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  theta_acc[2] ~ normal(spec_hyp, 0.25);
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // hyperprior for sum-to-one constraint
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  theta_acc[3] ~ normal(remainder_hyp, 0.25);
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  accuracy ~ dirichlet(theta_acc);
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // priors for regression coefficients
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // we assume the disease is a bit rare, so use an appropriate
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // prior on the intercept alpha
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  alpha ~ normal(-0.75, 1);
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  theta ~ std_normal();
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // marginal Bernoulli likelihood
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // the unconditional probability of the observed infection status is the sum of the 
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // probability in each unknown state (truly infected or truly uninfected)
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // times the chance of being in each unknown state
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // for each observation, we calculate the probability that the &#39;true&#39; status was a 1 
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // and the probability that the &#39;true&#39; status was a 0. Summing these probabilities on 
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // the log scale is the same as multiplying them on the untransformed scale; this
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // allows us to average over (i.e. marginalise out) the latent infection status
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  for (n in 1:N) {
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">    target += log_sum_exp(bernoulli_lpmf(y[n] | sens) + bernoulli_logit_lpmf(1 | logit_z[n]),
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">                          bernoulli_lpmf(1 - y[n] | spec) + bernoulli_logit_lpmf(0 | logit_z[n]));
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  }
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">}
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">generated quantities {
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  vector&lt;lower=0, upper=1&gt;[N] prob;
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  array[N] int&lt;lower=0, upper=1&gt; ypred;
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  vector[P] beta;
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // compute predicted infection probabilities (i.e. posterior expectations)
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // for each individual in the dataset
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  for (n in 1:N) {
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">    prob[n] = softmax([bernoulli_lpmf(y[n] | sens) + bernoulli_logit_lpmf(1 | logit_z[n]),
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">                       bernoulli_lpmf(1 - y[n] | spec) + bernoulli_logit_lpmf(0 | logit_z[n])]&#39;)[1];
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  }
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // compute predicted infection statuses (i.e. posterior predictions)
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // for each individual in the dataset
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  ypred = bernoulli_rng(prob);
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // compute the regression coefficients for the original
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // (back-transformed) predictor variables
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  beta = R_ast_inverse * theta;
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">}&#34;</span>
+</span></span></code></pre></div><p>There is a lot going on in this model. It accepts interpretable hyperprior information for the test diagnostics (more on that below). It also uses a 
+<a href="https://betanalpha.github.io/assets/case_studies/qr_regression.html" target="_blank" rel="noopener">QR decomposition to handle possible colinearity among predictors</a>. And of course, it marginalises over discrete latent infection status. Details of each of these procedures are not the main aim of this tutorial, but please see the relevant hyperlinks for more information. Load <code>cmdstanr</code> and compile the model to <code>C++</code> code. See 
+<a href="https://mc-stan.org/cmdstanr/articles/cmdstanr.html" target="_blank" rel="noopener">information here for troubleshooting advice when installing <code>Stan</code> and <code>Cmdstan</code></a></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(cmdstanr)
+</span></span><span style="display:flex;"><span>mod <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">cmdstan_model</span>(<span style="color:#900;font-weight:bold">write_stan_file</span>(model_code),
+</span></span><span style="display:flex;"><span>                        stanc_options <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">list</span>(<span style="color:#d14">&#39;canonicalize=deprecations,braces,parentheses&#39;</span>))
+</span></span></code></pre></div>
+
+
+
+<h2 id="simulate-data">Simulate data
+  <a href="#simulate-data"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>Now that the model is defined in <code>Stan</code> language, we need to simulate data to explore the model. Here we define a function to generate simulated binary outcomes with user-specific sensitivity and specificity. This function was modified from a very helpful 
+<a href="https://discourse.mc-stan.org/t/logistic-regression-without-a-gold-standard-error-in-observed-classification/28644" target="_blank" rel="noopener"><code>Stan</code> discourse post</a></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>sim_det_error <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#000;font-weight:bold">function</span>(n <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">200</span>, <span style="color:#998;font-style:italic"># sample size</span>
+</span></span><span style="display:flex;"><span>                          alpha <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">-0.5</span>, <span style="color:#998;font-style:italic"># intercept (on logit scale)</span>
+</span></span><span style="display:flex;"><span>                          p <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>, <span style="color:#998;font-style:italic"># number of predictors</span>
+</span></span><span style="display:flex;"><span>                          sn <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.85</span>, <span style="color:#998;font-style:italic"># sensitivity of test</span>
+</span></span><span style="display:flex;"><span>                          sp <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.7</span>) <span style="color:#998;font-style:italic"># specificity of test</span>
+</span></span><span style="display:flex;"><span>  {
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># generate random predictors; note that predictors should be mean-centred</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># prior to modelling for the QR decomposition to be effective</span>
+</span></span><span style="display:flex;"><span>  x <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">rnorm</span>(n<span style="color:#000;font-weight:bold">*</span>p, mean <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0</span>, sd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>)               
+</span></span><span style="display:flex;"><span>  x <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">matrix</span>(x, nrow <span style="color:#000;font-weight:bold">=</span> n, ncol <span style="color:#000;font-weight:bold">=</span> p)
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">colnames</span>(x) <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">paste0</span>(<span style="color:#d14">&#39;predictor_&#39;</span>, <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span>p)
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># generate beta coefficients</span>
+</span></span><span style="display:flex;"><span>  c <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">rnorm</span>(p, mean <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0</span>, sd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>)              
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># design matrix and linear predictor</span>
+</span></span><span style="display:flex;"><span>  x_design <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">cbind</span>(<span style="color:#900;font-weight:bold">rep</span>(<span style="color:#099">1</span>, n), x)
+</span></span><span style="display:flex;"><span>  c_full <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">c</span>(alpha, c)
+</span></span><span style="display:flex;"><span>  odds <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">rowSums</span>(<span style="color:#900;font-weight:bold">sweep</span>(x_design, <span style="color:#099">2</span>, c_full, FUN <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;*&#34;</span>))
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># convert linear predictor to the probability scale (logit link)</span>
+</span></span><span style="display:flex;"><span>  pr <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">1</span> <span style="color:#000;font-weight:bold">/</span> (<span style="color:#099">1</span> <span style="color:#000;font-weight:bold">+</span> <span style="color:#900;font-weight:bold">exp</span>(<span style="color:#000;font-weight:bold">-</span>odds))                      
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># generate true infection data</span>
+</span></span><span style="display:flex;"><span>  truth <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">rbinom</span>(n <span style="color:#000;font-weight:bold">=</span> n, size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>, prob <span style="color:#000;font-weight:bold">=</span> pr)         
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># generate observed data with imperfect detection</span>
+</span></span><span style="display:flex;"><span>  y <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">integer</span>(n)                               
+</span></span><span style="display:flex;"><span>  <span style="color:#000;font-weight:bold">for</span> ( i <span style="color:#000;font-weight:bold">in</span> <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span>n ) {
+</span></span><span style="display:flex;"><span>    y[i] <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">ifelse</span>(truth[i] <span style="color:#000;font-weight:bold">==</span> <span style="color:#099">1</span>, <span style="color:#900;font-weight:bold">rbinom</span>(n <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>, size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>, prob <span style="color:#000;font-weight:bold">=</span> sn), 
+</span></span><span style="display:flex;"><span>                     <span style="color:#900;font-weight:bold">rbinom</span>(n <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>, size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>, prob <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span> <span style="color:#000;font-weight:bold">-</span> sp))
+</span></span><span style="display:flex;"><span>  } 
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#000;font-weight:bold">return</span>(<span style="color:#900;font-weight:bold">list</span>(N <span style="color:#000;font-weight:bold">=</span> n,
+</span></span><span style="display:flex;"><span>              P <span style="color:#000;font-weight:bold">=</span> p,
+</span></span><span style="display:flex;"><span>              y <span style="color:#000;font-weight:bold">=</span> y,
+</span></span><span style="display:flex;"><span>              x <span style="color:#000;font-weight:bold">=</span> x,
+</span></span><span style="display:flex;"><span>              true_status <span style="color:#000;font-weight:bold">=</span> truth,
+</span></span><span style="display:flex;"><span>              true_sens <span style="color:#000;font-weight:bold">=</span> sn,
+</span></span><span style="display:flex;"><span>              true_spec <span style="color:#000;font-weight:bold">=</span> sp,
+</span></span><span style="display:flex;"><span>              true_alpha <span style="color:#000;font-weight:bold">=</span> alpha,
+</span></span><span style="display:flex;"><span>              true_betas <span style="color:#000;font-weight:bold">=</span> c))
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Simulate some data with two predictors. Here sensitivity ($\hat{SN}$) = <code>0.75</code> and specificity ($\hat{SP}$) = <code>0.85</code>. Again, sensitivity is a measure of how well a test can identify true positives and specificity is a measure of how well a test can identify true negatives. These values are not unreasonable given our knowledge of how difficult it can be to detect parasite eggs in faecal smears</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>dat <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">sim_det_error</span>(n <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">250</span>, alpha <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">-0.85</span>,
+</span></span><span style="display:flex;"><span>                     p <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>, sn <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.75</span>, sp <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.85</span>)
+</span></span></code></pre></div><p>The true (latent) prevalence is</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">sum</span>(dat<span style="color:#000;font-weight:bold">$</span>true_status) <span style="color:#000;font-weight:bold">/</span> <span style="color:#900;font-weight:bold">length</span>(dat<span style="color:#000;font-weight:bold">$</span>true_status)
+</span></span></code></pre></div><pre tabindex="0"><code>## [1] 0.324
+</code></pre><p>The observed prevalence is</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">sum</span>(dat<span style="color:#000;font-weight:bold">$</span>y) <span style="color:#000;font-weight:bold">/</span> <span style="color:#900;font-weight:bold">length</span>(dat<span style="color:#000;font-weight:bold">$</span>y)
+</span></span></code></pre></div><pre tabindex="0"><code>## [1] 0.316
+</code></pre><p>Add interpretable &lsquo;prior&rsquo; information about test accuracy to the data, which will be used to structure the prior distributions for test sensitivity and specificity. Here, we use a scale of <code>-1 to 1</code> to define any prior information we may have about performance of a diagnostic test. A score of <code>-1</code> means we are fairly certain the test is bad (low accuracy). A score of <code>1</code> implies we are fairly certain the test is good. A score of <code>0</code> means we are uncertain. Let&rsquo;s assume the test gives reasonable accuracy because it is a commercial diagnostic.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>dat<span style="color:#000;font-weight:bold">$</span>sensitivity_prior <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">0.3</span>
+</span></span><span style="display:flex;"><span>dat<span style="color:#000;font-weight:bold">$</span>specificity_prior <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">0.3</span>
+</span></span></code></pre></div>
+
+
+
+<h2 id="fit-competing-models">Fit competing models
+  <a href="#fit-competing-models"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>We can assess whether it is problematic to ignore detection error when fitting models. We&rsquo;ll do this by starting with a basic logistic regression that ignores this error. To do this, we include a logical flag to tell the sampler not to include detection error</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>dat<span style="color:#000;font-weight:bold">$</span>estimate_accuracy <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">0</span>
+</span></span></code></pre></div><p>Now condition the model on the observed data using <code>Stan</code> with the <code>CmdStan</code> backend</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>fit_noerror <span style="color:#000;font-weight:bold">&lt;-</span> mod<span style="color:#000;font-weight:bold">$</span><span style="color:#900;font-weight:bold">sample</span>(
+</span></span><span style="display:flex;"><span>  data <span style="color:#000;font-weight:bold">=</span> dat, 
+</span></span><span style="display:flex;"><span>  chains <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">4</span>, 
+</span></span><span style="display:flex;"><span>  parallel_chains <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">4</span>,
+</span></span><span style="display:flex;"><span>  refresh <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">100</span>) 
+</span></span></code></pre></div><p>Next we fit an equivalent model that does estimate detection error (i.e. we change the logical flag for <code>estimate_accuracy</code> from <code>0</code> to <code>1</code>)</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>dat<span style="color:#000;font-weight:bold">$</span>estimate_accuracy <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">1</span>
+</span></span><span style="display:flex;"><span>fit_error <span style="color:#000;font-weight:bold">&lt;-</span> mod<span style="color:#000;font-weight:bold">$</span><span style="color:#900;font-weight:bold">sample</span>(
+</span></span><span style="display:flex;"><span>  data <span style="color:#000;font-weight:bold">=</span> dat, 
+</span></span><span style="display:flex;"><span>  chains <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">4</span>, 
+</span></span><span style="display:flex;"><span>  parallel_chains <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">4</span>,
+</span></span><span style="display:flex;"><span>  refresh <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">100</span>)
+</span></span></code></pre></div><p>Inspect sampler and convergence diagnostics. Any warnings of divergences or low energy should be taken seriously and inspected further. Fortunately our models fit without issue</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>fit_noerror<span style="color:#000;font-weight:bold">$</span><span style="color:#900;font-weight:bold">diagnostic_summary</span>()
+</span></span></code></pre></div><pre tabindex="0"><code>## $num_divergent
+## [1] 0 0 0 0
+## 
+## $num_max_treedepth
+## [1] 0 0 0 0
+## 
+## $ebfmi
+## [1] 0.9662539 1.0130262 0.9480790 0.9575079
+</code></pre><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>fit_error<span style="color:#000;font-weight:bold">$</span><span style="color:#900;font-weight:bold">diagnostic_summary</span>()
+</span></span></code></pre></div><pre tabindex="0"><code>## $num_divergent
+## [1] 0 0 0 0
+## 
+## $num_max_treedepth
+## [1] 0 0 0 0
+## 
+## $ebfmi
+## [1] 0.9283966 0.8561576 0.8213387 0.8475217
+</code></pre><p>Compute the usual MCMC summaries, which show that the Hamiltonian Monte Carlo chains have converged nicely</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>fit_noerror<span style="color:#000;font-weight:bold">$</span><span style="color:#900;font-weight:bold">summary</span>(variables <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;alpha&#34;</span>, <span style="color:#d14">&#34;beta&#34;</span>))
+</span></span></code></pre></div><pre tabindex="0"><code>## # A tibble: 3 × 10
+##   variable   mean median    sd   mad     q5    q95  rhat ess_bulk ess_tail
+##   &lt;chr&gt;     &lt;dbl&gt;  &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt; &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;
+## 1 alpha    -0.868 -0.865 0.142 0.143 -1.11  -0.640  1.00    4238.    2562.
+## 2 beta[1]   0.345  0.346 0.150 0.147  0.100  0.591  1.00    3803.    3122.
+## 3 beta[2]   0.389  0.388 0.148 0.150  0.149  0.634  1.00    4341.    2867.
+</code></pre><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>fit_error<span style="color:#000;font-weight:bold">$</span><span style="color:#900;font-weight:bold">summary</span>(variables <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;alpha&#34;</span>, <span style="color:#d14">&#34;beta&#34;</span>, <span style="color:#d14">&#34;sens&#34;</span>, <span style="color:#d14">&#34;spec&#34;</span>))
+</span></span></code></pre></div><pre tabindex="0"><code>## # A tibble: 5 × 10
+##   variable   mean median     sd    mad     q5     q95  rhat ess_bulk ess_tail
+##   &lt;chr&gt;     &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;   &lt;dbl&gt; &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;
+## 1 alpha    -1.18  -1.16  0.679  0.673  -2.34  -0.0840  1.00    2060.    2461.
+## 2 beta[1]   0.799  0.722 0.466  0.400   0.199  1.65    1.00    1893.    1484.
+## 3 beta[2]   0.814  0.759 0.403  0.375   0.262  1.55    1.00    1950.    1799.
+## 4 sens      0.721  0.720 0.152  0.181   0.474  0.962   1.00    1456.    1391.
+## 5 spec      0.848  0.844 0.0648 0.0674  0.747  0.965   1.00    1542.    1056.
+</code></pre>
+
+
+
+<h2 id="inference">Inference
+  <a href="#inference"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>Visualising the estimated coefficients for each of the models will allow us to ask whether ignoring detection error leads to biased inferences. First, define some colours for nice plots</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>c_light <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;#DCBCBC&#34;</span>)
+</span></span><span style="display:flex;"><span>c_light_highlight <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;#C79999&#34;</span>)
+</span></span><span style="display:flex;"><span>c_mid <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;#B97C7C&#34;</span>)
+</span></span><span style="display:flex;"><span>c_mid_highlight <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;#A25050&#34;</span>)
+</span></span><span style="display:flex;"><span>c_dark <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;#8F2727&#34;</span>)
+</span></span><span style="display:flex;"><span>c_dark_highlight <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;#7C0000&#34;</span>)
+</span></span></code></pre></div><p>Plot the estimates for the intercept parameter <code>\(\alpha\)</code> and overlay the true simulated value in black</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>alphas_noerror <span style="color:#000;font-weight:bold">&lt;-</span> fit_noerror<span style="color:#000;font-weight:bold">$</span><span style="color:#900;font-weight:bold">draws</span>(<span style="color:#d14">&#34;alpha&#34;</span>, format <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;draws_matrix&#34;</span>)
+</span></span><span style="display:flex;"><span>alphas_error <span style="color:#000;font-weight:bold">&lt;-</span> fit_error<span style="color:#000;font-weight:bold">$</span><span style="color:#900;font-weight:bold">draws</span>(<span style="color:#d14">&#34;alpha&#34;</span>, format <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;draws_matrix&#34;</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">layout</span>(<span style="color:#900;font-weight:bold">matrix</span>(<span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">2</span>, ncol <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">par</span>(mar <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">4</span>, <span style="color:#099">1</span>, <span style="color:#099">1.5</span>, <span style="color:#099">1</span>))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">hist</span>(alphas_noerror,
+</span></span><span style="display:flex;"><span>     col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;grey&#39;</span>, border <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>,
+</span></span><span style="display:flex;"><span>     yaxt <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;n&#39;</span>,
+</span></span><span style="display:flex;"><span>     ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>, xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>,
+</span></span><span style="display:flex;"><span>     xlim <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">range</span>(<span style="color:#900;font-weight:bold">c</span>(alphas_noerror, alphas_error)),
+</span></span><span style="display:flex;"><span>     breaks <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">seq</span>(<span style="color:#900;font-weight:bold">min</span>(<span style="color:#900;font-weight:bold">c</span>(alphas_noerror, alphas_error)),
+</span></span><span style="display:flex;"><span>                  <span style="color:#900;font-weight:bold">max</span>(<span style="color:#900;font-weight:bold">c</span>(alphas_noerror, alphas_error)),
+</span></span><span style="display:flex;"><span>                  length.out <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">50</span>),
+</span></span><span style="display:flex;"><span>     main <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;No detection error&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> dat<span style="color:#000;font-weight:bold">$</span>true_alpha, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3.5</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> dat<span style="color:#000;font-weight:bold">$</span>true_alpha, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;black&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">hist</span>(alphas_error,
+</span></span><span style="display:flex;"><span>     col <span style="color:#000;font-weight:bold">=</span> c_mid_highlight, border <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>,
+</span></span><span style="display:flex;"><span>     main <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Detection error&#39;</span>, 
+</span></span><span style="display:flex;"><span>     xlim <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">range</span>(<span style="color:#900;font-weight:bold">c</span>(alphas_noerror, alphas_error)),
+</span></span><span style="display:flex;"><span>     breaks <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">seq</span>(<span style="color:#900;font-weight:bold">min</span>(<span style="color:#900;font-weight:bold">c</span>(alphas_noerror, alphas_error)),
+</span></span><span style="display:flex;"><span>                  <span style="color:#900;font-weight:bold">max</span>(<span style="color:#900;font-weight:bold">c</span>(alphas_noerror, alphas_error)),
+</span></span><span style="display:flex;"><span>                  length.out <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">50</span>),
+</span></span><span style="display:flex;"><span>     yaxt <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;n&#39;</span>, ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>, xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">expression</span>(alpha))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> dat<span style="color:#000;font-weight:bold">$</span>true_alpha, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3.5</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> dat<span style="color:#000;font-weight:bold">$</span>true_alpha, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;black&#39;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/stan-detection-error/index_files/figure-html/unnamed-chunk-20-1.png" alt="Histograms of intercept parameter estimates when considering or ignoring detection error." width="576" style="display: block; margin: auto;" />
+<p>The detection error model seems to struggle estimating <code>\(\alpha\)</code> with precision, though our estimates are centred around the true simulated value. This parameter is a bit difficult to interpret in detection error models, so we will get back to that later. But our inferences on the effects of covariates are what we are primarily interested in. Next plot the estimated <code>\(\beta\)</code> coefficients for the two predictors, and again overlay the true simulated values in black</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>betas_noerror <span style="color:#000;font-weight:bold">&lt;-</span> fit_noerror<span style="color:#000;font-weight:bold">$</span><span style="color:#900;font-weight:bold">draws</span>(<span style="color:#d14">&#34;beta&#34;</span>, format <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;draws_matrix&#34;</span>)
+</span></span><span style="display:flex;"><span>betas_error <span style="color:#000;font-weight:bold">&lt;-</span> fit_error<span style="color:#000;font-weight:bold">$</span><span style="color:#900;font-weight:bold">draws</span>(<span style="color:#d14">&#34;beta&#34;</span>, format <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;draws_matrix&#34;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">layout</span>(<span style="color:#900;font-weight:bold">matrix</span>(<span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">4</span>, ncol <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>, byrow <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">FALSE</span>))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">hist</span>(betas_noerror[,<span style="color:#099">1</span>],
+</span></span><span style="display:flex;"><span>     col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;grey&#39;</span>, border <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>,
+</span></span><span style="display:flex;"><span>     xlim <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">range</span>(<span style="color:#900;font-weight:bold">c</span>(betas_noerror[,<span style="color:#099">1</span>], betas_error[,<span style="color:#099">1</span>])),
+</span></span><span style="display:flex;"><span>     breaks <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">seq</span>(<span style="color:#900;font-weight:bold">min</span>(<span style="color:#900;font-weight:bold">c</span>(betas_noerror[,<span style="color:#099">1</span>], betas_error[,<span style="color:#099">1</span>])),
+</span></span><span style="display:flex;"><span>                  <span style="color:#900;font-weight:bold">max</span>(<span style="color:#900;font-weight:bold">c</span>(betas_noerror[,<span style="color:#099">1</span>], betas_error[,<span style="color:#099">1</span>])),
+</span></span><span style="display:flex;"><span>                  length.out <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">50</span>),
+</span></span><span style="display:flex;"><span>     main <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;No detection error&#39;</span>, 
+</span></span><span style="display:flex;"><span>     yaxt <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;n&#39;</span>, ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>, xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> dat<span style="color:#000;font-weight:bold">$</span>true_betas[1], lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3.5</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> dat<span style="color:#000;font-weight:bold">$</span>true_betas[1], lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;black&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">hist</span>(betas_error[,<span style="color:#099">1</span>],
+</span></span><span style="display:flex;"><span>     col <span style="color:#000;font-weight:bold">=</span> c_mid_highlight, border <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>,
+</span></span><span style="display:flex;"><span>     xlim <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">range</span>(<span style="color:#900;font-weight:bold">c</span>(betas_noerror[,<span style="color:#099">1</span>], betas_error[,<span style="color:#099">1</span>])),
+</span></span><span style="display:flex;"><span>     breaks <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">seq</span>(<span style="color:#900;font-weight:bold">min</span>(<span style="color:#900;font-weight:bold">c</span>(betas_noerror[,<span style="color:#099">1</span>], betas_error[,<span style="color:#099">1</span>])),
+</span></span><span style="display:flex;"><span>                  <span style="color:#900;font-weight:bold">max</span>(<span style="color:#900;font-weight:bold">c</span>(betas_noerror[,<span style="color:#099">1</span>], betas_error[,<span style="color:#099">1</span>])),
+</span></span><span style="display:flex;"><span>                  length.out <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">50</span>),
+</span></span><span style="display:flex;"><span>     main <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Detection error&#39;</span>, yaxt <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;n&#39;</span>, ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>, xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">expression</span>(beta[1]))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> dat<span style="color:#000;font-weight:bold">$</span>true_betas[1], lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3.5</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> dat<span style="color:#000;font-weight:bold">$</span>true_betas[1], lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;black&#39;</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">hist</span>(betas_noerror[,<span style="color:#099">2</span>],
+</span></span><span style="display:flex;"><span>     col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;grey&#39;</span>, border <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>,
+</span></span><span style="display:flex;"><span>     xlim <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">range</span>(<span style="color:#900;font-weight:bold">c</span>(betas_noerror[,<span style="color:#099">2</span>], betas_error[,<span style="color:#099">2</span>])),
+</span></span><span style="display:flex;"><span>     main <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;No detection error&#39;</span>, 
+</span></span><span style="display:flex;"><span>     breaks <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">seq</span>(<span style="color:#900;font-weight:bold">min</span>(<span style="color:#900;font-weight:bold">c</span>(betas_noerror[,<span style="color:#099">2</span>], betas_error[,<span style="color:#099">2</span>])),
+</span></span><span style="display:flex;"><span>                  <span style="color:#900;font-weight:bold">max</span>(<span style="color:#900;font-weight:bold">c</span>(betas_noerror[,<span style="color:#099">2</span>], betas_error[,<span style="color:#099">2</span>])),
+</span></span><span style="display:flex;"><span>                  length.out <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">50</span>),
+</span></span><span style="display:flex;"><span>     yaxt <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;n&#39;</span>, ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>, xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> dat<span style="color:#000;font-weight:bold">$</span>true_betas[2], lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3.5</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> dat<span style="color:#000;font-weight:bold">$</span>true_betas[2], lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;black&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">hist</span>(betas_error[,<span style="color:#099">2</span>],
+</span></span><span style="display:flex;"><span>     col <span style="color:#000;font-weight:bold">=</span> c_mid_highlight, border <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>,
+</span></span><span style="display:flex;"><span>     xlim <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">range</span>(<span style="color:#900;font-weight:bold">c</span>(betas_noerror[,<span style="color:#099">2</span>], betas_error[,<span style="color:#099">2</span>])),
+</span></span><span style="display:flex;"><span>     breaks <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">seq</span>(<span style="color:#900;font-weight:bold">min</span>(<span style="color:#900;font-weight:bold">c</span>(betas_noerror[,<span style="color:#099">2</span>], betas_error[,<span style="color:#099">2</span>])),
+</span></span><span style="display:flex;"><span>                  <span style="color:#900;font-weight:bold">max</span>(<span style="color:#900;font-weight:bold">c</span>(betas_noerror[,<span style="color:#099">2</span>], betas_error[,<span style="color:#099">2</span>])),
+</span></span><span style="display:flex;"><span>                  length.out <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">50</span>),
+</span></span><span style="display:flex;"><span>     main <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Detection error&#39;</span>, yaxt <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;n&#39;</span>, ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>, xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">expression</span>(beta[2]))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> dat<span style="color:#000;font-weight:bold">$</span>true_betas[2], lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3.5</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> dat<span style="color:#000;font-weight:bold">$</span>true_betas[2], lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;black&#39;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/stan-detection-error/index_files/figure-html/unnamed-chunk-21-1.png" alt="Histograms of coefficient parameter estimates when considering or ignoring detection error." width="576" style="display: block; margin: auto;" />
+<p>Here it is immediately clear why we should account for imperfect detection when possible. The detection error model gives better estimates for both coefficients. If we had to make decisions based on these parameters, and we did not account for detection error, our decisions would be wrong. Why is there large uncertainty in these estimates? To answer this, we need to plot the estimates for the test diagnostics</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">layout</span>(<span style="color:#900;font-weight:bold">matrix</span>(<span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">2</span>, ncol <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">par</span>(mar <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">4</span>, <span style="color:#099">1</span>, <span style="color:#099">1.5</span>, <span style="color:#099">1</span>))
+</span></span><span style="display:flex;"><span>posterior_sens <span style="color:#000;font-weight:bold">&lt;-</span> fit_error<span style="color:#000;font-weight:bold">$</span><span style="color:#900;font-weight:bold">draws</span>(<span style="color:#d14">&#34;sens&#34;</span>, format <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;draws_matrix&#34;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">hist</span>(posterior_sens,
+</span></span><span style="display:flex;"><span>     xlim <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">0</span>, <span style="color:#099">1</span>),
+</span></span><span style="display:flex;"><span>     breaks <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">seq</span>(<span style="color:#099">0</span>, <span style="color:#099">1</span>, length.out <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">30</span>),
+</span></span><span style="display:flex;"><span>     col <span style="color:#000;font-weight:bold">=</span> c_mid_highlight, border <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>,
+</span></span><span style="display:flex;"><span>     main <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>, yaxt <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;n&#39;</span>, ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>, xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Sensitivity&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> dat<span style="color:#000;font-weight:bold">$</span>true_sens, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3.5</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> dat<span style="color:#000;font-weight:bold">$</span>true_sens, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;black&#39;</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>posterior_spec <span style="color:#000;font-weight:bold">&lt;-</span> fit_error<span style="color:#000;font-weight:bold">$</span><span style="color:#900;font-weight:bold">draws</span>(<span style="color:#d14">&#34;spec&#34;</span>, format <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;draws_matrix&#34;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">hist</span>(posterior_spec,
+</span></span><span style="display:flex;"><span>     xlim <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">0</span>, <span style="color:#099">1</span>),
+</span></span><span style="display:flex;"><span>     breaks <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">seq</span>(<span style="color:#099">0</span>, <span style="color:#099">1</span>, length.out <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">30</span>),
+</span></span><span style="display:flex;"><span>     col <span style="color:#000;font-weight:bold">=</span> c_mid_highlight, border <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>,
+</span></span><span style="display:flex;"><span>     main <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>, yaxt <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;n&#39;</span>, ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>, xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Specificity&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> dat<span style="color:#000;font-weight:bold">$</span>true_spec, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3.5</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> dat<span style="color:#000;font-weight:bold">$</span>true_spec, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;black&#39;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/stan-detection-error/index_files/figure-html/unnamed-chunk-22-1.png" alt="Recovering diagnostic sensitivity and specificity using detection error models." width="576" style="display: block; margin: auto;" />
+<p>Further investigation helps to diagnose why <code>\(\alpha\)</code> is difficult to identify for the detection error model.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">layout</span>(<span style="color:#900;font-weight:bold">matrix</span>(<span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">2</span>, ncol <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">par</span>(mar <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">4</span>, <span style="color:#099">4</span>, <span style="color:#099">1.5</span>, <span style="color:#099">1</span>))
+</span></span><span style="display:flex;"><span>posterior_sens <span style="color:#000;font-weight:bold">&lt;-</span> fit_error<span style="color:#000;font-weight:bold">$</span><span style="color:#900;font-weight:bold">draws</span>(<span style="color:#d14">&#34;sens&#34;</span>, format <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;draws_matrix&#34;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot</span>(alphas_error, posterior_sens,  xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>, 
+</span></span><span style="display:flex;"><span>     ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Sensitivity&#39;</span>, bty <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;l&#39;</span>, pch <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">16</span>, col <span style="color:#000;font-weight:bold">=</span> c_mid_highlight)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">box</span>(bty <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;l&#39;</span>, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(h <span style="color:#000;font-weight:bold">=</span> dat<span style="color:#000;font-weight:bold">$</span>true_sens, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3.5</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(h <span style="color:#000;font-weight:bold">=</span> dat<span style="color:#000;font-weight:bold">$</span>true_sens, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;black&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> dat<span style="color:#000;font-weight:bold">$</span>true_alpha, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3.5</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> dat<span style="color:#000;font-weight:bold">$</span>true_alpha, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;black&#39;</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>posterior_spec <span style="color:#000;font-weight:bold">&lt;-</span> fit_error<span style="color:#000;font-weight:bold">$</span><span style="color:#900;font-weight:bold">draws</span>(<span style="color:#d14">&#34;spec&#34;</span>, format <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;draws_matrix&#34;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot</span>(alphas_error, posterior_spec,  xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">expression</span>(alpha), 
+</span></span><span style="display:flex;"><span>     ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Specificity&#39;</span>, bty <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;l&#39;</span>, pch <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">16</span>, col <span style="color:#000;font-weight:bold">=</span> c_mid_highlight)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">box</span>(bty <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;l&#39;</span>, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(h <span style="color:#000;font-weight:bold">=</span> dat<span style="color:#000;font-weight:bold">$</span>true_spec, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3.5</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(h <span style="color:#000;font-weight:bold">=</span> dat<span style="color:#000;font-weight:bold">$</span>true_spec, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;black&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> dat<span style="color:#000;font-weight:bold">$</span>true_alpha, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3.5</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> dat<span style="color:#000;font-weight:bold">$</span>true_alpha, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;black&#39;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/stan-detection-error/index_files/figure-html/unnamed-chunk-23-1.png" width="576" style="display: block; margin: auto;" />
+<p>There are fundamental posterior correlations induced between <code>\(\alpha\)</code> and sensitivity and between <code>\(\alpha\)</code> and specificity. This model cannot estimate sensitivity or specificity with much precision, resulting in wide estimates of <code>\(\alpha\)</code>. There is nothing implicitly wrong here, these uncertainties simply reflect reality: We do not know the true infection status, and we do not know the true test performance. Without knowing these, how can we precisely estimate the average infection probability <code>\(\alpha\)</code>? Stronger priors on diagnostic accuracies could help, but these uncertainties will not entirely go away without sampling many more individuals.</p>
+<p>A very useful question raised by 
+<a href="https://researchers.uq.edu.au/researcher/1308" target="_blank" rel="noopener">A/Prof Joerg Henning</a> relates to translating what these results might mean for a practicing clinician. Often we want to know how likely it is that a person is truly infected if they&rsquo;ve returned a positive diagnostic test. A famous (and very topical) problem in probability theory is the 
+<a href="https://www.youtube.com/watch?v=4bD0recrwiw" target="_blank" rel="noopener">base rate fallacy</a>. This occurs when we ignore the background rate (or prevalence of disease, in our case) when interpreting test results. No test is perfect, so they will sometimes return false positives. But if there are very few true positives in the population (because the disease is rare), this can mean that a high proportion of people testing positive are actually <em>uninfected</em>. To quote from 
+<a href="https://en.wikipedia.org/wiki/Base_rate_fallacy" target="_blank" rel="noopener"><code>Wikipedia</code></a>: &ldquo;It is especially counter-intuitive when interpreting a positive result in a test on a low-prevalence population after having dealt with positive results drawn from a high-prevalence population. If the false positive rate of the test is higher than the proportion of the new population with the condition, then a test administrator whose experience has been drawn from testing in a high-prevalence population may conclude from experience that a positive test result usually indicates a positive subject, when in fact a false positive is far more likely to have occurred.&rdquo;</p>
+<p>We can use sampling from our model&rsquo;s joint posterior distribution to calculate the probability that someone returning a positive test is actually infected, which requires the following equation:
+<code>$$Pr(true~infect|pos~test) = Pr(pos~test|true~infect) * Pr(infected) /  (Pr(pos~test|true~infect) * Pr(infect) + Pr(pos~test|true~uninfect) * Pr(uninfect))$$</code></p>
+<p>For details of this derivation, please read 
+<a href="https://www.lri.fr/~mbl/COVID19/bayes.html" target="_blank" rel="noopener">here</a> and 
+<a href="https://en.wikipedia.org/wiki/Base_rate_fallacy" target="_blank" rel="noopener">here</a>).</p>
+<p>Because I&rsquo;m no wizard in probability theory, I&rsquo;ll use brute force sampling to calculate this quantity. First, create a sample sequence to generate many posterior simulations. We do this because we want many thousands of samples, but we only have <code>4000</code> in our posterior.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>N_samples <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">25000</span>
+</span></span><span style="display:flex;"><span>sample_seq <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">sample</span>(<span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#900;font-weight:bold">NROW</span>(posterior_sens), N_samples, replace <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>)
+</span></span></code></pre></div><p>Next, sample latent (true) infection status for <code>25000</code> individuals using the logistic regression equation estimated by our model</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>true_inf <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">matrix</span>(<span style="color:#000;font-weight:bold">NA</span>, nrow <span style="color:#000;font-weight:bold">=</span> N_samples, ncol <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">NROW</span>(dat<span style="color:#000;font-weight:bold">$</span>x))
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">for</span>(i <span style="color:#000;font-weight:bold">in</span> <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span>N_samples){
+</span></span><span style="display:flex;"><span>  true_inf[i,] <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">rbinom</span>(<span style="color:#900;font-weight:bold">NROW</span>(dat<span style="color:#000;font-weight:bold">$</span>x),
+</span></span><span style="display:flex;"><span>                         size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>,
+</span></span><span style="display:flex;"><span>                         prob <span style="color:#000;font-weight:bold">=</span> boot<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">inv.logit</span>(alphas_error[sample_seq[i]] <span style="color:#000;font-weight:bold">+</span> 
+</span></span><span style="display:flex;"><span>                                                  dat<span style="color:#000;font-weight:bold">$</span>x <span style="color:#000;font-weight:bold">%*%</span> <span style="color:#900;font-weight:bold">as.vector</span>(betas_noerror[sample_seq[i],])))
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Sample observed test diagnostics given our model&rsquo;s estimates for sensitivity and specificity</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>test_results <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">matrix</span>(<span style="color:#000;font-weight:bold">NA</span>, nrow <span style="color:#000;font-weight:bold">=</span> N_samples, ncol <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">NROW</span>(dat<span style="color:#000;font-weight:bold">$</span>x))    
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">for</span>(i <span style="color:#000;font-weight:bold">in</span> <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span>N_samples){
+</span></span><span style="display:flex;"><span>  <span style="color:#000;font-weight:bold">for</span>(j <span style="color:#000;font-weight:bold">in</span> <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#900;font-weight:bold">NCOL</span>(test_results)){
+</span></span><span style="display:flex;"><span>    test_results[i,j] <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">ifelse</span>(true_inf[i,j] <span style="color:#000;font-weight:bold">==</span> <span style="color:#099">1</span>, 
+</span></span><span style="display:flex;"><span>                                <span style="color:#900;font-weight:bold">rbinom</span>(n <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>, 
+</span></span><span style="display:flex;"><span>                                       size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>, 
+</span></span><span style="display:flex;"><span>                                       prob <span style="color:#000;font-weight:bold">=</span> posterior_sens[sample_seq[i]]), 
+</span></span><span style="display:flex;"><span>                                <span style="color:#900;font-weight:bold">rbinom</span>(n <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>, 
+</span></span><span style="display:flex;"><span>                                       size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>, 
+</span></span><span style="display:flex;"><span>                                       prob <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span> <span style="color:#000;font-weight:bold">-</span> posterior_spec[sample_seq[i]]))
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>} 
+</span></span></code></pre></div><p>Now we have all the samples we need to calculate relevant probabilistic quantities. Calculate the probability that an individual returns a positive test if they are actually infected. We would hope this value would be high, but that is not always the case</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">`Pr</span>(positive test<span style="color:#000;font-weight:bold">|</span>truly infected)` &lt;- vector(length = N_samples)
+</span></span><span style="display:flex;"><span>for(i in 1:N_samples){
+</span></span><span style="display:flex;"><span>  `<span style="color:#900;font-weight:bold">Pr</span>(positive test<span style="color:#000;font-weight:bold">|</span>truly infected)`[i] = sum(test_results[i, which(true_inf[i,] == 1)]) / 
+</span></span><span style="display:flex;"><span>    length(which(true_inf[i,] == 1))
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>quantile(`<span style="color:#900;font-weight:bold">Pr</span>(positive test<span style="color:#000;font-weight:bold">|</span>truly infected)`, probs <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">0.1</span>, <span style="color:#099">0.25</span>, <span style="color:#099">0.5</span>, <span style="color:#099">0.75</span>, <span style="color:#099">0.9</span>))
+</span></span></code></pre></div><pre tabindex="0"><code>##       10%       25%       50%       75%       90% 
+## 0.5000000 0.5967742 0.7241379 0.8529412 0.9428571
+</code></pre><p>Next calculate the probability that any individual in the population is infected (prevalence)</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">`Pr</span>(infected)` &lt;- vector(length = N_samples)
+</span></span><span style="display:flex;"><span>for(i in 1:N_samples){
+</span></span><span style="display:flex;"><span>  `<span style="color:#900;font-weight:bold">Pr</span>(infected)`[i] = sum(true_inf[i,]) / length(true_inf[i,])
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>quantile(`<span style="color:#900;font-weight:bold">Pr</span>(infected)`, probs <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">0.1</span>, <span style="color:#099">0.25</span>, <span style="color:#099">0.5</span>, <span style="color:#099">0.75</span>, <span style="color:#099">0.9</span>))
+</span></span></code></pre></div><pre tabindex="0"><code>##   10%   25%   50%   75%   90% 
+## 0.124 0.180 0.256 0.348 0.440
+</code></pre><p>Now we need the probability of returning a positive test if someone is truly uninfected. We would hope this value would be quite low</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">`Pr</span>(positive test<span style="color:#000;font-weight:bold">|</span>truly uninfected)` &lt;- vector(length = N_samples)
+</span></span><span style="display:flex;"><span>for(i in 1:N_samples){
+</span></span><span style="display:flex;"><span>  `<span style="color:#900;font-weight:bold">Pr</span>(positive test<span style="color:#000;font-weight:bold">|</span>truly uninfected)`[i] = sum(test_results[i, which(true_inf[i,] == 0)]) / 
+</span></span><span style="display:flex;"><span>    length(which(true_inf[i,] == 0))
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>quantile(`<span style="color:#900;font-weight:bold">Pr</span>(positive test<span style="color:#000;font-weight:bold">|</span>truly uninfected)`, probs <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">0.1</span>, <span style="color:#099">0.25</span>, <span style="color:#099">0.5</span>, <span style="color:#099">0.75</span>, <span style="color:#099">0.9</span>))
+</span></span></code></pre></div><pre tabindex="0"><code>##        10%        25%        50%        75%        90% 
+## 0.05552764 0.10256410 0.15384615 0.20105820 0.24117647
+</code></pre><p>Now the probability that any individual is uninfected, which is <code>1 - Pr(infected)</code></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">`Pr</span>(uninfected)` &lt;- vector(length = N_samples)
+</span></span><span style="display:flex;"><span>for(i in 1:N_samples){
+</span></span><span style="display:flex;"><span>  `<span style="color:#900;font-weight:bold">Pr</span>(uninfected)`[i] = 1 - `<span style="color:#900;font-weight:bold">Pr</span>(infected)`[i]
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>quantile(`<span style="color:#900;font-weight:bold">Pr</span>(uninfected)`, probs <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">0.1</span>, <span style="color:#099">0.25</span>, <span style="color:#099">0.5</span>, <span style="color:#099">0.75</span>, <span style="color:#099">0.9</span>))
+</span></span></code></pre></div><pre tabindex="0"><code>##   10%   25%   50%   75%   90% 
+## 0.560 0.652 0.744 0.820 0.876
+</code></pre><p>Finally, we can calculate our quantity of interest: the probability that an individual is actually infected if they return a positive test</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">`Pr</span>(truly infected<span style="color:#000;font-weight:bold">|</span>positive test)` &lt;- vector(length = N_samples)
+</span></span><span style="display:flex;"><span>for(i in 1:N_samples){
+</span></span><span style="display:flex;"><span>  `<span style="color:#900;font-weight:bold">Pr</span>(truly infected<span style="color:#000;font-weight:bold">|</span>positive test)`[i] = `<span style="color:#900;font-weight:bold">Pr</span>(positive test<span style="color:#000;font-weight:bold">|</span>truly infected)`[i] * `<span style="color:#900;font-weight:bold">Pr</span>(infected)`[i] / 
+</span></span><span style="display:flex;"><span>    (`<span style="color:#900;font-weight:bold">Pr</span>(positive test<span style="color:#000;font-weight:bold">|</span>truly infected)`[i] * `<span style="color:#900;font-weight:bold">Pr</span>(infected)`[i] + 
+</span></span><span style="display:flex;"><span>       `<span style="color:#900;font-weight:bold">Pr</span>(positive test<span style="color:#000;font-weight:bold">|</span>truly uninfected)`[i] * `<span style="color:#900;font-weight:bold">Pr</span>(uninfected)`[i])
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">hist</span>(<span style="color:#900;font-weight:bold">`Pr</span>(truly infected<span style="color:#000;font-weight:bold">|</span>positive test)`,
+</span></span><span style="display:flex;"><span>     xlim <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">0</span>, <span style="color:#099">1</span>),
+</span></span><span style="display:flex;"><span>     breaks <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">seq</span>(<span style="color:#099">0</span>, <span style="color:#099">1</span>, length.out <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">30</span>),
+</span></span><span style="display:flex;"><span>     col <span style="color:#000;font-weight:bold">=</span> c_mid_highlight, border <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>,
+</span></span><span style="display:flex;"><span>     main <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>, yaxt <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;n&#39;</span>, ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>, 
+</span></span><span style="display:flex;"><span>     xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Pr(truly infected|positive test)&#39;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/stan-detection-error/index_files/figure-html/unnamed-chunk-32-1.png" alt="Estimating true disease burden using detection error models in Stan." width="576" style="display: block; margin: auto;" />
+<p>With imperfect tests and somewhat rare infections (~<code>30%</code> in this example), we can&rsquo;t be too sure that a positive test means a true infection. This all changes of course if we have other reasons to believe a person is infected. For example, if we only test people that show some symptoms, we are sampling a very different population compared to the full population of healthy and unhealthy individuals. Hopefully this example illustrates why simple logistic regressions are often not enough to tackle the questions we are interested in.</p>
+
+      </section>
+      <footer class="post-footer">
+        <div class="post-pagination dt w-100 mt4 mb2">
+  
+  
+    <a class="prev dtc pr2 tl v-top fw6"
+    href="https://ecogambler.netlify.app/blog/simulating-data-r/">&larr; Simulating data for model exploration in R</a>
+  
+  
+  
+    <a class="next dtc pl2 tr v-top fw6"
+    href="https://ecogambler.netlify.app/blog/phylogenetic-smooths-mgcv/">Phylogenetic smoothing using mgcv &rarr;</a>
+  
+</div>
+
+      </footer>
+    </article>
+    
+      
+<div class="post-comments pa0 pa4-l mt4">
+  
+  <script src="https://utteranc.es/client.js"
+          repo="apreshill/apero"
+          issue-term="pathname"
+          theme="boxy-light"
+          label="comments :crystal_ball:"
+          crossorigin="anonymous"
+          async
+          type="text/javascript">
+  </script>
+  
+</div>
+
+    
+  </section>
+</main>
+<aside class="page-sidebar" role="complementary">
+                         
+ 
+
+
+                       
+ 
+
+
+
+
+
+
+
+
+
+
+
+  <img src="/blog/sidebar-listing.jpg" class="db ma0">
+
+
+<div class="blog-info ph4 pt4 pb4 pb0-l">
+  
+
+  <h1 class="f3">GAMbler</h1>
+  <p class="f6 lh-copy measure">A blog on (somewhat) interesting and (hopefully) useful tips for ecological modeling, with (perhaps too much) emphasis on Generalized Additive Models.</p>
+  <p class="f7 measure lh-copy i mh0-l">Written by Nicholas Clark (n.clark&rsquo;at&rsquo;uq.edu.au)</p>
+
+
+  
+  <div class="dib bt bw1 b--black-10">
+    
+      <small class="db f7 pt3"><a href="/blog/" class="dib fw7 ttu">View recent posts</a></small>
+    
+    
+    
+    
+  </div>
+
+
+</div>
+
+
+  
+  <details open class="f6 fw7 input-reset">
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Posted on:</dt>
+    <dd class="fw5 ml0">March 10, 2024</dd>
+  </dl>
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Length:</dt>
+    <dd class="fw5 ml0">18 minute read, 3778 words</dd>
+  </dl>
+  
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Categories:</dt>
+    <dd class="fw5 ml0"> <a href="https://ecogambler.netlify.app/categories/stan">stan</a>  <a href="https://ecogambler.netlify.app/categories/simulation">simulation</a> </dd>
+  </dl>
+  
+  
+  
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Tags:</dt>
+    <dd class="fw5 ml0"> <a href="https://ecogambler.netlify.app/tags/rstats">rstats</a>  <a href="https://ecogambler.netlify.app/tags/stan">stan</a>  <a href="https://ecogambler.netlify.app/tags/simulation">simulation</a>  <a href="https://ecogambler.netlify.app/tags/confounding">confounding</a>  <a href="https://ecogambler.netlify.app/tags/tutorial">tutorial</a> </dd>
+  </dl>
+  
+  <dl class="f6 lh-copy">
+    <dt class="fw7">See Also:</dt>
+    
+    <dd class="fw5 ml0"><a href="/blog/emergency-department-shiny/">Building an Interactive Emergency Department Dashboard with Shiny</a></dd>
+    
+    <dd class="fw5 ml0"><a href="/blog/plant-community-dirichlet/">Compositional modeling of plant communities with Dirichlet regression</a></dd>
+    
+    <dd class="fw5 ml0"><a href="/blog/clv-prediction/">GAMs for Customer Lifetime Value (CLV) prediction</a></dd>
+    
+  </dl>
+</details>
+
+                           
+  
+  
+  
+ <nav id="TableOfContents" class="sticky ph4 pb4 pt6" role="navigation"> 
+   <h2 class="mv0 f5 fw7 ttu tracked dib">On this page</h2> 
+     <nav id="TableOfContents">
+  <ul>
+    <li><a href="#required-libraries">Required libraries</a></li>
+    <li><a href="#purpose-and-model-introduction">Purpose and model introduction</a></li>
+    <li><a href="#define-the-joint-probabilistic-model">Define the joint probabilistic model</a></li>
+    <li><a href="#simulate-data">Simulate data</a></li>
+    <li><a href="#fit-competing-models">Fit competing models</a></li>
+    <li><a href="#inference">Inference</a></li>
+  </ul>
+</nav> 
+ </nav> 
+  
+
+</aside>
+<footer class="site-footer pv4 bt b--transparent ph5" role="contentinfo">
+  <nav class="db dt-l w-100">
+    <p class="site-copyright f7 db dtc-l v-mid w-100 w-33-l tc tl-l pv2 pv0-l mv0 lh-copy">
+      © Nicholas J Clark (2024)
+      <span class="middot-divider"></span>
+      Made with <span xmlns:dct="http://purl.org/dc/terms/" property="dct:title"><a xmlns:dct="http://purl.org/dc/terms/" href="https://github.com/hugo-apero/" rel="dct:source">Hugo Apéro</a></span>.
+      <br />
+      
+Based on <span xmlns:dct="http://purl.org/dc/terms/" property="dct:title"><a xmlns:dct="http://purl.org/dc/terms/" href="https://github.com/formspree/blogophonic-hugo" rel="dct:source">Blogophonic</a></span> by <a xmlns:cc="http://creativecommons.org/ns#" href="https://formspree.io" property="cc:attributionName" rel="cc:attributionURL">Formspree</a>.
+    </p>
+    
+    <div class="site-social-links db dtc-l v-mid w-100 w-33-l tc pv2 pv0-l mv0">
+      <div class="social-icon-links" aria-hidden="true">
+  
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://github.com/nicholasjclark" title="github" target="_blank" rel="me noopener">
+      <i class="fab fa-github fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://www.youtube.com/@NJ_Clark" title="youtube" target="_blank" rel="me noopener">
+      <i class="fab fa-youtube fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://bsky.app/profile/njclark.bsky.social" title="mixcloud" target="_blank" rel="me noopener">
+      <i class="fab fa-mixcloud fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://orcid.org/0000-0001-7131-3301" title="orcid" target="_blank" rel="me noopener">
+      <i class="ai ai-orcid fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://scholar.google.com.au/citations?user=5bO9uxEAAAAJ&amp;hl=en" title="google-scholar" target="_blank" rel="me noopener">
+      <i class="ai ai-google-scholar fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="/blog/index.xml" title="rss" >
+      <i class="fas fa-rss fa-lg fa-fw"></i>
+    </a>
+  
+</div>
+
+    </div>
+    
+    <div class="site-links f6 db dtc-l v-mid w-100 w-67-l tc tr-l pv2 pv0-l mv0">
+      
+      <a class="dib pv1 ph2 link" href="/license/" title="License">License</a>
+      
+      <a class="dib pv1 ph2 link" href="/contributors/" title="Contributors">Collaborators</a>
+      
+    </div>
+  </nav>
+  
+    <script>
+
+    var i, text, code, codes = document.getElementsByTagName('code');
+    for (let i = 0; i < codes.length;) {
+      code = codes[i];
+      if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+        text = code.textContent;
+        if (/^\$[^$]/.test(text) && /[^$]\$$/.test(text)) {
+          text = text.replace(/^\$/, '\\(').replace(/\$$/, '\\)');
+          code.textContent = text;
+        }
+        if (/^\\\((.|\s)+\\\)$/.test(text) ||
+            /^\\\[(.|\s)+\\\]$/.test(text) ||
+            /^\$(.|\s)+\$$/.test(text) ||
+            /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+          code.outerHTML = code.innerHTML;  
+          continue;
+        }
+      }
+      i++;
+    }
+</script>
+
+  
+    
+    
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/katex.min.css" integrity="sha384-RZU/ijkSsFbcmivfdRBQDtwuwVqK7GMOw6IMvKyeWL2K5UAlyp6WonmB8m7Jd0Hn" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/katex.min.js" integrity="sha384-pK1WpvzWVBQiP0/GjnvRxV4mOb0oxFuyRxJlk6vVw146n3egcN5C925NCP7a7BY8" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/contrib/auto-render.min.js" integrity="sha384-vZTG03m+2yp6N6BNi5iM4rW4oIwk5DfcNdFfxkk9ZWpDriOkXX8voJBFrAO7MpVl" crossorigin="anonymous" onload="renderMathInElement(document.body);"></script>
+
+
+
+    
+  
+  
+</footer>
+
+      </div>
+    </body>
+</html>

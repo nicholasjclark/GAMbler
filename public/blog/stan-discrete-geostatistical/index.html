@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr"><head>
+  
+                           
+     
+
+
+<meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="generator" content="Hugo 0.123.8">
+<title>Using Stan to model geostatistical count data with distance matrices | GAMbler</title>
+
+
+<meta property="twitter:site" content="@twitter = &#34;nj_clark&#34;">
+<meta property="twitter:creator" content="@twitter = &#34;nj_clark&#34;">
+
+
+
+
+
+
+
+  
+    
+  
+<meta name="description" content="Switching to spatial regression modeling, I here show how to simulate discrete observations over a latent Gaussian Process spatial autocorrelation function. I then demonstrate how to use Stan to estimate parameters of the model using a spatial distance matrix as input.">
+
+
+<meta property="og:site_name" content="GAMbler">
+<meta property="og:title" content="Using Stan to model geostatistical count data with distance matrices | GAMbler">
+<meta property="og:description" content="Switching to spatial regression modeling, I here show how to simulate discrete observations over a latent Gaussian Process spatial autocorrelation function. I then demonstrate how to use Stan to estimate parameters of the model using a spatial distance matrix as input." />
+<meta property="og:type" content="page" />
+<meta property="og:url" content="https://ecogambler.netlify.app/blog/stan-discrete-geostatistical/" />
+<meta property="og:locale" content="en">
+
+
+
+
+    
+        <meta property="og:image" content="https://ecogambler.netlify.app/blog/stan-discrete-geostatistical/featured.png" >
+        <meta property="twitter:card" content="summary_large_image">
+        <meta name="twitter:image" content="https://ecogambler.netlify.app/blog/stan-discrete-geostatistical/featured.png" >
+    
+    
+  <meta itemprop="name" content="Using Stan to model geostatistical count data with distance matrices">
+<meta itemprop="description" content="Required libraries cmdstanr
+MASS
+raster
+ggplot2
+viridis
+Purpose and model introduction This script simulates Poisson observations of an underlying spatially autocorrelated data generating process. It also provides Stan code for estimating parameters of the model in a Bayesian framework. Observations \(\boldsymbol{Y}\) are assumed to be drawn from a Poisson distribution with location \(\lambda\):
+$$for\:i=1,...,N$$
+$$\boldsymbol{Y}_{i}\sim \text{Poisson}(\lambda_{i})$$
+A linear predictor is modeled on the \(log\) scale to capture effects of covariates and a spatial effect on \(\lambda\):"><meta itemprop="datePublished" content="2023-11-16T00:00:00+00:00" />
+<meta itemprop="dateModified" content="2023-11-16T00:00:00+00:00" />
+<meta itemprop="wordCount" content="3881"><meta itemprop="image" content="https://ecogambler.netlify.app/blog/stan-discrete-geostatistical/featured.png" />
+<meta itemprop="keywords" content="rstats,stan,simulation,spatial,tutorial," />
+  
+  <!--[if IE]><script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script><![endif]-->
+  <link rel="shortcut icon" href="/img/header_logo.ico" type="image/x-icon">
+  <link rel="icon" href="/img/header_logo.ico" type="image/x-icon">
+  
+  
+  <link rel="stylesheet" href="/style.main.min.13ba2c07d7acc52c13dbb9003240e2adf360a5d73e1392ede873916180ee1701.css" integrity="sha256-E7osB9esxSwT27kAMkDirfNgpdc&#43;E5Lt6HORYYDuFwE=" media="screen">
+  
+  
+  <script src="/panelset.min.ed1ac24b6e16f4e2481e3d1d098ae66f5bc77438aef619e6e266d8ac5b00dc72.js" type="text/javascript"></script>
+  
+  
+  <script src="/main.min.7c7401b27b903bdc8736f72a2f739f7602bf606c451e8cb5e7fab2bf6b4af582.js" type="text/javascript"></script>
+</head>
+<body>
+      <div class="grid-container single-sidebar">
+<header class="site-header pt4 pb2 mb4 bb b--transparent ph5 headroom z-max" role="banner">
+  <nav class="site-nav db dt-l w-100" role="navigation">
+    <a class="site-brand db dtc-l v-mid link no-underline w-100 w-33-l tc tl-l" href="https://ecogambler.netlify.app/" title="Home">
+      <img src="/img/header_logo.png" class="dib db-l h2 w-auto" alt="GAMbler">
+    </a>
+    <div class="site-links db dtc-l v-mid w-100 w-47-l tc tr-l mt3 mt0-l ttu tracked">
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 active" href="/blog/" title="Blog">Blog</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/project/" title="Project Portfolio">Software</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/talk/" title="Talks">Talks &amp; Workshops</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/opportunities/" title="Opportunities">Opportunities</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/archives/" title="Archive">Archive</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/blogroll/" title="Blogroll">Blogroll</a>
+      
+      
+    </div>
+  </nav>
+</header>
+
+<main class="page-main pa4" role="main">
+  <section class="page-content mw7 center">
+    <article class="post-content pa0 pr3-l">
+      <header class="post-header">
+        <h1 class="f1 lh-solid measure-narrow mb3 fw4">Using Stan to model geostatistical count data with distance matrices</h1>
+        
+        <p class="f6 measure lh-copy mv1">By Nicholas Clark in <a href="https://ecogambler.netlify.app/categories/stan">stan</a>  <a href="https://ecogambler.netlify.app/categories/simulation">simulation</a> </p>
+        <p class="f7 db mv0 ttu">November 16, 2023</p>
+      </header>
+      <section class="post-body pt5 pb4">
+        
+
+
+
+<h2 id="required-libraries">Required libraries
+  <a href="#required-libraries"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p><code>cmdstanr</code><br>
+<code>MASS</code><br>
+<code>raster</code><br>
+<code>ggplot2</code><br>
+<code>viridis</code></p>
+
+
+
+
+<h2 id="purpose-and-model-introduction">Purpose and model introduction
+  <a href="#purpose-and-model-introduction"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>This script simulates Poisson observations of an underlying spatially autocorrelated data generating process. It also provides <code>Stan</code> code for estimating parameters of the model in a Bayesian framework. Observations <code>\(\boldsymbol{Y}\)</code> are assumed to be drawn from a Poisson distribution with location <code>\(\lambda\)</code>:</p>
+<p><code>$$for\:i=1,...,N$$</code></p>
+<p><code>$$\boldsymbol{Y}_{i}\sim \text{Poisson}(\lambda_{i})$$</code></p>
+<p>A linear predictor is modeled on the <code>\(log\)</code> scale to capture effects of covariates and a spatial effect on <code>\(\lambda\)</code>:</p>
+<p><code>$$log(\lambda)={\beta}*\boldsymbol{X}+\phi$$</code></p>
+<p><code>\(\beta\)</code> is the set of regression coefficients that describe associations between predictor variables in the model design matrix <code>\(\boldsymbol{X}\)</code> and <code>\(log(\lambda)\)</code>. <code>\(\phi\)</code> captures spatial effects, which can be modeled using a wide variety of functions (i.e. splines, hierarchical intercepts indexed by region, Gaussian Processes etc&hellip;). In this example, we use a spatial Gaussian Process with squared exponential covariance kernel:</p>
+<p><code>$$\phi\sim \text{MultiNormal}(0, \Sigma)$$</code>
+<code>\(\Sigma\)</code> is a covariance matrix with:
+<code>$$\Sigma[i, j] = \alpha^ 2* exp(-0.5 * ((\boldsymbol{distances[i, j]} / \rho))^2),~if~~i~!= j$$</code>
+<code>$$\Sigma[i, j] = \alpha^ 2,~if~~i~= j$$</code></p>
+<p>The term <code>\(exp(-0.5 * ((\boldsymbol{distances[i, j]} / \rho)) ^ 2)\)</code> is the spatial kernel function and depends on <code>\(\rho\)</code> (often called the length scale parameter), which controls how quickly the correlations between spatial points decay as a function of geographical distance (in km). The parameter <code>\(\alpha\)</code> controls the marginal variability of the spatial function at all points; in other words it controls how much the spatial term contributes to the linear predictor.</p>
+
+
+
+
+<h2 id="define-the-joint-probabilistic-model">Define the joint probabilistic model
+  <a href="#define-the-joint-probabilistic-model"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>First we will define the <code>Stan</code> model code for estimating parameters under the model outlined above.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>gp_stan_code <span style="color:#000;font-weight:bold">&lt;-</span>
+</span></span><span style="display:flex;"><span><span style="color:#d14">&#39;
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">functions {
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // Function to compute the squared exponential covariance matrix and
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // take the cholesky decomposition for more efficient computation
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // of multivariate normal realisations
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  matrix L_cov_exp_quad_dis(
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">          int N,
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">          matrix distances,
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">			    real alpha,
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">			    real rho,
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">			    real delta) {
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">    matrix[N, N] Sigma;
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">    Sigma = square(alpha) * exp(-0.5 * (square(distances / rho))) +
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">            diag_matrix(rep_vector(delta, N));
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">    return cholesky_decompose(Sigma);
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  }
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">}
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">data {
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">    int N;                    // total number of observations
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">    matrix[N, N] distances;   // distance matrix (in km)
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">    int K;                    // number of columns in the model matrix
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">    matrix[N,K] X;            // the model matrix
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">    array[N] int&lt;lower=0&gt; y;  // the response variable (as non-negative integers)
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">}
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">transformed data {
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // Small offset to ensure the covariance matrix is positive definite
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  real delta = 1e-9;
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">}
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">parameters {
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // Define any unknown parameters to be sampled
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  vector[K] beta;
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  real&lt;lower=0&gt; rho;
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  real&lt;lower=0&gt; alpha;
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  vector[N] eta;
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">}
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">transformed parameters {
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // Calculate the latent Gaussian process function (phi)
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  matrix[N, N] L_chol = L_cov_exp_quad_dis(N, distances, alpha, rho, delta);
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  vector[N] gp_function = L_chol * eta;
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">}
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">model {
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // Prior for the GP length scale (i.e. spatial decay)
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // very small values will be inidentifiable, so an informative prior
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // is a must
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  rho ~ normal(2, 2.5);
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // Prior for the GP covariance magnitude
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  alpha ~ std_normal();
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // Multiplier for non-centred GP parameterisation
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  eta ~ std_normal();
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // Likelihood, where the linear
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // predictor is an additive combination of the latent GP and
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  // fixed effects of covariates
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">  y ~ poisson_log(X * beta + gp_function);
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">}
+</span></span></span><span style="display:flex;"><span><span style="color:#d14">&#39;</span>
+</span></span></code></pre></div><p>Load <code>cmdstanr</code> and compile the model to <code>C++</code> code. See 
+<a href="https://mc-stan.org/cmdstanr/articles/cmdstanr.html" target="_blank" rel="noopener">information here for troubleshooting advice when installing <code>Stan</code> and <code>Cmdstan</code></a></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(cmdstanr)
+</span></span><span style="display:flex;"><span>cmd_mod <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">cmdstan_model</span>(<span style="color:#900;font-weight:bold">write_stan_file</span>(gp_stan_code),
+</span></span><span style="display:flex;"><span>                         stanc_options <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">list</span>(<span style="color:#d14">&#39;canonicalize=deprecations,braces,parentheses&#39;</span>))
+</span></span></code></pre></div>
+
+
+
+<h2 id="simulate-spatially-autocorrelated-poisson-data">Simulate spatially autocorrelated Poisson data
+  <a href="#simulate-spatially-autocorrelated-poisson-data"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>Now that the model is defined in <code>Stan</code> language, we need to simulate data to explore the model. We simulate 150 geospatial coordinates in roughly the Brisbane, Queensland area</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>N <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">150</span>
+</span></span><span style="display:flex;"><span>lat <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">runif</span>(n <span style="color:#000;font-weight:bold">=</span> N, min <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">-27.65</span>, max <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">-27</span>)
+</span></span><span style="display:flex;"><span>lon <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">runif</span>(n <span style="color:#000;font-weight:bold">=</span> N, min <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">152.8</span>, <span style="color:#099">153</span>)
+</span></span><span style="display:flex;"><span>coords <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">as.matrix</span>(<span style="color:#900;font-weight:bold">cbind</span>(lon, lat))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">colnames</span>(coords) <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#39;Longitude&#39;</span>, <span style="color:#d14">&#39;Latitude&#39;</span>)
+</span></span></code></pre></div><p>Now simulate a precipitation variable and assign a positive coefficient for its effect on the process. We use a standard normal distribution for this simulation: <code>\(\boldsymbol{precip}\sim \text{Normal}(0,1)\)</code>. This is useful as it mimics what we might see if we took a continuous variable and standardised it to unit variance. Many texts suggest you should do this for computational reasons. But really it just helps a bit for specifying priors</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>precip <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">rnorm</span>(N)
+</span></span><span style="display:flex;"><span>beta_precip <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">0.3</span>
+</span></span></code></pre></div><p>Assign Gaussian Process parameter values to ensure there is obvious spatial autocorrelation (with spatial decay <code>\(\rho = 5km\)</code>)</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>alpha <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">1</span>
+</span></span><span style="display:flex;"><span>rho <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">5</span>
+</span></span></code></pre></div><p>Calculate distances (in meters) between the points and ensure the resulting matrix is symmetric</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(raster)
+</span></span><span style="display:flex;"><span>m <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">pointDistance</span>(coords, lonlat <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>)
+</span></span><span style="display:flex;"><span>m<span style="color:#900;font-weight:bold">[upper.tri</span>(m)] <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">t</span>(m)<span style="color:#900;font-weight:bold">[upper.tri</span>(m)]
+</span></span></code></pre></div><pre tabindex="0"><code>## Warning: package &#39;raster&#39; was built under R version 4.3.2
+</code></pre><pre tabindex="0"><code>## Loading required package: sp
+</code></pre><pre tabindex="0"><code>## Warning: package &#39;sp&#39; was built under R version 4.3.2
+</code></pre><p>Convert distance (which is in meters) to kilometers and preview the distance matrix</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>m <span style="color:#000;font-weight:bold">&lt;-</span> m <span style="color:#000;font-weight:bold">/</span> <span style="color:#099">1000</span>
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>m[1<span style="color:#000;font-weight:bold">:</span><span style="color:#099">6</span>, <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">6</span>]
+</span></span></code></pre></div><pre tabindex="0"><code>##           [,1]      [,2]      [,3]      [,4]      [,5]      [,6]
+## [1,]  0.000000 25.444495  7.862131 16.876604 10.948461 17.707530
+## [2,] 25.444495  0.000000 19.031165 19.933376 15.710278  8.403163
+## [3,]  7.862131 19.031165  0.000000  9.997982  3.407973 12.572540
+## [4,] 16.876604 19.933376  9.997982  0.000000  9.301197 17.395006
+## [5,] 10.948461 15.710278  3.407973  9.301197  0.000000  9.840844
+## [6,] 17.707530  8.403163 12.572540 17.395006  9.840844  0.000000
+</code></pre><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">range</span>(m)
+</span></span></code></pre></div><pre tabindex="0"><code>## [1]  0.00000 69.91692
+</code></pre><p>Calculate the Gaussian Process squared exponential covariance matrix. A small offset is used on the diagonals to ensure the resulting matrix is Positive-Definite. This is a requirement for simulating multivariate normal draws. Preview the covariance matrix</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>K <span style="color:#000;font-weight:bold">&lt;-</span> alpha ^ <span style="color:#099">2</span> <span style="color:#000;font-weight:bold">*</span> <span style="color:#900;font-weight:bold">exp</span>(<span style="color:#099">-0.5</span> <span style="color:#000;font-weight:bold">*</span> ((m <span style="color:#000;font-weight:bold">/</span> rho) ^ <span style="color:#099">2</span>)) <span style="color:#000;font-weight:bold">+</span> <span style="color:#900;font-weight:bold">diag</span>(<span style="color:#099">1e-9</span>, N)
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>K[1<span style="color:#000;font-weight:bold">:</span><span style="color:#099">6</span>, <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">6</span>]
+</span></span></code></pre></div><pre tabindex="0"><code>##              [,1]         [,2]         [,3]         [,4]        [,5]
+## [1,] 1.000000e+00 2.379914e-06 0.2904679164 0.0033580483 0.090956308
+## [2,] 2.379914e-06 1.000000e+00 0.0007146594 0.0003537961 0.007181431
+## [3,] 2.904679e-01 7.146594e-04 1.0000000010 0.1354445399 0.792719718
+## [4,] 3.358048e-03 3.537961e-04 0.1354445399 1.0000000010 0.177240942
+## [5,] 9.095631e-02 7.181431e-03 0.7927197180 0.1772409416 1.000000001
+## [6,] 1.890087e-03 2.435914e-01 0.0423674335 0.0023537992 0.144158155
+##             [,6]
+## [1,] 0.001890087
+## [2,] 0.243591437
+## [3,] 0.042367433
+## [4,] 0.002353799
+## [5,] 0.144158155
+## [6,] 1.000000001
+</code></pre><p>Simulate the latent Gaussian Process function as random draws from a zero-centred multivariate normal distribution with <code>K</code> as the covariance matrix</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>sim_gp <span style="color:#000;font-weight:bold">&lt;-</span> MASS<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">mvrnorm</span>(<span style="color:#099">1</span>, mu <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">rep</span>(<span style="color:#099">0</span>, N), Sigma <span style="color:#000;font-weight:bold">=</span> K)
+</span></span></code></pre></div><p>Now we can finally simulate the observed counts, which follow the linear predictor we set out at the beginning of this tutorial</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>sim_y <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">rpois</span>(N, lambda <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">exp</span>(sim_gp <span style="color:#000;font-weight:bold">+</span> beta_precip <span style="color:#000;font-weight:bold">*</span> precip))
+</span></span></code></pre></div><p>Plot the data to observe the spatial pattern. First plot the latent function, which should show obvious spatial autocorrelation</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(ggplot2)
+</span></span></code></pre></div><pre tabindex="0"><code>## Warning: package &#39;ggplot2&#39; was built under R version 4.3.3
+</code></pre><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">ggplot</span>(<span style="color:#900;font-weight:bold">data.frame</span>(Y <span style="color:#000;font-weight:bold">=</span> sim_y,
+</span></span><span style="display:flex;"><span>                  GP <span style="color:#000;font-weight:bold">=</span> sim_gp,
+</span></span><span style="display:flex;"><span>                  Longitude <span style="color:#000;font-weight:bold">=</span> lon,
+</span></span><span style="display:flex;"><span>                  Latitude <span style="color:#000;font-weight:bold">=</span> lat),
+</span></span><span style="display:flex;"><span>       <span style="color:#900;font-weight:bold">aes</span>(x <span style="color:#000;font-weight:bold">=</span> Latitude, y <span style="color:#000;font-weight:bold">=</span> Longitude, fill <span style="color:#000;font-weight:bold">=</span> GP)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_point</span>(size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">5</span>, shape <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">21</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">scale_fill_continuous</span>(type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;viridis&#34;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">theme_minimal</span>()
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/stan-discrete-geostatistical/index_files/figure-html/unnamed-chunk-16-1.png" alt="Simulating spatially autocorrelated data in R using a Gaussian Process" width="576" style="display: block; margin: auto;" />
+<p>Now plot the integer observations, which are naturally messier</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">ggplot</span>(<span style="color:#900;font-weight:bold">data.frame</span>(Y <span style="color:#000;font-weight:bold">=</span> sim_y,
+</span></span><span style="display:flex;"><span>                  GP <span style="color:#000;font-weight:bold">=</span> sim_gp,
+</span></span><span style="display:flex;"><span>                  Longitude <span style="color:#000;font-weight:bold">=</span> lon,
+</span></span><span style="display:flex;"><span>                  Latitude <span style="color:#000;font-weight:bold">=</span> lat),
+</span></span><span style="display:flex;"><span>       <span style="color:#900;font-weight:bold">aes</span>(x <span style="color:#000;font-weight:bold">=</span> Latitude, y <span style="color:#000;font-weight:bold">=</span> Longitude, fill <span style="color:#000;font-weight:bold">=</span> Y)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_point</span>(size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">5</span>, shape <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">21</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">scale_fill_continuous</span>(type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;viridis&#34;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">theme_minimal</span>()
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/stan-discrete-geostatistical/index_files/figure-html/unnamed-chunk-17-1.png" alt="Simulating spatially autocorrelated count data in R using a Gaussian Process" width="576" style="display: block; margin: auto;" />
+<p>It is also worth plotting the observations against the predictors (precipitation, in this case)</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">ggplot</span>(<span style="color:#900;font-weight:bold">data.frame</span>(Y <span style="color:#000;font-weight:bold">=</span> sim_y,
+</span></span><span style="display:flex;"><span>                  Rainfall <span style="color:#000;font-weight:bold">=</span> precip),
+</span></span><span style="display:flex;"><span>       <span style="color:#900;font-weight:bold">aes</span>(x <span style="color:#000;font-weight:bold">=</span> Rainfall, y <span style="color:#000;font-weight:bold">=</span> Y)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_point</span>(size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2.5</span>, shape <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">21</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>, fill <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;black&#39;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">theme_minimal</span>()
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/stan-discrete-geostatistical/index_files/figure-html/unnamed-chunk-18-1.png" width="576" style="display: block; margin: auto;" />
+
+
+
+
+<h2 id="fit-a-standard-generalized-linear-model-to-simulated-data">Fit a standard Generalized Linear Model to simulated data
+  <a href="#fit-a-standard-generalized-linear-model-to-simulated-data"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>We can quickly understand why it is problematic to ignore spatial variation (or any kind of systematic heterogeneity) when fitting models. Start with a basic Poisson GLM that ignores the spatial component. Generally I would not advocate mixing Maximum Likelihood and Bayesian models. In my view, Bayesian is better because it forces us to think more deeply about the model and its connections to both data and prior knowledge. But a quick <code>glm</code>, which uses iteratively reweighted least squares to find the Maximum Likelihood estimates of a Generalized Linear Model, will be fine for our purposes here</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>nonspat_mod <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">glm</span>(sim_y <span style="color:#000;font-weight:bold">~</span> precip, family <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">poisson</span>())
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">summary</span>(nonspat_mod)
+</span></span></code></pre></div><pre tabindex="0"><code>## 
+## Call:
+## glm(formula = sim_y ~ precip, family = poisson())
+## 
+## Coefficients:
+##             Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept)  0.50320    0.06460   7.789 6.74e-15 ***
+## precip       0.39753    0.06919   5.745 9.18e-09 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## (Dispersion parameter for poisson family taken to be 1)
+## 
+##     Null deviance: 321.86  on 149  degrees of freedom
+## Residual deviance: 287.95  on 148  degrees of freedom
+## AIC: 554.01
+## 
+## Number of Fisher Scoring iterations: 5
+</code></pre><p>Visualise the estimated precipitation regression coefficient <code>\(\beta_{precip}\)</code>. First, define some colours for nice plots</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>c_light <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;#DCBCBC&#34;</span>)
+</span></span><span style="display:flex;"><span>c_light_highlight <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;#C79999&#34;</span>)
+</span></span><span style="display:flex;"><span>c_mid <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;#B97C7C&#34;</span>)
+</span></span><span style="display:flex;"><span>c_mid_highlight <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;#A25050&#34;</span>)
+</span></span><span style="display:flex;"><span>c_dark <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;#8F2727&#34;</span>)
+</span></span><span style="display:flex;"><span>c_dark_highlight <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;#7C0000&#34;</span>)
+</span></span></code></pre></div><p>Because we fit the model using a form of maximum likelihood, parameter uncertainty can be recovered using the model&rsquo;s assumed multivariate normal posterior distribution</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>coef_posteriors <span style="color:#000;font-weight:bold">&lt;-</span> MASS<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">mvrnorm</span>(<span style="color:#099">2000</span>, 
+</span></span><span style="display:flex;"><span>                                 mu <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">coef</span>(nonspat_mod), 
+</span></span><span style="display:flex;"><span>                                 Sigma <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">vcov</span>(nonspat_mod))
+</span></span></code></pre></div><p>Plot the estimates for <code>\(\beta_{precip}\)</code> and overlay the true simulated value in black</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">hist</span>(coef_posteriors[,<span style="color:#099">2</span>],
+</span></span><span style="display:flex;"><span>     col <span style="color:#000;font-weight:bold">=</span> c_mid_highlight, border <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>,
+</span></span><span style="display:flex;"><span>     main <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>, yaxt <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;n&#39;</span>, ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>, xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">expression</span>(beta[precip]))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> beta_precip, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3.5</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> beta_precip, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;black&#39;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/stan-discrete-geostatistical/index_files/figure-html/unnamed-chunk-22-1.png" width="576" style="display: block; margin: auto;" />
+<p>This parameter seems to be recovered well. But how do model residuals look?</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">qqnorm</span>(<span style="color:#900;font-weight:bold">residuals</span>(nonspat_mod), pch <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">16</span>, ylim <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">-6</span>, <span style="color:#099">6</span>),
+</span></span><span style="display:flex;"><span>       bty <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;l&#39;</span>, col <span style="color:#000;font-weight:bold">=</span> c_mid_highlight)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">qqline</span>(<span style="color:#900;font-weight:bold">residuals</span>(nonspat_mod), lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">box</span>(bty <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;l&#39;</span>, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/stan-discrete-geostatistical/index_files/figure-html/unnamed-chunk-23-1.png" alt="Failures of regression models that do not account for inherent spatial autocorrelation" width="576" style="display: block; margin: auto;" />
+<p>The model is not capturing the dispersion in the data. This suggests there is a problem. Plot residuals against observed values to see if there are any obvious patterns</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot</span>(sim_y, <span style="color:#900;font-weight:bold">residuals</span>(nonspat_mod),pch <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">16</span>,
+</span></span><span style="display:flex;"><span>     bty <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;l&#39;</span>, col <span style="color:#000;font-weight:bold">=</span> c_mid_highlight,
+</span></span><span style="display:flex;"><span>     ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Residuals&#39;</span>,
+</span></span><span style="display:flex;"><span>     xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Observed counts&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">box</span>(bty <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;l&#39;</span>, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(h <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0</span>, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(h <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0</span>, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2.5</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/stan-discrete-geostatistical/index_files/figure-html/unnamed-chunk-24-1.png" alt="Failures of regression models that do not account for inherent spatial autocorrelation" width="576" style="display: block; margin: auto;" />
+<p>Another useful plot is to compare simulated counts to observed counts, which more closely inspects whether our simulations capture properties of the observed data</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>preds <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">matrix</span>(<span style="color:#000;font-weight:bold">NA</span>, nrow <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2000</span>, ncol <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">length</span>(sim_y))
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">for</span>(i <span style="color:#000;font-weight:bold">in</span> <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">2000</span>){
+</span></span><span style="display:flex;"><span>  preds[i, ] <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">rpois</span>(<span style="color:#900;font-weight:bold">length</span>(sim_y),
+</span></span><span style="display:flex;"><span>                      lambda <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">exp</span>(coef_posteriors[i, <span style="color:#099">1</span>] <span style="color:#000;font-weight:bold">+</span> 
+</span></span><span style="display:flex;"><span>                                     coef_posteriors[i, <span style="color:#099">2</span>] <span style="color:#000;font-weight:bold">*</span> precip))
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">layout</span>(<span style="color:#900;font-weight:bold">matrix</span>(<span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">2</span>))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">hist</span>(sim_y, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;black&#39;</span>,
+</span></span><span style="display:flex;"><span>     freq <span style="color:#000;font-weight:bold">=</span> <span style="color:#999">F</span>,
+</span></span><span style="display:flex;"><span>     breaks <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">seq</span>(<span style="color:#099">0</span>, <span style="color:#900;font-weight:bold">pmax</span>(<span style="color:#900;font-weight:bold">max</span>(sim_y), <span style="color:#900;font-weight:bold">max</span>(preds)), length.out <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">30</span>),
+</span></span><span style="display:flex;"><span>     border <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>, xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Observed counts&#39;</span>,
+</span></span><span style="display:flex;"><span>     yaxt <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;n&#39;</span>, ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>, main <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">hist</span>(preds, col <span style="color:#000;font-weight:bold">=</span> c_mid_highlight,
+</span></span><span style="display:flex;"><span>     freq <span style="color:#000;font-weight:bold">=</span> <span style="color:#999">F</span>,
+</span></span><span style="display:flex;"><span>     breaks <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">seq</span>(<span style="color:#099">0</span>, <span style="color:#900;font-weight:bold">pmax</span>(<span style="color:#900;font-weight:bold">max</span>(sim_y), <span style="color:#900;font-weight:bold">max</span>(preds)), length.out <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">30</span>),
+</span></span><span style="display:flex;"><span>     border <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>, xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Predicted counts&#39;</span>,
+</span></span><span style="display:flex;"><span>     yaxt <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;n&#39;</span>, ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>, main <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/stan-discrete-geostatistical/index_files/figure-html/unnamed-chunk-25-1.png" alt="Failures of regression models that do not account for inherent spatial autocorrelation" width="576" style="display: block; margin: auto;" />
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">layout</span>(<span style="color:#099">1</span>)
+</span></span></code></pre></div><p>The model is overpredicting small observed values and underpredicting large observed values. Plotting residuals over space identifies what is going on</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">ggplot</span>(<span style="color:#900;font-weight:bold">data.frame</span>(Residuals <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">residuals</span>(nonspat_mod),
+</span></span><span style="display:flex;"><span>                  Longitude <span style="color:#000;font-weight:bold">=</span> lon,
+</span></span><span style="display:flex;"><span>                  Latitude <span style="color:#000;font-weight:bold">=</span> lat),
+</span></span><span style="display:flex;"><span>       <span style="color:#900;font-weight:bold">aes</span>(x <span style="color:#000;font-weight:bold">=</span> Latitude, y <span style="color:#000;font-weight:bold">=</span> Longitude, fill <span style="color:#000;font-weight:bold">=</span> Residuals)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_point</span>(size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">5</span>, shape <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">21</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">scale_fill_continuous</span>(type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;viridis&#34;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">theme_minimal</span>()
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/stan-discrete-geostatistical/index_files/figure-html/unnamed-chunk-26-1.png" alt="Failures of regression models that do not account for inherent spatial autocorrelation" width="576" style="display: block; margin: auto;" />
+<p>There are obvious spatial patterns in the model&rsquo;s failures. We could compute a semivariogram to confirm but there is no need. We must proceed with a more appropriate model</p>
+
+
+
+
+<h2 id="fit-the-geostatistical-model-to-simulated-data">Fit the geostatistical model to simulated data
+  <a href="#fit-the-geostatistical-model-to-simulated-data"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>Organise the data for <code>Stan</code> modelling into a list</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>model_data <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">list</span>(N <span style="color:#000;font-weight:bold">=</span> N,
+</span></span><span style="display:flex;"><span>                   <span style="color:#998;font-style:italic"># Distances matrix</span>
+</span></span><span style="display:flex;"><span>                   distances <span style="color:#000;font-weight:bold">=</span> m,
+</span></span><span style="display:flex;"><span>                   <span style="color:#998;font-style:italic"># Number of covariates</span>
+</span></span><span style="display:flex;"><span>                   K <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>,
+</span></span><span style="display:flex;"><span>                   <span style="color:#998;font-style:italic"># Covariate design matrix (for all points)</span>
+</span></span><span style="display:flex;"><span>                   X <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">as.matrix</span>(precip),
+</span></span><span style="display:flex;"><span>                   <span style="color:#998;font-style:italic"># Observed values of simulated outcomes</span>
+</span></span><span style="display:flex;"><span>                   y <span style="color:#000;font-weight:bold">=</span> sim_y)
+</span></span></code></pre></div><p>Condition the model on the observed data; some early warnings are likely as the sampler chooses among initial values for GP parameters, which can sometimes lead to covariance matrices that are not positive definite. Usually this resolves as the sampler moves through the warmup phase</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>fit <span style="color:#000;font-weight:bold">&lt;-</span> cmd_mod<span style="color:#000;font-weight:bold">$</span><span style="color:#900;font-weight:bold">sample</span>(data <span style="color:#000;font-weight:bold">=</span> model_data,
+</span></span><span style="display:flex;"><span>                      chains <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">4</span>,
+</span></span><span style="display:flex;"><span>                      iter_warmup <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">500</span>,
+</span></span><span style="display:flex;"><span>                      iter_sampling <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1000</span>,
+</span></span><span style="display:flex;"><span>                      parallel_chains <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">4</span>,
+</span></span><span style="display:flex;"><span>                      refresh <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">100</span>)
+</span></span></code></pre></div><p>Inspect sampler and convergence diagnostics. Any warnings of divergences or low energy should be taken seriously and inspected further. Fortunately our model fits without issue</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>fit<span style="color:#000;font-weight:bold">$</span><span style="color:#900;font-weight:bold">diagnostic_summary</span>()
+</span></span></code></pre></div><pre tabindex="0"><code>## $num_divergent
+## [1] 0 0 0 0
+## 
+## $num_max_treedepth
+## [1] 0 0 0 0
+## 
+## $ebfmi
+## [1] 0.9313095 0.8574628 0.9105745 0.8735549
+</code></pre><p>A quick summary of parameters of interest</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>fit<span style="color:#000;font-weight:bold">$</span><span style="color:#900;font-weight:bold">summary</span>(<span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#39;rho&#39;</span>, <span style="color:#d14">&#39;alpha&#39;</span>, <span style="color:#d14">&#39;beta&#39;</span>))
+</span></span></code></pre></div><pre tabindex="0"><code>## # A tibble: 3 × 10
+##   variable  mean median     sd    mad    q5   q95  rhat ess_bulk ess_tail
+##   &lt;chr&gt;    &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;
+## 1 rho      6.00   5.93  1.21   1.23   4.14  8.07   1.00     870.    1493.
+## 2 alpha    0.795  0.779 0.150  0.133  0.587 1.07   1.00    1797.    1829.
+## 3 beta[1]  0.366  0.364 0.0797 0.0811 0.240 0.499  1.00    6236.    2402.
+</code></pre><p>These summaries are not that useful. Using posterior medians +/- credible intervals is never as informative as are visualisations of model parameters. Visualise posterior estimates for <code>\(\alpha\)</code> and overlay the true simulated value in black</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">hist</span>(fit<span style="color:#000;font-weight:bold">$</span><span style="color:#900;font-weight:bold">draws</span>(<span style="color:#d14">&#34;alpha&#34;</span>, format <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;draws_matrix&#34;</span>),
+</span></span><span style="display:flex;"><span>     col <span style="color:#000;font-weight:bold">=</span> c_mid_highlight, border <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>,
+</span></span><span style="display:flex;"><span>     main <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>, yaxt <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;n&#39;</span>, ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>, xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">expression</span>(alpha))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> alpha, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3.5</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> alpha, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;black&#39;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/stan-discrete-geostatistical/index_files/figure-html/unnamed-chunk-32-1.png" alt="Stan geostatistical model predictions show adequate fit to the simulated data in R" width="576" style="display: block; margin: auto;" />
+<p>Repeat for the GP length scale parameter, <code>\(\rho\)</code></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">hist</span>(fit<span style="color:#000;font-weight:bold">$</span><span style="color:#900;font-weight:bold">draws</span>(<span style="color:#d14">&#34;rho&#34;</span>, format <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;draws_matrix&#34;</span>),
+</span></span><span style="display:flex;"><span>     col <span style="color:#000;font-weight:bold">=</span> c_mid_highlight, border <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>,
+</span></span><span style="display:flex;"><span>     main <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>, yaxt <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;n&#39;</span>, ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>, xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">expression</span>(rho))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> rho, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3.5</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> rho, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;black&#39;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/stan-discrete-geostatistical/index_files/figure-html/unnamed-chunk-33-1.png" alt="Stan geostatistical model predictions show adequate fit to the simulated data in R" width="576" style="display: block; margin: auto;" />
+<p>Now look at the regression coefficient for precipitation, <code>\(\beta_{precip}\)</code>. You could (and generally should) also devise scenarios for prediction to help you better understand the model&rsquo;s assumptions. But we will leave parameter inspection here for now</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">hist</span>(fit<span style="color:#000;font-weight:bold">$</span><span style="color:#900;font-weight:bold">draws</span>(<span style="color:#d14">&#34;beta[1]&#34;</span>, format <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;draws_matrix&#34;</span>),
+</span></span><span style="display:flex;"><span>     col <span style="color:#000;font-weight:bold">=</span> c_mid_highlight, border <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>,
+</span></span><span style="display:flex;"><span>     main <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>, yaxt <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;n&#39;</span>, ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>, xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">expression</span>(beta[precip]))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> beta_precip, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3.5</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> beta_precip, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;black&#39;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/stan-discrete-geostatistical/index_files/figure-html/unnamed-chunk-34-1.png" alt="Stan geostatistical model predictions show adequate fit to the simulated data in R" width="576" style="display: block; margin: auto;" />
+<p>As with any regression, we should inspect residuals for any obvious discrepancies. Because our data are discrete counts bounded at zero, standard residuals aren&rsquo;t helpful. We will use randomized quantile (Dunn-Smyth) residuals, which should be approximately standard normal in distribution. Don&rsquo;t worry too much about the details, but I&rsquo;m showing this function so the tutorial has complete code</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>ds_resids_pois <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">function</span>(truth, fitted){
+</span></span><span style="display:flex;"><span>  na_obs <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">is.na</span>(truth)
+</span></span><span style="display:flex;"><span>  a_obs <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">ppois</span>(<span style="color:#900;font-weight:bold">as.vector</span>(truth[<span style="color:#000;font-weight:bold">!</span>na_obs]) <span style="color:#000;font-weight:bold">-</span> <span style="color:#099">1</span>,
+</span></span><span style="display:flex;"><span>                 lambda <span style="color:#000;font-weight:bold">=</span> fitted[<span style="color:#000;font-weight:bold">!</span>na_obs])
+</span></span><span style="display:flex;"><span>  b_obs <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">ppois</span>(<span style="color:#900;font-weight:bold">as.vector</span>(truth[<span style="color:#000;font-weight:bold">!</span>na_obs]),
+</span></span><span style="display:flex;"><span>                 lambda <span style="color:#000;font-weight:bold">=</span> fitted[<span style="color:#000;font-weight:bold">!</span>na_obs])
+</span></span><span style="display:flex;"><span>  u_obs <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">runif</span>(n <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">length</span>(fitted[<span style="color:#000;font-weight:bold">!</span>na_obs]),
+</span></span><span style="display:flex;"><span>                 min <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">pmin</span>(a_obs, b_obs), 
+</span></span><span style="display:flex;"><span>                 max <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">pmax</span>(a_obs, b_obs))
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#000;font-weight:bold">if</span>(<span style="color:#900;font-weight:bold">any</span>(<span style="color:#900;font-weight:bold">is.na</span>(truth))){
+</span></span><span style="display:flex;"><span>    u_na <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">runif</span>(n <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">length</span>(fitted[na_obs]),
+</span></span><span style="display:flex;"><span>                  min <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0</span>, max <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>)
+</span></span><span style="display:flex;"><span>    u <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">vector</span>(length <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">length</span>(truth))
+</span></span><span style="display:flex;"><span>    u[na_obs] <span style="color:#000;font-weight:bold">&lt;-</span> u_na
+</span></span><span style="display:flex;"><span>    u[<span style="color:#000;font-weight:bold">!</span>na_obs] <span style="color:#000;font-weight:bold">&lt;-</span> u_obs
+</span></span><span style="display:flex;"><span>  } <span style="color:#000;font-weight:bold">else</span> {
+</span></span><span style="display:flex;"><span>    u <span style="color:#000;font-weight:bold">&lt;-</span> u_obs
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>  dsres_out <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">qnorm</span>(u)
+</span></span><span style="display:flex;"><span>  dsres_out<span style="color:#900;font-weight:bold">[is.infinite</span>(dsres_out)] <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">rnorm</span>(<span style="color:#900;font-weight:bold">length</span>(<span style="color:#900;font-weight:bold">which</span>(<span style="color:#900;font-weight:bold">is.infinite</span>(dsres_out))))
+</span></span><span style="display:flex;"><span>  dsres_out
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Calculate posterior retrodictions for the modeled observations. Notice how we use <code>rpois</code> to generate Poisson draws with the exact linear predictor that was used in our <code>Stan</code> model</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>beta_posterior <span style="color:#000;font-weight:bold">&lt;-</span> fit<span style="color:#000;font-weight:bold">$</span><span style="color:#900;font-weight:bold">draws</span>(<span style="color:#d14">&#34;beta[1]&#34;</span>, format <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;draws_matrix&#34;</span>)
+</span></span><span style="display:flex;"><span>obs_gp_function_posterior <span style="color:#000;font-weight:bold">&lt;-</span> fit<span style="color:#000;font-weight:bold">$</span><span style="color:#900;font-weight:bold">draws</span>(<span style="color:#d14">&#39;gp_function&#39;</span>,format <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;draws_matrix&#34;</span>)
+</span></span><span style="display:flex;"><span>preds <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">matrix</span>(<span style="color:#000;font-weight:bold">NA</span>, nrow <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1000</span>, ncol <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">length</span>(sim_y))
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">for</span>(i <span style="color:#000;font-weight:bold">in</span> <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">1000</span>){
+</span></span><span style="display:flex;"><span>  preds[i, ] <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">rpois</span>(<span style="color:#900;font-weight:bold">length</span>(sim_y),
+</span></span><span style="display:flex;"><span>                 lambda <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">exp</span>((beta_posterior[i] <span style="color:#000;font-weight:bold">*</span> precip) <span style="color:#000;font-weight:bold">+</span> 
+</span></span><span style="display:flex;"><span>                                          obs_gp_function_posterior[i,]))
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Create a truth matrix for vectorised residual computation. This just replicates the observed values <code>1000</code> times so we don&rsquo;t have to use a for loop to calculate residuals for all <code>1000</code> posterior predictions</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>truth_mat <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">matrix</span>(<span style="color:#900;font-weight:bold">rep</span>(sim_y, <span style="color:#900;font-weight:bold">NROW</span>(preds)),
+</span></span><span style="display:flex;"><span>                    nrow <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">NROW</span>(preds),
+</span></span><span style="display:flex;"><span>                    byrow <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>)
+</span></span></code></pre></div><p>Calculate posterior residuals</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>resids <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">matrix</span>(<span style="color:#900;font-weight:bold">ds_resids_pois</span>(truth <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">as.vector</span>(truth_mat),
+</span></span><span style="display:flex;"><span>                                  fitted <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">as.vector</span>(preds)),
+</span></span><span style="display:flex;"><span>                   nrow <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">NROW</span>(preds))
+</span></span></code></pre></div><p>As we saw above with the non-spatial model, a useful diagnostic is to plot residuals against observed values to see if there are any systematic discrepancies in observations vs predictions. We will plot <code>50</code> posterior draws of residuals because there is uncertainty in these parameters</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot</span>(sim_y, resids[1,], ylim <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">range</span>(resids), pch <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">16</span>,
+</span></span><span style="display:flex;"><span>     col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;#8F272720&#34;</span>, bty <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;l&#39;</span>,
+</span></span><span style="display:flex;"><span>     xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Observed count&#39;</span>,
+</span></span><span style="display:flex;"><span>     ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Dunn-Smyth residual&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">for</span>(i <span style="color:#000;font-weight:bold">in</span> <span style="color:#099">2</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">50</span>){
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">points</span>(sim_y, resids[i,], ylim <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">range</span>(resids), pch <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">16</span>,
+</span></span><span style="display:flex;"><span>       col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;#8F272720&#34;</span>)
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">box</span>(bty <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;l&#39;</span>, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(h <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0</span>, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(h <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0</span>, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2.5</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/stan-discrete-geostatistical/index_files/figure-html/unnamed-chunk-39-1.png" alt="Stan geostatistical model predictions show adequate fit to the simulated data in R" width="576" style="display: block; margin: auto;" />
+<p>There is no alarming pattern here, though the model does tend to slightly under-predict large values. A normal Q-Q plot checks if there is any over- or under-dispersion that is not being captured by the model</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">qqnorm</span>(resids[1,], pch <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">16</span>,
+</span></span><span style="display:flex;"><span>       bty <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;l&#39;</span>, ylim <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">-6</span>, <span style="color:#099">6</span>), col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;#8F272730&#34;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">qqline</span>(resids[1,], lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.5</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;#80808040&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">for</span>(i <span style="color:#000;font-weight:bold">in</span> <span style="color:#099">2</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">50</span>){
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">qqline</span>(resids[i,], lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.5</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;#80808040&#39;</span>)
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">for</span>(i <span style="color:#000;font-weight:bold">in</span> <span style="color:#099">2</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">50</span>){
+</span></span><span style="display:flex;"><span>  test <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">qqnorm</span>(resids[i,], plot <span style="color:#000;font-weight:bold">=</span> <span style="color:#999">F</span>)
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">points</span>(test<span style="color:#000;font-weight:bold">$</span>x, test<span style="color:#000;font-weight:bold">$</span>y, pch <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">16</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;#8F272730&#34;</span>)
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">box</span>(bty <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;l&#39;</span>, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/stan-discrete-geostatistical/index_files/figure-html/unnamed-chunk-40-1.png" alt="Stan geostatistical model predictions show adequate fit to the simulated data in R" width="576" style="display: block; margin: auto;" />
+<p>The points all fall nicely along the 1:1 lines, suggesting the model can simulate data that follow the distribution of the observed values. We can also plot histograms of observations vs predictions, as we did with the nonspatial model above</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">layout</span>(<span style="color:#900;font-weight:bold">matrix</span>(<span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">2</span>))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">hist</span>(sim_y, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;black&#39;</span>,
+</span></span><span style="display:flex;"><span>     freq <span style="color:#000;font-weight:bold">=</span> <span style="color:#999">F</span>,
+</span></span><span style="display:flex;"><span>     breaks <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">seq</span>(<span style="color:#099">0</span>, <span style="color:#900;font-weight:bold">pmax</span>(<span style="color:#900;font-weight:bold">max</span>(sim_y), <span style="color:#900;font-weight:bold">max</span>(preds)), length.out <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">30</span>),
+</span></span><span style="display:flex;"><span>     border <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>, xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Observed counts&#39;</span>,
+</span></span><span style="display:flex;"><span>     yaxt <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;n&#39;</span>, ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>, main <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">hist</span>(preds, col <span style="color:#000;font-weight:bold">=</span> c_mid_highlight,
+</span></span><span style="display:flex;"><span>     freq <span style="color:#000;font-weight:bold">=</span> <span style="color:#999">F</span>,
+</span></span><span style="display:flex;"><span>     breaks <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">seq</span>(<span style="color:#099">0</span>, <span style="color:#900;font-weight:bold">pmax</span>(<span style="color:#900;font-weight:bold">max</span>(sim_y), <span style="color:#900;font-weight:bold">max</span>(preds)), length.out <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">30</span>),
+</span></span><span style="display:flex;"><span>     border <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>, xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Predicted counts&#39;</span>,
+</span></span><span style="display:flex;"><span>     yaxt <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;n&#39;</span>, ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>, main <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/stan-discrete-geostatistical/index_files/figure-html/unnamed-chunk-41-1.png" alt="Stan geostatistical model predictions show adequate fit to the simulated data in R" width="576" style="display: block; margin: auto;" />
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">layout</span>(<span style="color:#099">1</span>)
+</span></span></code></pre></div>
+
+
+
+<h2 id="inference">Inference
+  <a href="#inference"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>The model appears to simulate realistic-looking data. Moreover, all of our parameters were recovered well by the model. But what do these parameters actually mean? The GP parameters are best interpreted together, as they form the spatial covariance kernel. Those of you that have worked with variograms before will be used to visualising how semivariance decays over distance. Here we will visualise how covariance decays over distance. It is certainly worth visualising the posterior estimates for this kernel to see if the model captures the simulated covariance well. Define a function to compute the covariance kernel for each posterior draw</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>quad_kernel <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">function</span>(rho, alpha, distances){
+</span></span><span style="display:flex;"><span>  covs <span style="color:#000;font-weight:bold">&lt;-</span> alpha ^ <span style="color:#099">2</span> <span style="color:#000;font-weight:bold">*</span> <span style="color:#900;font-weight:bold">exp</span>(<span style="color:#099">-0.5</span> <span style="color:#000;font-weight:bold">*</span> ((distances <span style="color:#000;font-weight:bold">/</span> rho) ^ <span style="color:#099">2</span>))
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Distances (in km) over which to compute the posterior kernel estimates</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>distances <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">seq</span>(<span style="color:#099">0</span>, <span style="color:#099">100</span>, length.out <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">75</span>)
+</span></span></code></pre></div><p>Compute posterior kernels</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>kernels <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">matrix</span>(<span style="color:#000;font-weight:bold">NA</span>, nrow <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1000</span>, ncol <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">length</span>(distances))
+</span></span><span style="display:flex;"><span>rho_posterior <span style="color:#000;font-weight:bold">&lt;-</span> fit<span style="color:#000;font-weight:bold">$</span><span style="color:#900;font-weight:bold">draws</span>(<span style="color:#d14">&#39;rho&#39;</span>, format <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;df&#34;</span>)<span style="color:#000;font-weight:bold">$</span>rho
+</span></span><span style="display:flex;"><span>alpha_posterior <span style="color:#000;font-weight:bold">&lt;-</span> fit<span style="color:#000;font-weight:bold">$</span><span style="color:#900;font-weight:bold">draws</span>(<span style="color:#d14">&#39;alpha&#39;</span>, format <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;df&#34;</span>)<span style="color:#000;font-weight:bold">$</span>alpha
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">for</span>(i <span style="color:#000;font-weight:bold">in</span> <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">1000</span>){
+</span></span><span style="display:flex;"><span>  kernels[i,] <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">quad_kernel</span>(rho <span style="color:#000;font-weight:bold">=</span> rho_posterior[i],
+</span></span><span style="display:flex;"><span>                             alpha <span style="color:#000;font-weight:bold">=</span> alpha_posterior[i],
+</span></span><span style="display:flex;"><span>                             distances <span style="color:#000;font-weight:bold">=</span> distances)
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Calculate posterior empirical quantiles for the kernel</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>probs <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">0.05</span>, <span style="color:#099">0.2</span>, <span style="color:#099">0.3</span>, <span style="color:#099">0.4</span>, <span style="color:#099">0.5</span>, <span style="color:#099">0.6</span>, <span style="color:#099">0.7</span>, <span style="color:#099">0.8</span>, <span style="color:#099">0.95</span>)
+</span></span><span style="display:flex;"><span>cred <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">sapply</span>(<span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#900;font-weight:bold">NCOL</span>(kernels),
+</span></span><span style="display:flex;"><span>               <span style="color:#000;font-weight:bold">function</span>(n) <span style="color:#900;font-weight:bold">quantile</span>(kernels[,n],
+</span></span><span style="display:flex;"><span>                                    probs <span style="color:#000;font-weight:bold">=</span> probs))
+</span></span></code></pre></div><p>Plot the estimated kernels and overlay the true simulated kernel in black</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>pred_vals <span style="color:#000;font-weight:bold">&lt;-</span> distances
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot</span>(<span style="color:#099">1</span>, xlim <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">0</span>, <span style="color:#099">20</span>), ylim <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">0</span>, <span style="color:#900;font-weight:bold">max</span>(cred)), type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;n&#39;</span>,
+</span></span><span style="display:flex;"><span>     xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Distance (in km)&#39;</span>, ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Covariance&#39;</span>,
+</span></span><span style="display:flex;"><span>     bty <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;L&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">box</span>(bty <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;L&#39;</span>, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">polygon</span>(<span style="color:#900;font-weight:bold">c</span>(pred_vals, <span style="color:#900;font-weight:bold">rev</span>(pred_vals)), <span style="color:#900;font-weight:bold">c</span>(cred[1,], <span style="color:#900;font-weight:bold">rev</span>(cred[9,])),
+</span></span><span style="display:flex;"><span>        col <span style="color:#000;font-weight:bold">=</span> c_light, border <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">NA</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">polygon</span>(<span style="color:#900;font-weight:bold">c</span>(pred_vals, <span style="color:#900;font-weight:bold">rev</span>(pred_vals)), <span style="color:#900;font-weight:bold">c</span>(cred[2,], <span style="color:#900;font-weight:bold">rev</span>(cred[8,])),
+</span></span><span style="display:flex;"><span>        col <span style="color:#000;font-weight:bold">=</span> c_light_highlight, border <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">NA</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">polygon</span>(<span style="color:#900;font-weight:bold">c</span>(pred_vals, <span style="color:#900;font-weight:bold">rev</span>(pred_vals)), <span style="color:#900;font-weight:bold">c</span>(cred[3,], <span style="color:#900;font-weight:bold">rev</span>(cred[7,])),
+</span></span><span style="display:flex;"><span>        col <span style="color:#000;font-weight:bold">=</span> c_mid, border <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">NA</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">polygon</span>(<span style="color:#900;font-weight:bold">c</span>(pred_vals, <span style="color:#900;font-weight:bold">rev</span>(pred_vals)), <span style="color:#900;font-weight:bold">c</span>(cred[4,], <span style="color:#900;font-weight:bold">rev</span>(cred[6,])),
+</span></span><span style="display:flex;"><span>        col <span style="color:#000;font-weight:bold">=</span> c_mid_highlight, border <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">NA</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">lines</span>(pred_vals, cred[5,], col <span style="color:#000;font-weight:bold">=</span> c_dark, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2.5</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Overlay the true simulated kernel</span>
+</span></span><span style="display:flex;"><span>true_kernel <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">quad_kernel</span>(rho <span style="color:#000;font-weight:bold">=</span> rho,
+</span></span><span style="display:flex;"><span>                           alpha <span style="color:#000;font-weight:bold">=</span> alpha,
+</span></span><span style="display:flex;"><span>                           distances <span style="color:#000;font-weight:bold">=</span> distances)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">lines</span>(pred_vals,
+</span></span><span style="display:flex;"><span>      true_kernel, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3.5</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">lines</span>(pred_vals,
+</span></span><span style="display:flex;"><span>      true_kernel, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;black&#39;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/stan-discrete-geostatistical/index_files/figure-html/unnamed-chunk-46-1.png" alt="Visualising spatial autocorrelation kernels fitted with the Stan geostatistical model" width="576" style="display: block; margin: auto;" />
+<p>This plot clearly shows that locations close together (further left on the x-axis) exhibit stronger covariance. The model does a reasonable job of estimating the true simulated kernel, though it does over-smooth a bit (because it slightly overestimates <code>\(\rho\)</code>). We can&rsquo;t expect perfection when we used a noisy observation process (Poisson draws) and only <code>150</code> points. This is why it is so important to quantify our uncertainty in model parameters / functions.</p>
+
+
+
+
+<h2 id="prediction">Prediction
+  <a href="#prediction"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>A common goal in spatial modeling is to generate smoothed predictions for unsampled locations. We want our predictions to respect the spatial patterns that our model has estimated. We also want predictions to respect uncertainty in model parameters. To generate predictions, we have to take draws from the appropriate multivariate normal distribution. First, define a function to calculate distances (in km) among pairs of points</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>calc_point_distances <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">function</span>(coordinates, coordinates2){
+</span></span><span style="display:flex;"><span>  <span style="color:#000;font-weight:bold">if</span>(<span style="color:#900;font-weight:bold">missing</span>(coordinates2)){
+</span></span><span style="display:flex;"><span>    distances <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">pointDistance</span>(coordinates, lonlat <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>)
+</span></span><span style="display:flex;"><span>    distances<span style="color:#900;font-weight:bold">[upper.tri</span>(distances)] <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">t</span>(distances)<span style="color:#900;font-weight:bold">[upper.tri</span>(distances)]
+</span></span><span style="display:flex;"><span>  } <span style="color:#000;font-weight:bold">else</span> {
+</span></span><span style="display:flex;"><span>    distances <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">pointDistance</span>(coordinates, coordinates2, lonlat <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>)
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Convert meters distance to kilometers</span>
+</span></span><span style="display:flex;"><span>  distances <span style="color:#000;font-weight:bold">&lt;-</span> distances <span style="color:#000;font-weight:bold">/</span> <span style="color:#099">1000</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#000;font-weight:bold">return</span>(distances)
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Next, we need a function to predict from a GP for a grid of spatial points. This function takes the modeled datapoints (i.e. the <code>150</code> that we used to train the model) and works out how to propagate the Gaussian Process from the modeled datapoints to a new set of prediction points. Don&rsquo;t worry if you don&rsquo;t understand the linear algebra. Just understand that we cannot predict for a new set of points without calculating the cross-covariance between fitted points and prediction points</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>predict_gp <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#000;font-weight:bold">function</span>(alpha, rho, obs_gp_function,
+</span></span><span style="display:flex;"><span>                       obs_distances, pred_distances,
+</span></span><span style="display:flex;"><span>                       obs_to_pred_distances){
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Estimated covariance kernel for the fitted points</span>
+</span></span><span style="display:flex;"><span>  K_obs <span style="color:#000;font-weight:bold">&lt;-</span> alpha ^ <span style="color:#099">2</span> <span style="color:#000;font-weight:bold">*</span> <span style="color:#900;font-weight:bold">exp</span>(<span style="color:#099">-0.5</span> <span style="color:#000;font-weight:bold">*</span> ((obs_distances <span style="color:#000;font-weight:bold">/</span> rho) ^ <span style="color:#099">2</span>)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">diag</span>(<span style="color:#099">1e-4</span>, <span style="color:#900;font-weight:bold">dim</span>(obs_distances)[1])
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Cross-covariance between prediction points and fitted points</span>
+</span></span><span style="display:flex;"><span>  K_new <span style="color:#000;font-weight:bold">&lt;-</span> alpha ^ <span style="color:#099">2</span> <span style="color:#000;font-weight:bold">*</span> <span style="color:#900;font-weight:bold">exp</span>(<span style="color:#099">-0.5</span> <span style="color:#000;font-weight:bold">*</span> ((obs_to_pred_distances <span style="color:#000;font-weight:bold">/</span> rho) ^ <span style="color:#099">2</span>))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Estimated covariance kernel for prediction points</span>
+</span></span><span style="display:flex;"><span>  K_star <span style="color:#000;font-weight:bold">&lt;-</span> alpha ^ <span style="color:#099">2</span> <span style="color:#000;font-weight:bold">*</span> <span style="color:#900;font-weight:bold">exp</span>(<span style="color:#099">-0.5</span> <span style="color:#000;font-weight:bold">*</span> ((pred_distances <span style="color:#000;font-weight:bold">/</span> rho) ^ <span style="color:#099">2</span>)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">diag</span>(<span style="color:#099">1e-4</span>, <span style="color:#900;font-weight:bold">dim</span>(pred_distances)[1])
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Estimated mean for prediction points</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">t</span>(K_new) <span style="color:#000;font-weight:bold">%*%</span> <span style="color:#900;font-weight:bold">solve</span>(K_obs, obs_gp_function) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># One realisation of uncertainty for prediction points</span>
+</span></span><span style="display:flex;"><span>    MASS<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">mvrnorm</span>(<span style="color:#099">1</span>, mu <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">rep</span>(<span style="color:#099">0</span>, <span style="color:#900;font-weight:bold">dim</span>(pred_distances)[1]),
+</span></span><span style="display:flex;"><span>                  Sigma <span style="color:#000;font-weight:bold">=</span> K_star <span style="color:#000;font-weight:bold">-</span> <span style="color:#900;font-weight:bold">t</span>(K_new) <span style="color:#000;font-weight:bold">%*%</span> <span style="color:#900;font-weight:bold">solve</span>(K_obs, K_new))
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Next generate a spatial grid of <code>1000</code> points covering the extent of the simulated study area</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>pred_grid <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">as.data.frame</span>(<span style="color:#900;font-weight:bold">makegrid</span>(<span style="color:#900;font-weight:bold">as</span>(raster<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">extent</span>(<span style="color:#099">152.8</span>, <span style="color:#099">153</span>, <span style="color:#099">-27.65</span>, <span style="color:#099">-27</span>),
+</span></span><span style="display:flex;"><span>                                       <span style="color:#d14">&#39;SpatialPolygons&#39;</span>), n <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1000</span>))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">colnames</span>(pred_grid) <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#39;Longitude&#39;</span>, <span style="color:#d14">&#39;Latitude&#39;</span>)
+</span></span></code></pre></div><p>Calculate distances among fitted and prediction points (in km)</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>obs_distances <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">calc_point_distances</span>(coordinates <span style="color:#000;font-weight:bold">=</span> coords)
+</span></span><span style="display:flex;"><span>pred_distances <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">calc_point_distances</span>(coordinates <span style="color:#000;font-weight:bold">=</span> pred_grid)
+</span></span><span style="display:flex;"><span>obs_to_pred_distances <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">calc_point_distances</span>(coords, pred_grid)
+</span></span></code></pre></div><p>Extract posterior estimates for the latent GP function that applied to the in-sample (fitted) observations</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>obs_gp_function_posterior <span style="color:#000;font-weight:bold">&lt;-</span> fit<span style="color:#000;font-weight:bold">$</span><span style="color:#900;font-weight:bold">draws</span>(<span style="color:#d14">&#39;gp_function&#39;</span>,format <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;df&#34;</span>)[,<span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span>N]
+</span></span></code></pre></div><pre tabindex="0"><code>## Warning: Dropping &#39;draws_df&#39; class as required metadata was removed.
+</code></pre><p>Generate latent GP predictions using <code>5</code> posterior draws. This computation can be sped up by parallelising the operation later on, but for now we just have to sit and wait. For a real analysis, we&rsquo;d want at least <code>1000</code> estimates so we could accurately quantify our uncertainty</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>gp_preds <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">matrix</span>(<span style="color:#000;font-weight:bold">NA</span>, nrow <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">5</span>, ncol <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">NROW</span>(pred_grid))
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">for</span>(i <span style="color:#000;font-weight:bold">in</span> <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#900;font-weight:bold">NROW</span>(gp_preds)){
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">cat</span>(<span style="color:#d14">&#39;Processing posterior draw&#39;</span>, i, <span style="color:#d14">&#39;of 5...\n&#39;</span>)
+</span></span><span style="display:flex;"><span>  gp_preds[i,] <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">predict_gp</span>(obs_distances <span style="color:#000;font-weight:bold">=</span> obs_distances,
+</span></span><span style="display:flex;"><span>                             pred_distances <span style="color:#000;font-weight:bold">=</span> pred_distances,
+</span></span><span style="display:flex;"><span>                             obs_to_pred_distances <span style="color:#000;font-weight:bold">=</span> obs_to_pred_distances,
+</span></span><span style="display:flex;"><span>                             obs_gp_function <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">as.vector</span>(<span style="color:#900;font-weight:bold">as.matrix</span>(obs_gp_function_posterior[i,])),
+</span></span><span style="display:flex;"><span>                             alpha <span style="color:#000;font-weight:bold">=</span> alpha_posterior[i],
+</span></span><span style="display:flex;"><span>                             rho <span style="color:#000;font-weight:bold">=</span> rho_posterior[i])
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><pre tabindex="0"><code>## Processing posterior draw 1 of 5...
+## Processing posterior draw 2 of 5...
+## Processing posterior draw 3 of 5...
+## Processing posterior draw 4 of 5...
+## Processing posterior draw 5 of 5...
+</code></pre><p>Plot the posterior mean spatial GP predictions just for a quick visualisation</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>grid2 <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">data.frame</span>(pred_grid)
+</span></span><span style="display:flex;"><span>grid2<span style="color:#000;font-weight:bold">$</span>preds <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">colMeans</span>(gp_preds)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">colnames</span>(grid2) <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#39;Longitude&#39;</span>, <span style="color:#d14">&#39;Latitude&#39;</span>, <span style="color:#d14">&#39;GP_function&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">ggplot</span>(grid2,
+</span></span><span style="display:flex;"><span>       <span style="color:#900;font-weight:bold">aes</span>(x <span style="color:#000;font-weight:bold">=</span> Latitude, y <span style="color:#000;font-weight:bold">=</span> Longitude, fill <span style="color:#000;font-weight:bold">=</span> GP_function)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_point</span>(shape <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">21</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>, size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">4</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Highlight the original simulated points as larger circles</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># to ensure the spatial kriging makes sense</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_point</span>(data <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">data.frame</span>(sim_y <span style="color:#000;font-weight:bold">=</span> sim_y,
+</span></span><span style="display:flex;"><span>                        GP <span style="color:#000;font-weight:bold">=</span> sim_gp,
+</span></span><span style="display:flex;"><span>                        Longitude <span style="color:#000;font-weight:bold">=</span> lon,
+</span></span><span style="display:flex;"><span>                        Latitude <span style="color:#000;font-weight:bold">=</span> lat),
+</span></span><span style="display:flex;"><span>             <span style="color:#900;font-weight:bold">aes</span>(x <span style="color:#000;font-weight:bold">=</span> Latitude, y <span style="color:#000;font-weight:bold">=</span> Longitude, fill <span style="color:#000;font-weight:bold">=</span> GP),
+</span></span><span style="display:flex;"><span>             size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">5</span>, shape <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">21</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;black&#39;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">scale_fill_continuous</span>(type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;viridis&#34;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">theme_minimal</span>()
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/stan-discrete-geostatistical/index_files/figure-html/unnamed-chunk-53-1.png" alt="Stan geostatistical model predictions show adequate fit to the simulated data in R" width="576" style="display: block; margin: auto;" />
+<p>For complete predictions, we would need the covariate values (i.e. precipitation) at all of the spatial locations. The predictions would be just as fast, we would simply need to take posterior draws of <code>\(\beta_{precip}\)</code>, multiply them by the covariate values at each point, then add those with the GP estimates to form the linear predictor for <code>\(log(\lambda)\)</code>. We could then use <code>rpois(exp(prediction))</code> to draw a Poisson realisation for each prediction point that satisfies <code>\(Poisson(\lambda)\)</code></p>
+
+      </section>
+      <footer class="post-footer">
+        <div class="post-pagination dt w-100 mt4 mb2">
+  
+  
+    <a class="prev dtc pr2 tl v-top fw6"
+    href="https://ecogambler.netlify.app/blog/phylogenetic-smooths-mgcv/">&larr; Phylogenetic smoothing using mgcv</a>
+  
+  
+  
+    <a class="next dtc pl2 tr v-top fw6"
+    href="https://ecogambler.netlify.app/blog/distributed-lags-mgcv/">Distributed lags (and hierarchical distributed lags) using mgcv and mvgam &rarr;</a>
+  
+</div>
+
+      </footer>
+    </article>
+    
+      
+<div class="post-comments pa0 pa4-l mt4">
+  
+  <script src="https://utteranc.es/client.js"
+          repo="apreshill/apero"
+          issue-term="pathname"
+          theme="boxy-light"
+          label="comments :crystal_ball:"
+          crossorigin="anonymous"
+          async
+          type="text/javascript">
+  </script>
+  
+</div>
+
+    
+  </section>
+</main>
+<aside class="page-sidebar" role="complementary">
+                         
+ 
+
+
+                       
+ 
+
+
+
+
+
+
+
+
+
+
+
+  <img src="/blog/sidebar-listing.jpg" class="db ma0">
+
+
+<div class="blog-info ph4 pt4 pb4 pb0-l">
+  
+
+  <h1 class="f3">GAMbler</h1>
+  <p class="f6 lh-copy measure">A blog on (somewhat) interesting and (hopefully) useful tips for ecological modeling, with (perhaps too much) emphasis on Generalized Additive Models.</p>
+  <p class="f7 measure lh-copy i mh0-l">Written by Nicholas Clark (n.clark&rsquo;at&rsquo;uq.edu.au)</p>
+
+
+  
+  <div class="dib bt bw1 b--black-10">
+    
+      <small class="db f7 pt3"><a href="/blog/" class="dib fw7 ttu">View recent posts</a></small>
+    
+    
+    
+    
+  </div>
+
+
+</div>
+
+
+  
+  <details open class="f6 fw7 input-reset">
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Posted on:</dt>
+    <dd class="fw5 ml0">November 16, 2023</dd>
+  </dl>
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Length:</dt>
+    <dd class="fw5 ml0">19 minute read, 3881 words</dd>
+  </dl>
+  
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Categories:</dt>
+    <dd class="fw5 ml0"> <a href="https://ecogambler.netlify.app/categories/stan">stan</a>  <a href="https://ecogambler.netlify.app/categories/simulation">simulation</a> </dd>
+  </dl>
+  
+  
+  
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Tags:</dt>
+    <dd class="fw5 ml0"> <a href="https://ecogambler.netlify.app/tags/rstats">rstats</a>  <a href="https://ecogambler.netlify.app/tags/stan">stan</a>  <a href="https://ecogambler.netlify.app/tags/simulation">simulation</a>  <a href="https://ecogambler.netlify.app/tags/spatial">spatial</a>  <a href="https://ecogambler.netlify.app/tags/tutorial">tutorial</a> </dd>
+  </dl>
+  
+  <dl class="f6 lh-copy">
+    <dt class="fw7">See Also:</dt>
+    
+    <dd class="fw5 ml0"><a href="/blog/emergency-department-shiny/">Building an Interactive Emergency Department Dashboard with Shiny</a></dd>
+    
+    <dd class="fw5 ml0"><a href="/blog/plant-community-dirichlet/">Compositional modeling of plant communities with Dirichlet regression</a></dd>
+    
+    <dd class="fw5 ml0"><a href="/blog/clv-prediction/">GAMs for Customer Lifetime Value (CLV) prediction</a></dd>
+    
+  </dl>
+</details>
+
+                           
+  
+  
+  
+ <nav id="TableOfContents" class="sticky ph4 pb4 pt6" role="navigation"> 
+   <h2 class="mv0 f5 fw7 ttu tracked dib">On this page</h2> 
+     <nav id="TableOfContents">
+  <ul>
+    <li><a href="#required-libraries">Required libraries</a></li>
+    <li><a href="#purpose-and-model-introduction">Purpose and model introduction</a></li>
+    <li><a href="#define-the-joint-probabilistic-model">Define the joint probabilistic model</a></li>
+    <li><a href="#simulate-spatially-autocorrelated-poisson-data">Simulate spatially autocorrelated Poisson data</a></li>
+    <li><a href="#fit-a-standard-generalized-linear-model-to-simulated-data">Fit a standard Generalized Linear Model to simulated data</a></li>
+    <li><a href="#fit-the-geostatistical-model-to-simulated-data">Fit the geostatistical model to simulated data</a></li>
+    <li><a href="#inference">Inference</a></li>
+    <li><a href="#prediction">Prediction</a></li>
+  </ul>
+</nav> 
+ </nav> 
+  
+
+</aside>
+<footer class="site-footer pv4 bt b--transparent ph5" role="contentinfo">
+  <nav class="db dt-l w-100">
+    <p class="site-copyright f7 db dtc-l v-mid w-100 w-33-l tc tl-l pv2 pv0-l mv0 lh-copy">
+      © Nicholas J Clark (2024)
+      <span class="middot-divider"></span>
+      Made with <span xmlns:dct="http://purl.org/dc/terms/" property="dct:title"><a xmlns:dct="http://purl.org/dc/terms/" href="https://github.com/hugo-apero/" rel="dct:source">Hugo Apéro</a></span>.
+      <br />
+      
+Based on <span xmlns:dct="http://purl.org/dc/terms/" property="dct:title"><a xmlns:dct="http://purl.org/dc/terms/" href="https://github.com/formspree/blogophonic-hugo" rel="dct:source">Blogophonic</a></span> by <a xmlns:cc="http://creativecommons.org/ns#" href="https://formspree.io" property="cc:attributionName" rel="cc:attributionURL">Formspree</a>.
+    </p>
+    
+    <div class="site-social-links db dtc-l v-mid w-100 w-33-l tc pv2 pv0-l mv0">
+      <div class="social-icon-links" aria-hidden="true">
+  
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://github.com/nicholasjclark" title="github" target="_blank" rel="me noopener">
+      <i class="fab fa-github fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://www.youtube.com/@NJ_Clark" title="youtube" target="_blank" rel="me noopener">
+      <i class="fab fa-youtube fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://bsky.app/profile/njclark.bsky.social" title="mixcloud" target="_blank" rel="me noopener">
+      <i class="fab fa-mixcloud fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://orcid.org/0000-0001-7131-3301" title="orcid" target="_blank" rel="me noopener">
+      <i class="ai ai-orcid fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://scholar.google.com.au/citations?user=5bO9uxEAAAAJ&amp;hl=en" title="google-scholar" target="_blank" rel="me noopener">
+      <i class="ai ai-google-scholar fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="/blog/index.xml" title="rss" >
+      <i class="fas fa-rss fa-lg fa-fw"></i>
+    </a>
+  
+</div>
+
+    </div>
+    
+    <div class="site-links f6 db dtc-l v-mid w-100 w-67-l tc tr-l pv2 pv0-l mv0">
+      
+      <a class="dib pv1 ph2 link" href="/license/" title="License">License</a>
+      
+      <a class="dib pv1 ph2 link" href="/contributors/" title="Contributors">Collaborators</a>
+      
+    </div>
+  </nav>
+  
+    <script>
+
+    var i, text, code, codes = document.getElementsByTagName('code');
+    for (let i = 0; i < codes.length;) {
+      code = codes[i];
+      if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+        text = code.textContent;
+        if (/^\$[^$]/.test(text) && /[^$]\$$/.test(text)) {
+          text = text.replace(/^\$/, '\\(').replace(/\$$/, '\\)');
+          code.textContent = text;
+        }
+        if (/^\\\((.|\s)+\\\)$/.test(text) ||
+            /^\\\[(.|\s)+\\\]$/.test(text) ||
+            /^\$(.|\s)+\$$/.test(text) ||
+            /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+          code.outerHTML = code.innerHTML;  
+          continue;
+        }
+      }
+      i++;
+    }
+</script>
+
+  
+    
+    
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/katex.min.css" integrity="sha384-RZU/ijkSsFbcmivfdRBQDtwuwVqK7GMOw6IMvKyeWL2K5UAlyp6WonmB8m7Jd0Hn" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/katex.min.js" integrity="sha384-pK1WpvzWVBQiP0/GjnvRxV4mOb0oxFuyRxJlk6vVw146n3egcN5C925NCP7a7BY8" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/contrib/auto-render.min.js" integrity="sha384-vZTG03m+2yp6N6BNi5iM4rW4oIwk5DfcNdFfxkk9ZWpDriOkXX8voJBFrAO7MpVl" crossorigin="anonymous" onload="renderMathInElement(document.body);"></script>
+
+
+
+    
+  
+  
+</footer>
+
+      </div>
+    </body>
+</html>

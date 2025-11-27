@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr"><head>
+  
+                           
+     
+
+
+<meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="generator" content="Hugo 0.123.8">
+<title>Incorporating time-varying seasonality in forecast models | GAMbler</title>
+
+
+<meta property="twitter:site" content="@twitter = &#34;nj_clark&#34;">
+<meta property="twitter:creator" content="@twitter = &#34;nj_clark&#34;">
+
+
+
+
+
+
+
+  
+    
+  
+<meta name="description" content="Many time series show repeated seasonal patterns, and fitting models that can capture this seasonality is a major focus of time series forecasting algorithms. There are a lot of useful, established methods to deal with this (i.e. SARIMA, Harmonic regression), but sometimes the seasonal patterns change over time. Fewer time series and forecasting models can handle this feature. This post introduces some strategies for capturing time-varying seasonality and time-varying periodicity in Dynamic Generalized Additive Models, using the mvgam package in R.">
+
+
+<meta property="og:site_name" content="GAMbler">
+<meta property="og:title" content="Incorporating time-varying seasonality in forecast models | GAMbler">
+<meta property="og:description" content="Many time series show repeated seasonal patterns, and fitting models that can capture this seasonality is a major focus of time series forecasting algorithms. There are a lot of useful, established methods to deal with this (i.e. SARIMA, Harmonic regression), but sometimes the seasonal patterns change over time. Fewer time series and forecasting models can handle this feature. This post introduces some strategies for capturing time-varying seasonality and time-varying periodicity in Dynamic Generalized Additive Models, using the mvgam package in R." />
+<meta property="og:type" content="page" />
+<meta property="og:url" content="https://ecogambler.netlify.app/blog/time-varying-seasonality/" />
+<meta property="og:locale" content="en">
+
+
+
+
+    
+        <meta property="og:image" content="https://ecogambler.netlify.app/blog/time-varying-seasonality/featured.png" >
+        <meta property="twitter:card" content="summary_large_image">
+        <meta name="twitter:image" content="https://ecogambler.netlify.app/blog/time-varying-seasonality/featured.png" >
+    
+    
+  <meta itemprop="name" content="Incorporating time-varying seasonality in forecast models">
+<meta itemprop="description" content="Seasonality is very common in real-world time series. Many series vary in periodic, regular ways. For example, ice cream sales tend to be higher in warmer holiday months, while counts of migratory birds fluctuate strongly around the annual migration cycle. Because of how pervasive seasonality is, many time series and forecasting methods have been developed specifically to deal with this feature. For example, Seasonal ARIMA (SARIMA) models use differencing at seasonal lags to model seasonality in addition to other autoregressive features."><meta itemprop="datePublished" content="2024-06-11T00:00:00+00:00" />
+<meta itemprop="dateModified" content="2024-06-11T00:00:00+00:00" />
+<meta itemprop="wordCount" content="3171"><meta itemprop="image" content="https://ecogambler.netlify.app/blog/time-varying-seasonality/featured.png" />
+<meta itemprop="keywords" content="rstats,mvgam,tutorial,forecasting,time-series," />
+  
+  <!--[if IE]><script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script><![endif]-->
+  <link rel="shortcut icon" href="/img/header_logo.ico" type="image/x-icon">
+  <link rel="icon" href="/img/header_logo.ico" type="image/x-icon">
+  
+  
+  <link rel="stylesheet" href="/style.main.min.13ba2c07d7acc52c13dbb9003240e2adf360a5d73e1392ede873916180ee1701.css" integrity="sha256-E7osB9esxSwT27kAMkDirfNgpdc&#43;E5Lt6HORYYDuFwE=" media="screen">
+  
+  
+  <script src="/panelset.min.ed1ac24b6e16f4e2481e3d1d098ae66f5bc77438aef619e6e266d8ac5b00dc72.js" type="text/javascript"></script>
+  
+  
+  <script src="/main.min.7c7401b27b903bdc8736f72a2f739f7602bf606c451e8cb5e7fab2bf6b4af582.js" type="text/javascript"></script>
+</head>
+<body>
+      <div class="grid-container single-sidebar">
+<header class="site-header pt4 pb2 mb4 bb b--transparent ph5 headroom z-max" role="banner">
+  <nav class="site-nav db dt-l w-100" role="navigation">
+    <a class="site-brand db dtc-l v-mid link no-underline w-100 w-33-l tc tl-l" href="https://ecogambler.netlify.app/" title="Home">
+      <img src="/img/header_logo.png" class="dib db-l h2 w-auto" alt="GAMbler">
+    </a>
+    <div class="site-links db dtc-l v-mid w-100 w-47-l tc tr-l mt3 mt0-l ttu tracked">
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 active" href="/blog/" title="Blog">Blog</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/project/" title="Project Portfolio">Software</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/talk/" title="Talks">Talks &amp; Workshops</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/opportunities/" title="Opportunities">Opportunities</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/archives/" title="Archive">Archive</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/blogroll/" title="Blogroll">Blogroll</a>
+      
+      
+    </div>
+  </nav>
+</header>
+
+<main class="page-main pa4" role="main">
+  <section class="page-content mw7 center">
+    <article class="post-content pa0 pr3-l">
+      <header class="post-header">
+        <h1 class="f1 lh-solid measure-narrow mb3 fw4">Incorporating time-varying seasonality in forecast models</h1>
+        
+        <p class="f6 measure lh-copy mv1">By Nicholas Clark in <a href="https://ecogambler.netlify.app/categories/rstats">rstats</a>  <a href="https://ecogambler.netlify.app/categories/time-series">time-series</a>  <a href="https://ecogambler.netlify.app/categories/mvgam">mvgam</a> </p>
+        <p class="f7 db mv0 ttu">June 11, 2024</p>
+      </header>
+      <section class="post-body pt5 pb4">
+        <p>Seasonality is very common in real-world time series. Many series vary in periodic, regular ways. For example, ice cream sales tend to be higher in warmer holiday months, while counts of migratory birds fluctuate strongly around the annual migration cycle. Because of how pervasive seasonality is, many time series and forecasting methods have been developed specifically to deal with this feature. For example, 
+<a href="https://otexts.com/fpp3/seasonal-arima.html" target="_blank" rel="noopener">Seasonal ARIMA (SARIMA) models</a> use differencing at seasonal lags to model seasonality in addition to other autoregressive features. Many types of 
+<a href="https://otexts.com/fpp3/ets.html" target="_blank" rel="noopener">Exponential Smoothing models</a> can also capture seasonality by propagating separate seasonal states in State-Space form. These methods are extremely useful for modeling real-valued time series and generating reasonable forecasts, and they can both readily handle time-varying seasonal patterns. But when it comes to regression-based models (
+<a href="https://ecogambler.netlify.app/blog/mvgam-on-cran/" target="_blank" rel="noopener">which can do a <em>much</em> better job capturing relevant features of the data, such as overdispersion, boundedness, missingness or zero-inflation</a>), options for capturing seasonality, and time-varying seasonality, are more limited. The purpose of this brief post is to highlight one strategy for capturing seasonality, and time-varying seasonal patterns, in Dynamic Generalized Additive Models.</p>
+
+
+
+
+<h2 id="environment-setup">Environment setup
+  <a href="#environment-setup"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>This tutorial relies on the following packages:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(mvgam)           <span style="color:#998;font-style:italic"># Fit, interrogate and forecast DGAMs</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(dplyr)           <span style="color:#998;font-style:italic"># Tidy and flexible data manipulation</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(forecast)        <span style="color:#998;font-style:italic"># Construct fourier terms for time series</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(ggplot2)         <span style="color:#998;font-style:italic"># Flexible plotting</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">theme_set</span>(<span style="color:#900;font-weight:bold">theme_bw</span>())      <span style="color:#998;font-style:italic"># Black and White ggplot2 theme</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(gratia)          <span style="color:#998;font-style:italic"># Graceful plotting of smooth terms</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(marginaleffects) <span style="color:#998;font-style:italic"># Interrogating regression models</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(patchwork)       <span style="color:#998;font-style:italic"># Combining ggplot objects</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(janitor)         <span style="color:#998;font-style:italic"># Creating clean, tidy variable names</span>
+</span></span></code></pre></div>
+
+
+
+<h1 id="plotting-a-seasonal-time-series">Plotting a seasonal time series
+  <a href="#plotting-a-seasonal-time-series"></a>
+</h1>
+<p>We will work with the <code>AirPassengers</code> dataset, which is a time series of monthly international airline passengers from 1949 - 1960 (recorded in thousands). Load the data and plot the series</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">data</span>(<span style="color:#d14">&#34;AirPassengers&#34;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot</span>(AirPassengers, bty <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;l&#39;</span>, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1.5</span>,
+</span></span><span style="display:flex;"><span>     col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;darkred&#39;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/time-varying-seasonality/index_files/figure-html/unnamed-chunk-3-1.png" alt="The AirPassengers time series in R" width="60%" style="display: block; margin: auto;" />
+<p>It is clear from this plot that there is strong seasonality in the passenger numers, but this pattern also appears to be changing over time. One common way to inpsect possible seasonal patterns is to calculate and plot an STL decomposition (Seasonal and Trend decomposition using Loess), which uses loess smoothing to iteratively smooth and remove certain components of the data (i.e. the long-term <em>trend</em>, which may be nonlinear, and the potentially time-varying <em>seasoanality</em>)</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">stl</span>(AirPassengers, s.window <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">9</span>) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">autoplot</span>()
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/time-varying-seasonality/index_files/figure-html/unnamed-chunk-4-1.png" alt="An STL decomposition of the AirPassengers dataset in R, useful for time series modeling and forecasting" width="60%" style="display: block; margin: auto;" />
+<p>You can read about ways to modify this plot by changing the the periods over which the trend and seasonal components are smoothed using the <code>t.window</code> and <code>s.window</code> arguments, but they aren&rsquo;t that important for this post. The key message is that there appears to be a long-term, nonlinear <em>trend</em> and a cyclic seasonal pattern that varies over time, not just in magnitude but also perhaps a bit in shape. Now for some models. First let&rsquo;s convert the series to a <code>data.frame()</code> object that is suitable for modeling with the {<code>mgcv</code>} and {<code>mvgam</code>} packages. This function will also automatically split the data into training and testing sets, which makes it easy to evaluate different models on their forecasting abilities.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>airdat <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">series_to_mvgam</span>(AirPassengers, freq <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">frequency</span>(AirPassengers))
+</span></span><span style="display:flex;"><span>dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">glimpse</span>(airdat<span style="color:#000;font-weight:bold">$</span>data_train)
+</span></span></code></pre></div><pre tabindex="0"><code>## Rows: 122
+## Columns: 6
+## $ y      &lt;dbl&gt; 112, 118, 132, 129, 121, 135, 148, 148, 136, 119, 104, 118, 115…
+## $ season &lt;dbl&gt; 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3, 4, 5, 6, 7, 8, …
+## $ year   &lt;dbl&gt; 1949, 1949, 1949, 1949, 1949, 1949, 1949, 1949, 1949, 1949, 194…
+## $ date   &lt;dttm&gt; 1949-01-01 00:00:00, 1949-01-31 10:00:00, 1949-03-02 20:00:01,…
+## $ series &lt;fct&gt; series_1, series_1, series_1, series_1, series_1, series_1, ser…
+## $ time   &lt;int&gt; 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, …
+</code></pre><p>Once the data are in the correct <em>long</em> format, we can easily plot some features of the time series using some of {<code>mvgam</code>}&rsquo;s <code>S3</code> functions</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot_mvgam_series</span>(data <span style="color:#000;font-weight:bold">=</span> airdat<span style="color:#000;font-weight:bold">$</span>data_train,
+</span></span><span style="display:flex;"><span>                  newdata <span style="color:#000;font-weight:bold">=</span> airdat<span style="color:#000;font-weight:bold">$</span>data_test)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/time-varying-seasonality/index_files/figure-html/unnamed-chunk-6-1.png" alt="Features of the AirPassengers time series in R, including a CDF and ACF to view temporal autocorrelation" width="60%" style="display: block; margin: auto;" />
+<p>The Autocorrelation Function (ACF) plot clearly shows evidence of strong autocorrelation and seasonality, which we hope to capture in our models</p>
+
+
+
+
+<h2 id="fit-an-mvgam-model-using-a-tensor-product-interaction">Fit an <code>mvgam</code> model using a tensor product interaction
+  <a href="#fit-an-mvgam-model-using-a-tensor-product-interaction"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>Now we can fit a model to these data to try and capture both components, i.e. the trend and seasonal patterns. Those of you familiar with {<code>mgcv</code>} will know that the traditional way to model time-varying effects is to use a 
+<a href="https://rdrr.io/cran/mgcv/man/te.html" target="_blank" rel="noopener">tensor product smooth (using the <code>te()</code> wrapper)</a> to capture a nonlinear interaction between &rsquo;time&rsquo; and whatever covariate we are interested in (&lsquo;season&rsquo;, in this case). This is a useful first step to model smoothly-varying effects, and we have a lot of flexibility to describe the marginal effects within a <code>te()</code> smooth. For example, in the below model we set up the effect of &lsquo;season&rsquo; using 
+<a href="https://fromthebottomoftheheap.net/2014/05/09/modelling-seasonal-data-with-gam/" target="_blank" rel="noopener">a cyclic smooth (<code>bs = 'cc'</code>)</a> that forces the seasonal pattern to begin and end in the same place (i.e. there is no discontinuity allowed at the end points of the spline, meaning that this effect constrains the smooth to be <em>periodic</em>).</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>mod1 <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">mvgam</span>(y <span style="color:#000;font-weight:bold">~</span> 
+</span></span><span style="display:flex;"><span>                <span style="color:#998;font-style:italic"># A tensor product of season and time</span>
+</span></span><span style="display:flex;"><span>                <span style="color:#900;font-weight:bold">te</span>(season, time,
+</span></span><span style="display:flex;"><span>                   
+</span></span><span style="display:flex;"><span>                   <span style="color:#998;font-style:italic"># Cyclic and thin-plate marginal bases</span>
+</span></span><span style="display:flex;"><span>                   bs <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#39;cc&#39;</span>, <span style="color:#d14">&#39;tp&#39;</span>),
+</span></span><span style="display:flex;"><span>                   
+</span></span><span style="display:flex;"><span>                   <span style="color:#998;font-style:italic"># Reasonable complexities</span>
+</span></span><span style="display:flex;"><span>                   k <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">8</span>, <span style="color:#099">15</span>)),
+</span></span><span style="display:flex;"><span>              
+</span></span><span style="display:flex;"><span>              <span style="color:#998;font-style:italic"># Define where the seasonal ends should &#39;join&#39;</span>
+</span></span><span style="display:flex;"><span>              knots <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">list</span>(season <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">0.5</span>, <span style="color:#099">12.5</span>)),
+</span></span><span style="display:flex;"><span>              
+</span></span><span style="display:flex;"><span>              <span style="color:#998;font-style:italic"># Allow for overdispersion in the count series</span>
+</span></span><span style="display:flex;"><span>              family <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">nb</span>(),
+</span></span><span style="display:flex;"><span>              
+</span></span><span style="display:flex;"><span>              <span style="color:#998;font-style:italic"># Define the data and newdata for automatic forecasting</span>
+</span></span><span style="display:flex;"><span>              data <span style="color:#000;font-weight:bold">=</span> airdat<span style="color:#000;font-weight:bold">$</span>data_train,
+</span></span><span style="display:flex;"><span>              newdata <span style="color:#000;font-weight:bold">=</span> airdat<span style="color:#000;font-weight:bold">$</span>data_test,
+</span></span><span style="display:flex;"><span>              
+</span></span><span style="display:flex;"><span>              <span style="color:#998;font-style:italic"># Silence printed messages</span>
+</span></span><span style="display:flex;"><span>              silent <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>)
+</span></span></code></pre></div><p>We can conveniently use <code>gratia::draw()</code> to view the &rsquo;time&rsquo; * &lsquo;season&rsquo; smooth interaction function from the model&rsquo;s underlying <code>gam</code> object (stored in the <code>mgcv_model</code> slot of the returned model object)</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">draw</span>(mod1<span style="color:#000;font-weight:bold">$</span>mgcv_model)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/time-varying-seasonality/index_files/figure-html/unnamed-chunk-8-1.png" alt="Partial effect of time-varying seasonality from a Generalized Additive Model, fitted in mvgam" width="60%" style="display: block; margin: auto;" />
+<p>The primary seasonal pattern can be viewed using <code>plot_predictions()</code> from the {<code>marginaleffects</code>} package, 
+<a href="https://ecogambler.netlify.app/blog/interpreting-gams/" target="_blank" rel="noopener">which is an extremely useful package for using targeted predictions to interrogate nonlinear effects from GAMs</a>.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot_predictions</span>(mod1, condition <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;season&#39;</span>, type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;link&#39;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/time-varying-seasonality/index_files/figure-html/unnamed-chunk-9-1.png" alt="Conditional seasonal effect from a Generalized Additive Model with time-varying seasonality, fitted in mvgam" width="60%" style="display: block; margin: auto;" />
+<p>Out-of-sample forecasts from this model aren&rsquo;t too bad here, but perhaps the uncertainty is a bit too wide. This is not unexpected if you take some time to understand how splines extrapolate beyond the training data</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot</span>(mod1, type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;forecast&#39;</span>)
+</span></span></code></pre></div><pre tabindex="0"><code>## Out of sample DRPS:
+## 897.952959
+</code></pre><img src="https://ecogambler.netlify.app/blog/time-varying-seasonality/index_files/figure-html/unnamed-chunk-10-1.png" alt="Forecasts from a Dynamic Generalized Additive Model with time-varying seasonality using a tensor product, fitted in mvgam" width="60%" style="display: block; margin: auto;" />
+<p>This model is not too bad, but it might not be preferable for a few reasons:</p>
+<ol>
+<li>We are capturing the temporal dimension with a spline, and we all know that 
+<a href="https://ecogambler.netlify.app/blog/autocorrelated-gams/" target="_blank" rel="noopener">splines generally give poor extrapolation behaviours</a></li>
+<li>This model assumes that the seasonal pattern changes at the same rate that the temporal spline changes, and this might not always be the most suitable model</li>
+</ol>
+
+
+
+
+<h2 id="using-fourier-terms-to-capture-time-varying-seasonality">Using Fourier terms to capture time-varying seasonality
+  <a href="#using-fourier-terms-to-capture-time-varying-seasonality"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>There is another way we can model time-varying seasonality, in this case using a 
+<a href="https://otexts.com/fpp3/useful-predictors.html#useful-predictors" target="_blank" rel="noopener">Fourier transform</a>. A Fourier series uses sets of sine and cosine terms at different frequencies, which can be weighted to approximate a huge variety of periodic functions. First compute sine and cosine functions using the <code>forecast::fourier()</code> function, which automatically recognises the monthly periodicity of the <code>AirPassengers</code> data to calculate Fourier terms of the corrrect frequencies. Here we set the order <code>K</code> equal to <code>4</code>, which gives us a total of <code>8</code> sine and cosine predictors that we can use as regressors in our dynamic model. This sort of model is often referred to as 
+<a href="https://otexts.com/fpp3/dhr.html" target="_blank" rel="noopener"><em>harmonic regression</em></a> because the successive Fourier terms can be thought of as representing harmonics of the previous Fourier terms.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">data.frame</span>(forecast<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">fourier</span>(AirPassengers, K <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">4</span>)) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Use clean_names as fourier() gives terrible name types</span>
+</span></span><span style="display:flex;"><span>  janitor<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">clean_names</span>() <span style="color:#000;font-weight:bold">-&gt;</span> fourier_terms
+</span></span><span style="display:flex;"><span>dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">glimpse</span>(fourier_terms)
+</span></span></code></pre></div><pre tabindex="0"><code>## Rows: 144
+## Columns: 8
+## $ s1_12 &lt;dbl&gt; 0.5000000, 0.8660254, 1.0000000, 0.8660254, 0.5000000, 0.0000000…
+## $ c1_12 &lt;dbl&gt; 0.8660254, 0.5000000, 0.0000000, -0.5000000, -0.8660254, -1.0000…
+## $ s2_12 &lt;dbl&gt; 0.8660254, 0.8660254, 0.0000000, -0.8660254, -0.8660254, 0.00000…
+## $ c2_12 &lt;dbl&gt; 0.5, -0.5, -1.0, -0.5, 0.5, 1.0, 0.5, -0.5, -1.0, -0.5, 0.5, 1.0…
+## $ s3_12 &lt;dbl&gt; 1, 0, -1, 0, 1, 0, -1, 0, 1, 0, -1, 0, 1, 0, -1, 0, 1, 0, -1, 0,…
+## $ c3_12 &lt;dbl&gt; 0, -1, 0, 1, 0, -1, 0, 1, 0, -1, 0, 1, 0, -1, 0, 1, 0, -1, 0, 1,…
+## $ s4_12 &lt;dbl&gt; 0.8660254, -0.8660254, 0.0000000, 0.8660254, -0.8660254, 0.00000…
+## $ c4_12 &lt;dbl&gt; -0.5, -0.5, 1.0, -0.5, -0.5, 1.0, -0.5, -0.5, 1.0, -0.5, -0.5, 1…
+</code></pre><p>Viewing these Fourier terms (for the first 24 time points) gives a sense of how they can be thought of as a particular type of basis expansion</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">matplot</span>(<span style="color:#900;font-weight:bold">as.matrix</span>(fourier_terms)[1<span style="color:#000;font-weight:bold">:</span><span style="color:#099">24</span>,], type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;l&#39;</span>,
+</span></span><span style="display:flex;"><span>        ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Function value&#39;</span>, xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Time&#39;</span>,
+</span></span><span style="display:flex;"><span>        col <span style="color:#000;font-weight:bold">=</span> viridis<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">viridis</span>(<span style="color:#099">8</span>), lty <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1.5</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/time-varying-seasonality/index_files/figure-html/unnamed-chunk-12-1.png" alt="Fourier terms for a dynamic harmonic regression" width="60%" style="display: block; margin: auto;" />
+Now we can add these new predictors to the training and testing datasets. It is important that we have these terms for the out-of-sample testing set as well, because these will be used to help compute forecasts from our model
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>airdat<span style="color:#000;font-weight:bold">$</span>data_train <span style="color:#000;font-weight:bold">=</span> airdat<span style="color:#000;font-weight:bold">$</span>data_train <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">bind_cols</span>(fourier_terms[1<span style="color:#000;font-weight:bold">:</span><span style="color:#900;font-weight:bold">NROW</span>(airdat<span style="color:#000;font-weight:bold">$</span>data_train), ])
+</span></span><span style="display:flex;"><span>airdat<span style="color:#000;font-weight:bold">$</span>data_test <span style="color:#000;font-weight:bold">=</span> airdat<span style="color:#000;font-weight:bold">$</span>data_test <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">bind_cols</span>(fourier_terms<span style="color:#900;font-weight:bold">[</span>(<span style="color:#900;font-weight:bold">NROW</span>(airdat<span style="color:#000;font-weight:bold">$</span>data_train) <span style="color:#000;font-weight:bold">+</span> <span style="color:#099">1</span>)<span style="color:#000;font-weight:bold">:</span>
+</span></span><span style="display:flex;"><span>                                   <span style="color:#900;font-weight:bold">NROW</span>(fourier_terms), ])
+</span></span></code></pre></div><p>Next we can fit an <code>mvgam()</code> model that includes a smooth nonlinear temporal trend and time-varying seasonality, but using the Fourier terms in place of the cyclic smooth like we did above. This is done by first using a monotonic smooth of &rsquo;time&rsquo; that ensures the temporal trend never declines, which seems appropriate here. The {<code>mvgam</code>} package includes options for monotonically increasing or monotonically decreasing smooths using the 
+<a href="https://nicholasjclark.github.io/mvgam/reference/monotonic.html" target="_blank" rel="noopener"><code>moi</code> and <code>mod</code> basis constructors</a>. This is a nice feature that is difficult to incorporate in normal GAMs fitted in either {<code>mgcv</code>} or {<code>brms</code>}. The time-varying seasonality is captured by allowing the coefficients on the Fourier terms to vary over time using separate splines that take advantage of the <code>'by'</code> argument in the <code>s()</code> wrapper. This effectively sets up independent smooths of &rsquo;time&rsquo; that are then interacted with the Fourier terms, formulating a time-varying coefficient model for each Fourier term.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>mod2 <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">mvgam</span>(y <span style="color:#000;font-weight:bold">~</span> 
+</span></span><span style="display:flex;"><span>                <span style="color:#998;font-style:italic"># Monotonic smooth of time to ensure the trend</span>
+</span></span><span style="display:flex;"><span>                <span style="color:#998;font-style:italic"># either increases or flattens, but does not </span>
+</span></span><span style="display:flex;"><span>                <span style="color:#998;font-style:italic"># decrease</span>
+</span></span><span style="display:flex;"><span>                <span style="color:#900;font-weight:bold">s</span>(time, bs <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;moi&#39;</span>, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">10</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>                
+</span></span><span style="display:flex;"><span>                <span style="color:#998;font-style:italic"># Time-varying fourier coefficients to capture</span>
+</span></span><span style="display:flex;"><span>                <span style="color:#998;font-style:italic"># possibly changing seasonality</span>
+</span></span><span style="display:flex;"><span>                <span style="color:#900;font-weight:bold">s</span>(time, by <span style="color:#000;font-weight:bold">=</span> s1_12, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">5</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>                <span style="color:#900;font-weight:bold">s</span>(time, by <span style="color:#000;font-weight:bold">=</span> c1_12, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">5</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>                <span style="color:#900;font-weight:bold">s</span>(time, by <span style="color:#000;font-weight:bold">=</span> s2_12, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">5</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>                <span style="color:#900;font-weight:bold">s</span>(time, by <span style="color:#000;font-weight:bold">=</span> c2_12, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">5</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>                <span style="color:#900;font-weight:bold">s</span>(time, by <span style="color:#000;font-weight:bold">=</span> s3_12, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">5</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>                <span style="color:#900;font-weight:bold">s</span>(time, by <span style="color:#000;font-weight:bold">=</span> c3_12, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">5</span>),
+</span></span><span style="display:flex;"><span>              
+</span></span><span style="display:flex;"><span>              <span style="color:#998;font-style:italic"># Response family and data as before</span>
+</span></span><span style="display:flex;"><span>              family <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">nb</span>(),
+</span></span><span style="display:flex;"><span>              data <span style="color:#000;font-weight:bold">=</span> airdat<span style="color:#000;font-weight:bold">$</span>data_train,
+</span></span><span style="display:flex;"><span>              newdata <span style="color:#000;font-weight:bold">=</span> airdat<span style="color:#000;font-weight:bold">$</span>data_test,
+</span></span><span style="display:flex;"><span>              silent <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>)
+</span></span></code></pre></div><p>Of course this model still uses a spline of &rsquo;time&rsquo; for the trend, but the monotonic restriction ensures that the predictions are at least somewhat controllable. This second model is preferred based on in-sample fits, which we can readily compare using the Approximate Leave-One-Out Cross-Validation with functionality from the wonderful 
+<a href="https://mc-stan.org/loo/" target="_blank" rel="noopener">{<code>loo</code>} package</a>. A higher Expected Log Predictive Density (ELPD) is preferred here</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">loo_compare</span>(mod1, mod2)
+</span></span></code></pre></div><pre tabindex="0"><code>##      elpd_diff se_diff
+## mod2   0.0       0.0  
+## mod1 -16.8       2.8
+</code></pre><p>But what about forecasts? Here we plot out-of-sample forecasts from both models, which again show that the second model is slightly preferred</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">layout</span>(<span style="color:#900;font-weight:bold">matrix</span>(<span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">2</span>, nrow <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot</span>(mod1, type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;forecast&#39;</span>)
+</span></span></code></pre></div><pre tabindex="0"><code>## Out of sample DRPS:
+## 897.952959
+</code></pre><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot</span>(mod2, type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;forecast&#39;</span>)
+</span></span></code></pre></div><pre tabindex="0"><code>## Out of sample DRPS:
+## 667.239806
+</code></pre><img src="https://ecogambler.netlify.app/blog/time-varying-seasonality/index_files/figure-html/unnamed-chunk-16-1.png" alt="Comparing forecast distributions from two Dynamic Generalized Additive Models with time-varying seasonal components, fitted in mvgam" width="60%" style="display: block; margin: auto;" />
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">layout</span>(<span style="color:#099">1</span>)
+</span></span></code></pre></div><p>Look at the partial effect plots for the smooths to see how some of the Fourier coefficients are estimated to change over time</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>gratia<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">draw</span>(mod2<span style="color:#000;font-weight:bold">$</span>mgcv_model, select <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">7</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/time-varying-seasonality/index_files/figure-html/unnamed-chunk-17-1.png" alt="Time-varying Fourier coefficients from a Dynamic Harmonic Regression, fitted in mvgam" width="60%" style="display: block; margin: auto;" />
+
+
+
+
+<h2 id="plotting-trend-and-seasonal-components-from-a-harmonic-regression">Plotting trend and seasonal components from a harmonic regression
+  <a href="#plotting-trend-and-seasonal-components-from-a-harmonic-regression"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>Plotting this model takes a bit more work, as we need to use targeted predictions from the model to visualise the two primary effects (i.e. the nonlinear trend and the time-varying seasonality).</p>
+<p>First a plot of the trend, which can be done easily in this model using the <code>'condition'</code> argument in <code>plot_predictions()</code> to compute expectations from the model (i.e. predictions on the outcome scale, but ignoring the overdispersion parameter from the Negative Binomial sampling distribution)</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>p1 <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">plot_predictions</span>(mod2, 
+</span></span><span style="display:flex;"><span>                       condition <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;time&#39;</span>, 
+</span></span><span style="display:flex;"><span>                       type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;expected&#39;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">labs</span>(y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Expected passengers&#39;</span>,
+</span></span><span style="display:flex;"><span>       x <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>,
+</span></span><span style="display:flex;"><span>       title <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Long-term trend&#39;</span>)
+</span></span></code></pre></div><p>And now the time-varying seasonal pattern, which requires subtracting the conditional trend predictions from the total predictions</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>with_season <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">predict</span>(mod2, summary <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">FALSE</span>,
+</span></span><span style="display:flex;"><span>                       type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;expected&#39;</span>)
+</span></span><span style="display:flex;"><span>agg_over_season <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">predict</span>(mod2, 
+</span></span><span style="display:flex;"><span>                           newdata <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">datagrid</span>(model <span style="color:#000;font-weight:bold">=</span> mod2,
+</span></span><span style="display:flex;"><span>                                              time <span style="color:#000;font-weight:bold">=</span> unique),
+</span></span><span style="display:flex;"><span>                           summary <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">FALSE</span>,
+</span></span><span style="display:flex;"><span>                           type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;expected&#39;</span>)
+</span></span><span style="display:flex;"><span>season_preds <span style="color:#000;font-weight:bold">&lt;-</span> with_season <span style="color:#000;font-weight:bold">-</span> agg_over_season
+</span></span><span style="display:flex;"><span>p2 <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">ggplot</span>(airdat<span style="color:#000;font-weight:bold">$</span>data_train <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>               dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">mutate</span>(pred <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">apply</span>(season_preds, <span style="color:#099">2</span>, mean),
+</span></span><span style="display:flex;"><span>                             upper <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">apply</span>(season_preds, <span style="color:#099">2</span>, <span style="color:#000;font-weight:bold">function</span>(x) 
+</span></span><span style="display:flex;"><span>                               <span style="color:#900;font-weight:bold">quantile</span>(x, probs <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.975</span>)),
+</span></span><span style="display:flex;"><span>                             lower <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">apply</span>(season_preds, <span style="color:#099">2</span>, <span style="color:#000;font-weight:bold">function</span>(x) 
+</span></span><span style="display:flex;"><span>                               <span style="color:#900;font-weight:bold">quantile</span>(x, probs <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.025</span>))),
+</span></span><span style="display:flex;"><span>             <span style="color:#900;font-weight:bold">aes</span>(x <span style="color:#000;font-weight:bold">=</span> time, y <span style="color:#000;font-weight:bold">=</span> pred)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_ribbon</span>(<span style="color:#900;font-weight:bold">aes</span>(ymax <span style="color:#000;font-weight:bold">=</span> upper,
+</span></span><span style="display:flex;"><span>                  ymin <span style="color:#000;font-weight:bold">=</span> lower),
+</span></span><span style="display:flex;"><span>              alpha <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.2</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_line</span>()<span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">labs</span>(y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Expected passengers&#39;</span>,
+</span></span><span style="display:flex;"><span>       title <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Time-varying seasonality&#39;</span>)
+</span></span></code></pre></div><p>We can now plot these effects together using functionality from the {<code>patchwork</code>} package</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>p1 <span style="color:#000;font-weight:bold">+</span> p2 <span style="color:#000;font-weight:bold">+</span> <span style="color:#900;font-weight:bold">plot_layout</span>(ncol <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/time-varying-seasonality/index_files/figure-html/unnamed-chunk-20-1.png" alt="Plotting nonlinear trends and time-varying seasonality from a harmonic regression Dynamic Generalized Additive Model, fitted in mvgam" width="60%" style="display: block; margin: auto;" />
+<p>This plot clearly shows how the model has estimated both components, and that the seasonal pattern changes in both shape and magnitude over time</p>
+
+
+
+
+<h2 id="time-varying-periodicity">Time-varying periodicity?
+  <a href="#time-varying-periodicity"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>The above example shows how Fourier terms can be used to capture time-varying seasonality. But what if the periodicity itself is changing over time? In other words, how might we model a series that starts out with regular periodic variation that occurs every ~ 8 weeks but that proceeds to show a shrinking or expanding periodic window? Below is a very brief example of how we could expand the Fourier strategy to potentially model this</p>
+<p>First, I define function to construct monotonically increasing or decreasing
+coefficients. This will be helpful to simulate time-varying periodicity</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>monotonic_fun <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">function</span>(times, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">4</span>){
+</span></span><span style="display:flex;"><span>  x <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">sort</span>(<span style="color:#900;font-weight:bold">as.vector</span>(<span style="color:#900;font-weight:bold">scale</span>(times)))
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">exp</span>(k <span style="color:#000;font-weight:bold">*</span> x) <span style="color:#000;font-weight:bold">/</span> (<span style="color:#099">1</span> <span style="color:#000;font-weight:bold">+</span> <span style="color:#900;font-weight:bold">exp</span>(k <span style="color:#000;font-weight:bold">*</span> x))
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Now for the simulation, which involves constructing Fourier series for two different periodicities (<code>k = 12</code> and <code>k = 6</code> in this example), each with three Fourier terms. I then simulate time-varying coefficients for these terms, forcing the period-12 terms to decline toward zero over time while allowing the period-6 terms to increase over time. These coefficients, together with the simulated Fourier terms themselves, should give us the ingredients to simulate a time series in which the periodicity shrinks from ~12 to ~6 over time</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">set.seed</span>(<span style="color:#099">123</span>)
+</span></span><span style="display:flex;"><span>times <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">120</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Construct Fourier series for two different periodicities</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">data.frame</span>(forecast<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">fourier</span>(<span style="color:#900;font-weight:bold">ts</span>(times, frequency <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">12</span>), K <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>)) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">bind_cols</span>(forecast<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">fourier</span>(<span style="color:#900;font-weight:bold">ts</span>(times, frequency <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">6</span>), K <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>)) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Use clean_names as fourier() gives terrible name types</span>
+</span></span><span style="display:flex;"><span>  janitor<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">clean_names</span>() <span style="color:#000;font-weight:bold">-&gt;</span> fourier_terms
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Create the time-varying Fourier coefficients</span>
+</span></span><span style="display:flex;"><span>betas <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">matrix</span>(<span style="color:#000;font-weight:bold">NA</span>, nrow <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">length</span>(times), ncol <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">NCOL</span>(fourier_terms))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Period 12 coefficients drop montonically toward zero over time</span>
+</span></span><span style="display:flex;"><span>p12_names <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">grep</span>(<span style="color:#d14">&#39;_12&#39;</span>, <span style="color:#900;font-weight:bold">names</span>(fourier_terms), fixed <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>)
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">for</span>(i <span style="color:#000;font-weight:bold">in</span> p12_names){
+</span></span><span style="display:flex;"><span>  betas[, i] <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">monotonic_fun</span>(times, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">runif</span>(<span style="color:#099">1</span>, <span style="color:#099">-3</span>, <span style="color:#099">-0.25</span>))
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Period 6 coefficients increase monotonically over time</span>
+</span></span><span style="display:flex;"><span>p6_names <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">grep</span>(<span style="color:#d14">&#39;_6&#39;</span>, <span style="color:#900;font-weight:bold">names</span>(fourier_terms), fixed <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>)
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">for</span>(i <span style="color:#000;font-weight:bold">in</span> p6_names){
+</span></span><span style="display:flex;"><span>  betas[, i] <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">monotonic_fun</span>(times, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">runif</span>(<span style="color:#099">1</span>, <span style="color:#099">0.25</span>, <span style="color:#099">3</span>))
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Plot the Fourier coefficients through time</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">matplot</span>(betas, type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;l&#39;</span>, xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Time&#39;</span>,
+</span></span><span style="display:flex;"><span>        col <span style="color:#000;font-weight:bold">=</span> viridis<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">viridis</span>(<span style="color:#099">8</span>), lty <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1.5</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/time-varying-seasonality/index_files/figure-html/unnamed-chunk-23-1.png" alt="Time-varying periodicity simulated in R" width="60%" style="display: block; margin: auto;" />
+<p>Now calculate the linear predictor and plot it</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>mu <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">vector</span>(length <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">length</span>(times))
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">for</span>(i <span style="color:#000;font-weight:bold">in</span> <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#900;font-weight:bold">length</span>(times)){
+</span></span><span style="display:flex;"><span>  mu[i] <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">as.matrix</span>(fourier_terms)[i, ] <span style="color:#000;font-weight:bold">%*%</span> betas[i, ] 
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot</span>(mu, type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;l&#39;</span>, xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Time&#39;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/time-varying-seasonality/index_files/figure-html/unnamed-chunk-24-1.png" alt="Time-varying periodicity simulated in R" width="60%" style="display: block; margin: auto;" />
+<p>Finally, add some Gaussian Random Walk noise and plot the resulting simulated time series</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>y <span style="color:#000;font-weight:bold">&lt;-</span> mu <span style="color:#000;font-weight:bold">+</span> <span style="color:#900;font-weight:bold">cumsum</span>(<span style="color:#900;font-weight:bold">rnorm</span>(<span style="color:#900;font-weight:bold">length</span>(times), sd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.25</span>))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot</span>(y, type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;l&#39;</span>, xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Time&#39;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/time-varying-seasonality/index_files/figure-html/unnamed-chunk-25-1.png" alt="Time-varying periodicity simulated in R" width="60%" style="display: block; margin: auto;" />
+<p>Now we can construct the data for modeling; this assumes we&rsquo;ve thought carefully about the problem and have included the Fourier series for both periodicities as predictors</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>dat <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">data.frame</span>(y, time <span style="color:#000;font-weight:bold">=</span> times) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">bind_cols</span>(fourier_terms)
+</span></span></code></pre></div><p>And we can now fit the dynamic GAM, which uses a State-Space representation
+to capture time-varying seasonality, periodicity and the Random Walk autocorrelation process</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>mod3 <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">mvgam</span>(
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Observation formula; empty</span>
+</span></span><span style="display:flex;"><span>  formula <span style="color:#000;font-weight:bold">=</span> y <span style="color:#000;font-weight:bold">~</span> <span style="color:#099">-1</span>,
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Process formula contains the seasonal terms</span>
+</span></span><span style="display:flex;"><span>  trend_formula <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">~</span>
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># Time-varying fourier coefficients to capture</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># possibly changing seasonality AND periodicity</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">s</span>(time, by <span style="color:#000;font-weight:bold">=</span> s1_12, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">5</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">s</span>(time, by <span style="color:#000;font-weight:bold">=</span> c1_12, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">5</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">s</span>(time, by <span style="color:#000;font-weight:bold">=</span> s2_12, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">5</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">s</span>(time, by <span style="color:#000;font-weight:bold">=</span> c2_12, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">5</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">s</span>(time, by <span style="color:#000;font-weight:bold">=</span> s3_12, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">5</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">s</span>(time, by <span style="color:#000;font-weight:bold">=</span> c3_12, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">5</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">s</span>(time, by <span style="color:#000;font-weight:bold">=</span> s1_6, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">5</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">s</span>(time, by <span style="color:#000;font-weight:bold">=</span> c1_6, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">5</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">s</span>(time, by <span style="color:#000;font-weight:bold">=</span> s2_6, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">5</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">s</span>(time, by <span style="color:#000;font-weight:bold">=</span> c2_6, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">5</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">s</span>(time, by <span style="color:#000;font-weight:bold">=</span> c3_6, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">5</span>),
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Random walk for the trend</span>
+</span></span><span style="display:flex;"><span>  trend_model <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">RW</span>(),
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Gaussian observations</span>
+</span></span><span style="display:flex;"><span>  family <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">gaussian</span>(),
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Realistic priors on variance components</span>
+</span></span><span style="display:flex;"><span>  priors <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#900;font-weight:bold">prior</span>(<span style="color:#900;font-weight:bold">exponential</span>(<span style="color:#099">2</span>),
+</span></span><span style="display:flex;"><span>                   class <span style="color:#000;font-weight:bold">=</span> sigma),
+</span></span><span style="display:flex;"><span>             <span style="color:#900;font-weight:bold">prior</span>(<span style="color:#900;font-weight:bold">exponential</span>(<span style="color:#099">2</span>),
+</span></span><span style="display:flex;"><span>                   class <span style="color:#000;font-weight:bold">=</span> sigma_obs)),
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Sampler settings</span>
+</span></span><span style="display:flex;"><span>  burnin <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1000</span>,
+</span></span><span style="display:flex;"><span>  samples <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1000</span>,
+</span></span><span style="display:flex;"><span>  silent <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>,
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Data</span>
+</span></span><span style="display:flex;"><span>  data <span style="color:#000;font-weight:bold">=</span> dat)
+</span></span></code></pre></div><p>Plot the time-varying Fourier coefficients as before, using <code>gratia::draw()</code></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>gratia<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">draw</span>(mod3<span style="color:#000;font-weight:bold">$</span>trend_mgcv_model)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/time-varying-seasonality/index_files/figure-html/unnamed-chunk-28-1.png" alt="Time-varying Fourier coefficients to model time-varying periodicity in mvgam" width="60%" style="display: block; margin: auto;" />
+<p>As before, our model has successfully captured the time-varying coefficients for these terms. Notice how many of the period-12 terms (i.e. <code>s1_12</code> and <code>c3_12</code>) are estimated to decline over time, while many of the period-6 terms (i.e. <code>s2_6</code> and <code>c3_6</code>) are estimated to increase over time. It is encouraging that the model has been able to find these while also dealing with the Random Walk autocorrelation process and the two variance terms (process error and observation error).</p>
+<p>We can also plot the time-varying seasonality using posterior expectations as we did for the first example above. But note that this plot does not include the Random Walk component in its predictions</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>season_preds <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">predict</span>(mod3, summary <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">FALSE</span>,
+</span></span><span style="display:flex;"><span>                        type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;expected&#39;</span>)
+</span></span><span style="display:flex;"><span>p1 <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">ggplot</span>(dat <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>         dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">mutate</span>(pred <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">apply</span>(season_preds, <span style="color:#099">2</span>, mean),
+</span></span><span style="display:flex;"><span>                       upper <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">apply</span>(season_preds, <span style="color:#099">2</span>, <span style="color:#000;font-weight:bold">function</span>(x) 
+</span></span><span style="display:flex;"><span>                         <span style="color:#900;font-weight:bold">quantile</span>(x, probs <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.975</span>)),
+</span></span><span style="display:flex;"><span>                       lower <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">apply</span>(season_preds, <span style="color:#099">2</span>, <span style="color:#000;font-weight:bold">function</span>(x) 
+</span></span><span style="display:flex;"><span>                         <span style="color:#900;font-weight:bold">quantile</span>(x, probs <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.025</span>))),
+</span></span><span style="display:flex;"><span>       <span style="color:#900;font-weight:bold">aes</span>(x <span style="color:#000;font-weight:bold">=</span> time, y <span style="color:#000;font-weight:bold">=</span> pred)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_ribbon</span>(<span style="color:#900;font-weight:bold">aes</span>(ymax <span style="color:#000;font-weight:bold">=</span> upper,
+</span></span><span style="display:flex;"><span>                  ymin <span style="color:#000;font-weight:bold">=</span> lower),
+</span></span><span style="display:flex;"><span>              alpha <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.2</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_line</span>() <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">labs</span>(y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Posterior expectations&#39;</span>,
+</span></span><span style="display:flex;"><span>       x <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>,
+</span></span><span style="display:flex;"><span>       title <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Time-varying seasonality&#39;</span>)
+</span></span></code></pre></div><p>Now we can extract the RW trend that was estimated and subtract the seasonal predictions, which will give us a view of the potentially nonlinear trend that was estimated by the model</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>trend_preds <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">hindcast</span>(mod3, type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;expected&#39;</span>)<span style="color:#000;font-weight:bold">$</span>hindcasts[[1]] <span style="color:#000;font-weight:bold">-</span> 
+</span></span><span style="display:flex;"><span>  season_preds
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>p2 <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">ggplot</span>(dat <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>         dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">mutate</span>(pred <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">apply</span>(trend_preds, <span style="color:#099">2</span>, mean),
+</span></span><span style="display:flex;"><span>                       upper <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">apply</span>(trend_preds, <span style="color:#099">2</span>, <span style="color:#000;font-weight:bold">function</span>(x) 
+</span></span><span style="display:flex;"><span>                         <span style="color:#900;font-weight:bold">quantile</span>(x, probs <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.975</span>)),
+</span></span><span style="display:flex;"><span>                       lower <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">apply</span>(trend_preds, <span style="color:#099">2</span>, <span style="color:#000;font-weight:bold">function</span>(x) 
+</span></span><span style="display:flex;"><span>                         <span style="color:#900;font-weight:bold">quantile</span>(x, probs <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.025</span>))),
+</span></span><span style="display:flex;"><span>       <span style="color:#900;font-weight:bold">aes</span>(x <span style="color:#000;font-weight:bold">=</span> time, y <span style="color:#000;font-weight:bold">=</span> pred)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_ribbon</span>(<span style="color:#900;font-weight:bold">aes</span>(ymax <span style="color:#000;font-weight:bold">=</span> upper,
+</span></span><span style="display:flex;"><span>                  ymin <span style="color:#000;font-weight:bold">=</span> lower),
+</span></span><span style="display:flex;"><span>              alpha <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.2</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_line</span>() <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">labs</span>(y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Posterior expectations&#39;</span>,
+</span></span><span style="display:flex;"><span>       x <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Time&#39;</span>,
+</span></span><span style="display:flex;"><span>       title <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;RW trend&#39;</span>)
+</span></span></code></pre></div><p>Once again, we can plot the two together using {<code>patchwork</code>}</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>p1 <span style="color:#000;font-weight:bold">+</span> p2 <span style="color:#000;font-weight:bold">+</span> <span style="color:#900;font-weight:bold">plot_layout</span>(ncol <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/time-varying-seasonality/index_files/figure-html/unnamed-chunk-31-1.png" alt="Capturing time-varying periodicity in harmonic regression models using mvgam" width="60%" style="display: block; margin: auto;" />
+<p>This post has hopefully given you some ideas about useful modeling strategies for dealing with time-varying seasonality. Of course, we may want to try and <em>explain</em> why seasonality varies over time. In that case, I often find 
+<a href="https://ecogambler.netlify.app/blog/distributed-lags-mgcv/" target="_blank" rel="noopener">distributed lag predictors</a> to be especially helpful. Thanks for reading!</p>
+
+
+
+
+<h2 id="further-reading">Further reading
+  <a href="#further-reading"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>The following papers and resources offer useful material about Dynamic Harmonic Regression and using GAMs for time series modeling / forecasting</p>
+<p>Autin, M. A., &amp; Edwards, D. 
+<a href="https://onlinelibrary.wiley.com/doi/abs/10.1002/env.1013" target="_blank" rel="noopener">Nonparametric harmonic regression for estuarine water quality data</a> <em>Environmetrics</em> 21.6 (2010): 588-605.</p>
+<p>Karunarathna, K. A. N. K., Wells, K., &amp; Clark, N. J. (2024). 
+<a href="https://www.sciencedirect.com/science/article/pii/S0304380024000371" target="_blank" rel="noopener">Modelling nonlinear responses of a desert rodent species to environmental change with hierarchical dynamic generalized additive models</a>. <em>Ecological Modelling</em>, 490, 110648.</p>
+<p>Young, P. C., Pedregal, D. J., &amp; Tych, W. (1999). 
+<a href="https://onlinelibrary.wiley.com/doi/10.1002/%28SICI%291099-131X%28199911%2918:6%3C369::AID-FOR748%3E3.0.CO;2-K" target="_blank" rel="noopener">Dynamic harmonic regression</a>. <em>Journal of Forecasting</em>, 18, 369–394.</p>
+
+      </section>
+      <footer class="post-footer">
+        <div class="post-pagination dt w-100 mt4 mb2">
+  
+  
+    <a class="prev dtc pr2 tl v-top fw6"
+    href="https://ecogambler.netlify.app/blog/vector-autoregressions/">&larr; State-Space Vector Autoregressions in mvgam</a>
+  
+  
+  
+    <a class="next dtc pl2 tr v-top fw6"
+    href="https://ecogambler.netlify.app/blog/mvgam-on-cran/">First release of mvgam(v1.1.0) to CRAN &rarr;</a>
+  
+</div>
+
+      </footer>
+    </article>
+    
+      
+<div class="post-comments pa0 pa4-l mt4">
+  
+  <script src="https://utteranc.es/client.js"
+          repo="apreshill/apero"
+          issue-term="pathname"
+          theme="boxy-light"
+          label="comments :crystal_ball:"
+          crossorigin="anonymous"
+          async
+          type="text/javascript">
+  </script>
+  
+</div>
+
+    
+  </section>
+</main>
+<aside class="page-sidebar" role="complementary">
+                         
+ 
+
+
+                       
+ 
+
+
+
+
+
+
+
+
+
+
+
+  <img src="/blog/sidebar-listing.jpg" class="db ma0">
+
+
+<div class="blog-info ph4 pt4 pb4 pb0-l">
+  
+
+  <h1 class="f3">GAMbler</h1>
+  <p class="f6 lh-copy measure">A blog on (somewhat) interesting and (hopefully) useful tips for ecological modeling, with (perhaps too much) emphasis on Generalized Additive Models.</p>
+  <p class="f7 measure lh-copy i mh0-l">Written by Nicholas Clark (n.clark&rsquo;at&rsquo;uq.edu.au)</p>
+
+
+  
+  <div class="dib bt bw1 b--black-10">
+    
+      <small class="db f7 pt3"><a href="/blog/" class="dib fw7 ttu">View recent posts</a></small>
+    
+    
+    
+    
+  </div>
+
+
+</div>
+
+
+  
+  <details open class="f6 fw7 input-reset">
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Posted on:</dt>
+    <dd class="fw5 ml0">June 11, 2024</dd>
+  </dl>
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Length:</dt>
+    <dd class="fw5 ml0">15 minute read, 3171 words</dd>
+  </dl>
+  
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Categories:</dt>
+    <dd class="fw5 ml0"> <a href="https://ecogambler.netlify.app/categories/rstats">rstats</a>  <a href="https://ecogambler.netlify.app/categories/time-series">time-series</a>  <a href="https://ecogambler.netlify.app/categories/mvgam">mvgam</a> </dd>
+  </dl>
+  
+  
+  
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Tags:</dt>
+    <dd class="fw5 ml0"> <a href="https://ecogambler.netlify.app/tags/rstats">rstats</a>  <a href="https://ecogambler.netlify.app/tags/mvgam">mvgam</a>  <a href="https://ecogambler.netlify.app/tags/tutorial">tutorial</a>  <a href="https://ecogambler.netlify.app/tags/forecasting">forecasting</a>  <a href="https://ecogambler.netlify.app/tags/time-series">time-series</a> </dd>
+  </dl>
+  
+  <dl class="f6 lh-copy">
+    <dt class="fw7">See Also:</dt>
+    
+    <dd class="fw5 ml0"><a href="/blog/emergency-department-shiny/">Building an Interactive Emergency Department Dashboard with Shiny</a></dd>
+    
+    <dd class="fw5 ml0"><a href="/blog/plant-community-dirichlet/">Compositional modeling of plant communities with Dirichlet regression</a></dd>
+    
+    <dd class="fw5 ml0"><a href="/blog/clv-prediction/">GAMs for Customer Lifetime Value (CLV) prediction</a></dd>
+    
+  </dl>
+</details>
+
+                           
+  
+  
+  
+ <nav id="TableOfContents" class="sticky ph4 pb4 pt6" role="navigation"> 
+   <h2 class="mv0 f5 fw7 ttu tracked dib">On this page</h2> 
+     <nav id="TableOfContents">
+  <ul>
+    <li><a href="#environment-setup">Environment setup</a></li>
+  </ul>
+
+  <ul>
+    <li><a href="#fit-an-mvgam-model-using-a-tensor-product-interaction">Fit an <code>mvgam</code> model using a tensor product interaction</a></li>
+    <li><a href="#using-fourier-terms-to-capture-time-varying-seasonality">Using Fourier terms to capture time-varying seasonality</a></li>
+    <li><a href="#plotting-trend-and-seasonal-components-from-a-harmonic-regression">Plotting trend and seasonal components from a harmonic regression</a></li>
+    <li><a href="#time-varying-periodicity">Time-varying periodicity?</a></li>
+    <li><a href="#further-reading">Further reading</a></li>
+  </ul>
+</nav> 
+ </nav> 
+  
+
+</aside>
+<footer class="site-footer pv4 bt b--transparent ph5" role="contentinfo">
+  <nav class="db dt-l w-100">
+    <p class="site-copyright f7 db dtc-l v-mid w-100 w-33-l tc tl-l pv2 pv0-l mv0 lh-copy">
+      © Nicholas J Clark (2024)
+      <span class="middot-divider"></span>
+      Made with <span xmlns:dct="http://purl.org/dc/terms/" property="dct:title"><a xmlns:dct="http://purl.org/dc/terms/" href="https://github.com/hugo-apero/" rel="dct:source">Hugo Apéro</a></span>.
+      <br />
+      
+Based on <span xmlns:dct="http://purl.org/dc/terms/" property="dct:title"><a xmlns:dct="http://purl.org/dc/terms/" href="https://github.com/formspree/blogophonic-hugo" rel="dct:source">Blogophonic</a></span> by <a xmlns:cc="http://creativecommons.org/ns#" href="https://formspree.io" property="cc:attributionName" rel="cc:attributionURL">Formspree</a>.
+    </p>
+    
+    <div class="site-social-links db dtc-l v-mid w-100 w-33-l tc pv2 pv0-l mv0">
+      <div class="social-icon-links" aria-hidden="true">
+  
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://github.com/nicholasjclark" title="github" target="_blank" rel="me noopener">
+      <i class="fab fa-github fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://www.youtube.com/@NJ_Clark" title="youtube" target="_blank" rel="me noopener">
+      <i class="fab fa-youtube fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://bsky.app/profile/njclark.bsky.social" title="mixcloud" target="_blank" rel="me noopener">
+      <i class="fab fa-mixcloud fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://orcid.org/0000-0001-7131-3301" title="orcid" target="_blank" rel="me noopener">
+      <i class="ai ai-orcid fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://scholar.google.com.au/citations?user=5bO9uxEAAAAJ&amp;hl=en" title="google-scholar" target="_blank" rel="me noopener">
+      <i class="ai ai-google-scholar fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="/blog/index.xml" title="rss" >
+      <i class="fas fa-rss fa-lg fa-fw"></i>
+    </a>
+  
+</div>
+
+    </div>
+    
+    <div class="site-links f6 db dtc-l v-mid w-100 w-67-l tc tr-l pv2 pv0-l mv0">
+      
+      <a class="dib pv1 ph2 link" href="/license/" title="License">License</a>
+      
+      <a class="dib pv1 ph2 link" href="/contributors/" title="Contributors">Collaborators</a>
+      
+    </div>
+  </nav>
+  
+    <script>
+
+    var i, text, code, codes = document.getElementsByTagName('code');
+    for (let i = 0; i < codes.length;) {
+      code = codes[i];
+      if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+        text = code.textContent;
+        if (/^\$[^$]/.test(text) && /[^$]\$$/.test(text)) {
+          text = text.replace(/^\$/, '\\(').replace(/\$$/, '\\)');
+          code.textContent = text;
+        }
+        if (/^\\\((.|\s)+\\\)$/.test(text) ||
+            /^\\\[(.|\s)+\\\]$/.test(text) ||
+            /^\$(.|\s)+\$$/.test(text) ||
+            /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+          code.outerHTML = code.innerHTML;  
+          continue;
+        }
+      }
+      i++;
+    }
+</script>
+
+  
+    
+    
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/katex.min.css" integrity="sha384-RZU/ijkSsFbcmivfdRBQDtwuwVqK7GMOw6IMvKyeWL2K5UAlyp6WonmB8m7Jd0Hn" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/katex.min.js" integrity="sha384-pK1WpvzWVBQiP0/GjnvRxV4mOb0oxFuyRxJlk6vVw146n3egcN5C925NCP7a7BY8" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/contrib/auto-render.min.js" integrity="sha384-vZTG03m+2yp6N6BNi5iM4rW4oIwk5DfcNdFfxkk9ZWpDriOkXX8voJBFrAO7MpVl" crossorigin="anonymous" onload="renderMathInElement(document.body);"></script>
+
+
+
+    
+  
+  
+</footer>
+
+      </div>
+    </body>
+</html>

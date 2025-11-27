@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr"><head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=4321&amp;path=livereload" data-no-instant defer></script>
+  
+                           
+     
+
+
+<meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="generator" content="Hugo 0.123.8">
+<title>Phylogenetic smoothing using mgcv | GAMbler</title>
+
+
+<meta property="twitter:site" content="@apreshill">
+<meta property="twitter:creator" content="@apreshill">
+
+
+
+
+
+
+
+  
+    
+  
+<meta name="description" content="A modern, beautiful, and easily configurable blog theme for Hugo.">
+
+
+<meta property="og:site_name" content="GAMbler">
+<meta property="og:title" content="Phylogenetic smoothing using mgcv | GAMbler">
+<meta property="og:description" content="A modern, beautiful, and easily configurable blog theme for Hugo." />
+<meta property="og:type" content="page" />
+<meta property="og:url" content="//localhost:4321/blog/2024-03-11-phylosmoothing/phylo_smoothing/" />
+<meta property="og:locale" content="en">
+
+
+
+
+    
+        <meta property="og:image" content="//localhost:4321/blog/sidebar-listing.jpg" >
+        <meta property="twitter:card" content="summary_large_image">
+        <meta name="twitter:image" content="//localhost:4321/blog/sidebar-listing.jpg" >
+    
+    
+  <meta itemprop="name" content="Phylogenetic smoothing using mgcv">
+<meta itemprop="description" content="Environment setup Load libraries
+library(ape)library(mgcv)library(mvnfast)library(ggplot2)library(dplyr)library(MRFtools) # devtools::install_github(&#34;eric-pedersen/MRFtools&#34;) A utility function to simulate from a squared exponential Gaussian Process
+sim_gp = function(N, alpha, rho){Sigma &lt;- alpha ^ 2 *exp(-0.5 * ((outer(1:N, 1:N, &#34;-&#34;) / rho) ^ 2)) &#43;diag(1e-9, N)mvnfast::rmvn(1,mu = rep(0, N),sigma = Sigma)[1,]} Phylogenetically structured trends Simulate a random phylogenetic tree
+N_species &lt;- 12tree &lt;- rcoal(N_species, tip."><meta itemprop="datePublished" content="2024-02-24T00:00:00+00:00" />
+<meta itemprop="dateModified" content="2024-02-24T00:00:00+00:00" />
+<meta itemprop="wordCount" content="1179">
+<meta itemprop="keywords" content="" />
+  
+  <!--[if IE]><script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script><![endif]-->
+  <link rel="shortcut icon" href="/img/favicon.ico" type="image/x-icon">
+  <link rel="icon" href="/img/favicon.ico" type="image/x-icon">
+  
+  
+  <link rel="stylesheet" href="/style.main.min.e5bc2ab02aa5415259a0324101e74cc435a9757b2ef00918dd1d6f36906c0505.css" integrity="sha256-5bwqsCqlQVJZoDJBAedMxDWpdXsu8AkY3R1vNpBsBQU=" media="screen">
+  
+  
+  <script src="/panelset.min.ed1ac24b6e16f4e2481e3d1d098ae66f5bc77438aef619e6e266d8ac5b00dc72.js" type="text/javascript"></script>
+  
+  
+  <script src="/main.min.7c7401b27b903bdc8736f72a2f739f7602bf606c451e8cb5e7fab2bf6b4af582.js" type="text/javascript"></script>
+</head>
+<body>
+      <div class="grid-container">
+<header class="site-header pt4 pb2 mb4 bb b--transparent ph5 headroom z-max" role="banner">
+  <nav class="site-nav db dt-l w-100" role="navigation">
+    <a class="site-brand db dtc-l v-mid link no-underline w-100 w-33-l tc tl-l" href="//localhost:4321/" title="Home">
+      <img src="/img/blogophonic-mark-dark.png" class="dib db-l h2 w-auto" alt="GAMbler">
+    </a>
+    <div class="site-links db dtc-l v-mid w-100 w-47-l tc tr-l mt3 mt0-l ttu tracked">
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/about/" title="About Blogophonic">About</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 active" href="/blog/" title="Blog">Blog</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/project/" title="Project Portfolio">Projects</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/talk/" title="Talks">Talks</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/collection/" title="A collection">A collection</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/elements/" title="Element Page">Elements</a>
+      
+      
+    </div>
+  </nav>
+</header>
+
+<main class="page-main pa4" role="main">
+  <section class="page-content mw7 center">
+    <article class="post-content pa0 ph4-l">
+      <header class="post-header">
+        <h1 class="f1 lh-solid measure-narrow mb3 fw4">Phylogenetic smoothing using mgcv</h1>
+        
+        <p class="f6 measure lh-copy mv1">By Nicholas Clark</p>
+        <p class="f7 db mv0 ttu">February 24, 2024</p>
+
+      
+
+      </header>
+      <section class="post-body pt5 pb4">
+        
+
+
+
+<h2 id="environment-setup">Environment setup
+  <a href="#environment-setup"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>Load libraries</p>
+<pre tabindex="0"><code>library(ape)
+library(mgcv)
+library(mvnfast)
+library(ggplot2)
+library(dplyr)
+library(MRFtools) # devtools::install_github(&#34;eric-pedersen/MRFtools&#34;)
+</code></pre><p>A utility function to simulate from a squared exponential Gaussian Process</p>
+<pre tabindex="0"><code>sim_gp = function(N, alpha, rho){
+  Sigma &lt;- alpha ^ 2 *
+    exp(-0.5 * ((outer(1:N, 1:N, &#34;-&#34;) / rho) ^ 2)) +
+    diag(1e-9, N)
+  mvnfast::rmvn(1,
+                mu = rep(0, N),
+                sigma = Sigma)[1,]
+}
+</code></pre>
+
+
+
+<h2 id="phylogenetically-structured-trends">Phylogenetically structured trends
+  <a href="#phylogenetically-structured-trends"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>Simulate a random phylogenetic tree</p>
+<pre tabindex="0"><code>N_species &lt;- 12
+tree &lt;- rcoal(N_species, tip.label = paste0(&#39;sp_&#39;, 1:N_species))
+species_names &lt;- tree$tip.label
+plot(tree)
+</code></pre><img src="/blog/2024-03-11-phylosmoothing/phylo_smoothing_files/figure-html/unnamed-chunk-4-1.png" width="60%" style="display: block; margin: auto;" />
+<p>Simulate a &lsquo;shared&rsquo; nonlinear temporal trend</p>
+<pre tabindex="0"><code>N &lt;- 50
+shared &lt;- sim_gp(N, alpha = 1, rho = 8) + 10
+plot(shared, type = &#39;l&#39;, lwd = 2, xlab = &#39;Time&#39;, ylab = &#39;Trend&#39;)
+</code></pre><img src="/blog/2024-03-11-phylosmoothing/phylo_smoothing_files/figure-html/unnamed-chunk-5-1.png" width="60%" style="display: block; margin: auto;" />
+<p>Each species&rsquo; actual trend is a perturbation of this shared trend, whereby the trend is a weighted sum of the shared trend and two other GP trends, with more closely related species having more similar weights</p>
+<pre tabindex="0"><code>warp1 &lt;- sim_gp(N, alpha = 2, rho = 20) + 10
+warp2 &lt;- sim_gp(N, alpha = 2, rho = 20) + 10
+weights1 &lt;- as.vector(scale(rTraitCont(tree)))
+weights2 &lt;- as.vector(scale(rTraitCont(tree)))
+</code></pre><p>Create the trends for each species and take noisy observations. For the third and seventh species, set observations to <code>NA</code> so we can test if the model is able to recover their trends. Store all necessary data in a <code>data.frame</code></p>
+<pre tabindex="0"><code>dat &lt;- do.call(rbind, 
+               lapply(seq_len(N_species),
+                      function(i){
+                        sp_trend &lt;- warp1 * weights1[i] + 
+                          warp2 * weights2[i] + shared
+                        obs &lt;- rnorm(N, 
+                                     mean = as.vector(scale(sp_trend)),
+                                     sd = 0.35)
+                        if(i %in% c(3, 7)){
+                          weight &lt;- 0
+                          obs &lt;- NA
+                        } else {
+                          weight &lt;- 1
+                        }
+                        data.frame(species = species_names[i],
+                                   weight = weight,
+                                   time = 1:N,
+                                   truth = as.vector(scale(sp_trend)),
+                                   y = obs)
+                      }))
+dat$species &lt;- factor(dat$species, levels = species_names)
+</code></pre><p>Leave out the last 5 observations for each species so we can see how well (or how poorly) the trends extrapolate</p>
+<pre tabindex="0"><code>dat %&gt;%
+  dplyr::mutate(y = dplyr::case_when(
+    time &lt;= N-5 ~ y,
+    time &gt; N-5 ~ NA,
+    TRUE ~ y
+  )) -&gt; dat
+</code></pre>
+
+
+
+<h2 id="data-visualisation">Data visualisation
+  <a href="#data-visualisation"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>Plot the true simulated trends for each species</p>
+<pre tabindex="0"><code>ggplot(dat, aes(x = time, y = truth, col = species)) +
+  geom_line() +
+  facet_wrap(~species, scales = &#39;free_y&#39;) + 
+  theme_classic() +
+  theme(legend.position = &#39;none&#39;)
+</code></pre><img src="/blog/2024-03-11-phylosmoothing/phylo_smoothing_files/figure-html/unnamed-chunk-9-1.png" width="60%" style="display: block; margin: auto;" />
+<p>Plot the noisy observations (noting that all obs are missing for two species)</p>
+<pre tabindex="0"><code>ggplot(dat, aes(x = time, y = y*weight, col = species)) +
+  geom_point() +
+  facet_wrap(~species, scales = &#39;free_y&#39;) + 
+  theme_classic() +
+  theme(legend.position = &#39;none&#39;)
+</code></pre><pre tabindex="0"><code>## Warning: Removed 150 rows containing missing values (`geom_point()`).
+</code></pre><img src="/blog/2024-03-11-phylosmoothing/phylo_smoothing_files/figure-html/unnamed-chunk-10-1.png" width="60%" style="display: block; margin: auto;" />
+
+
+
+
+<h2 id="model-setup">Model setup
+  <a href="#model-setup"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>Create the MRF penalty matrix using the phylogenetic precision matrix</p>
+<pre tabindex="0"><code>omega &lt;- solve(vcv(tree))
+</code></pre><p>Now add an MRF penalty that forces the temporal trend to evolve as a Random Walk using utilities provided by Pedersen et al&rsquo;s <code>MRFtools</code> package. This requires that we have a factor variable for <code>time</code> in our data, and we should ensure the levels of this <code>time_factor</code> go as high as we would potentially like to forecast. Note that this package can also create the phylogenetic penalty but I feel it is better to show these steps explicitly for this example.</p>
+<pre tabindex="0"><code>rw_penalty &lt;- mrf_penalty(object = 1:max(dat$time), 
+                          type = &#39;linear&#39;)
+dat$time_factor &lt;- factor(1:max(dat$time))
+</code></pre><p>Fit a GAM using a tensor product of the RW MRF basis and the phylogenetic MRF basis. We also use a &lsquo;shared&rsquo; smooth of time so that the phylogenetic smooths are estimated as deviations around this shared smooth. Set <code>drop.unused.levels = FALSE</code> to ensure there are no errors because of the extra species and times in the penalty matrices</p>
+<pre tabindex="0"><code>mod &lt;- gam(y ~ s(time, k = 10) + 
+               te(time_factor, species, 
+                  bs = c(&#34;mrf&#34;, &#34;mrf&#34;),
+                  k = c(8, N_species),
+                  xt = list(list(penalty = rw_penalty), 
+                            list(penalty = omega))),
+           data = dat,
+           drop.unused.levels = FALSE,
+           method = &#34;REML&#34;)
+summary(mod)
+</code></pre><pre tabindex="0"><code>## 
+## Family: gaussian 
+## Link function: identity 
+## 
+## Formula:
+## y ~ s(time, k = 10) + te(time_factor, species, bs = c(&#34;mrf&#34;, 
+##     &#34;mrf&#34;), k = c(8, N_species), xt = list(list(penalty = rw_penalty), 
+##     list(penalty = omega)))
+## 
+## Parametric coefficients:
+##             Estimate Std. Error t value Pr(&gt;|t|)
+## (Intercept) -0.01350    0.01705  -0.792    0.429
+## 
+## Approximate significance of smooth terms:
+##                           edf Ref.df      F p-value    
+## s(time)                  1.00      1  0.939   0.333    
+## te(time_factor,species) 64.48     79 34.915  &lt;2e-16 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## R-sq.(adj) =  0.874   Deviance explained = 89.2%
+## -REML = 286.95  Scale est. = 0.13076   n = 450
+</code></pre>
+
+
+
+<h2 id="predictions-and-evaluation">Predictions and evaluation
+  <a href="#predictions-and-evaluation"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>Calculate point predictions from the model for the full dataset (including the missing species) and overlay the actual true simulated trends as black points. Did the model successfully estimate the missing species&rsquo; temporal trend?</p>
+<pre tabindex="0"><code>preds &lt;- predict(mod, newdata = dat, type = &#39;response&#39;, se = TRUE)
+dat$pred &lt;- preds$fit
+dat$upper &lt;- preds$fit + 1.96*preds$se.fit
+dat$lower &lt;- preds$fit - 1.96*preds$se.fit
+ggplot(dat, aes(x = time, y = pred, col = species)) +
+  geom_point(aes(y = truth), col = &#39;black&#39;) +
+  geom_line(linewidth = 1, alpha = 0.6) +
+  geom_ribbon(aes(ymin = lower, ymax = upper, fill = species),
+              alpha = 0.3, col = NA) +
+  facet_wrap(~species, scales = &#39;free_y&#39;) + 
+  theme_classic() +
+  theme(legend.position = &#39;none&#39;)
+</code></pre><img src="/blog/2024-03-11-phylosmoothing/phylo_smoothing_files/figure-html/unnamed-chunk-14-1.png" width="60%" style="display: block; margin: auto;" />
+<p>Hot Damn it worked! But could we recover these missing trends without the information provided in the phylogenetic structure? Fit a second GAM that uses a similar hierarchical smooth of time, but in this case the deviations around the shared smooth do not have any phylogenetic information to leverage</p>
+<pre tabindex="0"><code>mod2 &lt;- gam(y ~ s(time, k = 10) +
+              s(time, species, bs = &#39;fs&#39;, k = 8),
+           data = dat,
+           method = &#34;REML&#34;,
+           drop.unused.levels = FALSE)
+</code></pre><pre tabindex="0"><code>## Warning in gam.side(sm, X, tol = .Machine$double.eps^0.5): model has repeated
+## 1-d smooths of same variable.
+</code></pre><pre tabindex="0"><code>summary(mod2)
+</code></pre><pre tabindex="0"><code>## 
+## Family: gaussian 
+## Link function: identity 
+## 
+## Formula:
+## y ~ s(time, k = 10) + s(time, species, bs = &#34;fs&#34;, k = 8)
+## 
+## Parametric coefficients:
+##             Estimate Std. Error t value Pr(&gt;|t|)
+## (Intercept)  -0.0135     0.0426  -0.317    0.752
+## 
+## Approximate significance of smooth terms:
+##                    edf Ref.df     F p-value    
+## s(time)          8.346  8.714 15.87  &lt;2e-16 ***
+## s(time,species) 56.170 78.000 22.80  &lt;2e-16 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## R-sq.(adj) =  0.874   Deviance explained = 89.2%
+## -REML = 289.48  Scale est. = 0.13085   n = 450
+</code></pre><p>Now predict from the non-phylogenetic model</p>
+<pre tabindex="0"><code>preds &lt;- predict(mod2, newdata = dat, type = &#39;response&#39;, se = TRUE)
+dat$pred &lt;- preds$fit
+dat$upper &lt;- preds$fit + 1.96*preds$se.fit
+dat$lower &lt;- preds$fit - 1.96*preds$se.fit
+ggplot(dat, aes(x = time, y = pred, col = species)) +
+  geom_point(aes(y = truth), col = &#39;black&#39;) +
+  geom_line(linewidth = 1, alpha = 0.6) +
+  geom_ribbon(aes(ymin = lower, ymax = upper, fill = species),
+              alpha = 0.3, col = NA) +
+  facet_wrap(~species, scales = &#39;free_y&#39;) + 
+  theme_classic() +
+  theme(legend.position = &#39;none&#39;)
+</code></pre><img src="/blog/2024-03-11-phylosmoothing/phylo_smoothing_files/figure-html/unnamed-chunk-16-1.png" width="60%" style="display: block; margin: auto;" />
+<p>Predictions from this model draw from the &lsquo;average&rsquo; smooth, rather than leveraging phylogenetic information, to predict the trends for the missing species. So the predictions for both missing species are identical. Obviously we can tell by eye that the predictions are worse than those from the phylogenetic model. But we could use Continuous Rank Probability Scores for each model&rsquo;s predictions to quantify <em>how much</em> worse</p>
+
+        
+        <details closed class="f6 fw7 input-reset">
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Posted on:</dt>
+    <dd class="fw5 ml0">February 24, 2024</dd>
+  </dl>
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Length:</dt>
+    <dd class="fw5 ml0">6 minute read, 1179 words</dd>
+  </dl>
+  
+  
+  
+  <dl class="f6 lh-copy">
+    <dt class="fw7">See Also:</dt>
+    
+  </dl>
+</details>
+
+      </section>
+      <footer class="post-footer">
+        <div class="post-pagination dt w-100 mt4 mb2">
+  
+  
+  
+  
+    <a class="next dtc pl2 tr v-top fw6"
+    href="//localhost:4321/blog/social/">Set up your social &rarr;</a>
+  
+</div>
+
+      </footer>
+    </article>
+    
+      
+<div class="post-comments pa0 pa4-l mt4">
+  
+  <script src="https://utteranc.es/client.js"
+          repo="apreshill/apero"
+          issue-term="pathname"
+          theme="boxy-light"
+          label="comments :crystal_ball:"
+          crossorigin="anonymous"
+          async
+          type="text/javascript">
+  </script>
+  
+</div>
+
+    
+  </section>
+</main>
+<footer class="site-footer pv4 bt b--transparent ph5" role="contentinfo">
+  <nav class="db dt-l w-100">
+    <p class="site-copyright f7 db dtc-l v-mid w-100 w-33-l tc tl-l pv2 pv0-l mv0 lh-copy">
+      &copy; 2024 RStudio, Anywhere
+      <span class="middot-divider"></span>
+      Made with <span xmlns:dct="http://purl.org/dc/terms/" property="dct:title"><a xmlns:dct="http://purl.org/dc/terms/" href="https://github.com/hugo-apero/" rel="dct:source">Hugo Apéro</a></span>.
+      <br />
+      
+Based on <span xmlns:dct="http://purl.org/dc/terms/" property="dct:title"><a xmlns:dct="http://purl.org/dc/terms/" href="https://github.com/formspree/blogophonic-hugo" rel="dct:source">Blogophonic</a></span> by <a xmlns:cc="http://creativecommons.org/ns#" href="https://formspree.io" property="cc:attributionName" rel="cc:attributionURL">Formspree</a>.
+    </p>
+    
+    <div class="site-social-links db dtc-l v-mid w-100 w-33-l tc pv2 pv0-l mv0">
+      <div class="social-icon-links" aria-hidden="true">
+  
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://github.com/nicholasjclark" title="github" target="_blank" rel="me noopener">
+      <i class="fab fa-github fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://www.youtube.com/@NJ_Clark" title="youtube" target="_blank" rel="me noopener">
+      <i class="fab fa-youtube fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://twitter.com/nj_clark" title="twitter" target="_blank" rel="me noopener">
+      <i class="fab fa-twitter fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://orcid.org/0000-0001-7131-3301" title="orcid" target="_blank" rel="me noopener">
+      <i class="ai ai-orcid fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="/blog/index.xml" title="rss" >
+      <i class="fas fa-rss fa-lg fa-fw"></i>
+    </a>
+  
+</div>
+
+    </div>
+    
+    <div class="site-links f6 db dtc-l v-mid w-100 w-67-l tc tr-l pv2 pv0-l mv0">
+      
+      <a class="dib pv1 ph2 link" href="/license/" title="License">License</a>
+      
+      <a class="dib pv1 ph2 link" href="/contact/" title="Contact form">Contact</a>
+      
+      <a class="dib pv1 ph2 link" href="/contributors/" title="Contributors">Contributors</a>
+      
+    </div>
+  </nav>
+  
+    <script>
+
+    var i, text, code, codes = document.getElementsByTagName('code');
+    for (let i = 0; i < codes.length;) {
+      code = codes[i];
+      if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+        text = code.textContent;
+        if (/^\$[^$]/.test(text) && /[^$]\$$/.test(text)) {
+          text = text.replace(/^\$/, '\\(').replace(/\$$/, '\\)');
+          code.textContent = text;
+        }
+        if (/^\\\((.|\s)+\\\)$/.test(text) ||
+            /^\\\[(.|\s)+\\\]$/.test(text) ||
+            /^\$(.|\s)+\$$/.test(text) ||
+            /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+          code.outerHTML = code.innerHTML;  
+          continue;
+        }
+      }
+      i++;
+    }
+</script>
+
+  
+    
+    
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/katex.min.css" integrity="sha384-RZU/ijkSsFbcmivfdRBQDtwuwVqK7GMOw6IMvKyeWL2K5UAlyp6WonmB8m7Jd0Hn" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/katex.min.js" integrity="sha384-pK1WpvzWVBQiP0/GjnvRxV4mOb0oxFuyRxJlk6vVw146n3egcN5C925NCP7a7BY8" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/contrib/auto-render.min.js" integrity="sha384-vZTG03m+2yp6N6BNi5iM4rW4oIwk5DfcNdFfxkk9ZWpDriOkXX8voJBFrAO7MpVl" crossorigin="anonymous" onload="renderMathInElement(document.body);"></script>
+
+
+
+    
+  
+  
+</footer>
+
+      </div>
+    </body>
+</html>

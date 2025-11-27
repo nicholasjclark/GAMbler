@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+  <title>Categories on GAMbler</title>
+  <link>https://ecogambler.netlify.app/categories/</link>
+  <description>Recent content in Categories on GAMbler</description>
+  <generator>Hugo</generator>
+  <language>en</language>
+<copyright>© Nicholas J Clark (2024)</copyright>
+<lastBuildDate>Wed, 05 Nov 2025 00:00:00 +0000</lastBuildDate>
+<atom:link href="https://ecogambler.netlify.app/categories/index.xml" rel="self" type="application/rss+xml" />
+<item>
+  <title>Rstats</title>
+  <link>https://ecogambler.netlify.app/categories/rstats/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/categories/rstats/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Shiny</title>
+  <link>https://ecogambler.netlify.app/categories/shiny/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/categories/shiny/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Brms</title>
+  <link>https://ecogambler.netlify.app/categories/brms/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/categories/brms/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Ecology</title>
+  <link>https://ecogambler.netlify.app/categories/ecology/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/categories/ecology/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Mgcv</title>
+  <link>https://ecogambler.netlify.app/categories/mgcv/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/categories/mgcv/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Time-Series</title>
+  <link>https://ecogambler.netlify.app/categories/time-series/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/categories/time-series/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Talks</title>
+  <link>https://ecogambler.netlify.app/categories/talks/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/categories/talks/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Forecasting</title>
+  <link>https://ecogambler.netlify.app/categories/forecasting/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/categories/forecasting/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Opportunities</title>
+  <link>https://ecogambler.netlify.app/categories/opportunities/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/categories/opportunities/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Mvgam</title>
+  <link>https://ecogambler.netlify.app/categories/mvgam/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/categories/mvgam/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Workshops</title>
+  <link>https://ecogambler.netlify.app/categories/workshops/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/categories/workshops/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Package</title>
+  <link>https://ecogambler.netlify.app/categories/package/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/categories/package/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>JAGS</title>
+  <link>https://ecogambler.netlify.app/categories/jags/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/categories/jags/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>R</title>
+  <link>https://ecogambler.netlify.app/categories/r/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/categories/r/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Simulation</title>
+  <link>https://ecogambler.netlify.app/categories/simulation/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/categories/simulation/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Stan</title>
+  <link>https://ecogambler.netlify.app/categories/stan/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/categories/stan/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>MrIML</title>
+  <link>https://ecogambler.netlify.app/categories/mriml/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/categories/mriml/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>MRFcov</title>
+  <link>https://ecogambler.netlify.app/categories/mrfcov/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/categories/mrfcov/</guid>
+  <description></description>
+  </item>
+</channel>
+  </rss>

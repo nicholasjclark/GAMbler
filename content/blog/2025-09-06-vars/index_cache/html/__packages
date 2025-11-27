@@ -1,0 +1,13 @@
+nlme
+mgcv
+Rcpp
+brms
+marginaleffects
+insight
+mvgam
+forecast
+dplyr
+ggplot2
+gratia
+patchwork
+janitor

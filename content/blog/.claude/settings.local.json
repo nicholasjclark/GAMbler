@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:ecogambler.netlify.app)",
+      "WebFetch(domain:en.wikipedia.org)",
+      "WebFetch(domain:blog.hubspot.com)",
+      "WebSearch",
+      "WebFetch(domain:www.taylorfrancis.com)",
+      "Bash(Rscript:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

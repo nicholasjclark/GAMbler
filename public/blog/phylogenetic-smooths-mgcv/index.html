@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr"><head>
+  
+                           
+     
+
+
+<meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="generator" content="Hugo 0.123.8">
+<title>Phylogenetic smoothing using mgcv | GAMbler</title>
+
+
+<meta property="twitter:site" content="@twitter = &#34;nj_clark&#34;">
+<meta property="twitter:creator" content="@twitter = &#34;nj_clark&#34;">
+
+
+
+
+
+
+
+  
+    
+  
+<meta name="description" content="Use species&#39; phylogenetic or functional relationships to inform and partially pool hierarchical, nonlinear smooth functions in Generalized Additive Models with mgcv">
+
+
+<meta property="og:site_name" content="GAMbler">
+<meta property="og:title" content="Phylogenetic smoothing using mgcv | GAMbler">
+<meta property="og:description" content="Use species&#39; phylogenetic or functional relationships to inform and partially pool hierarchical, nonlinear smooth functions in Generalized Additive Models with mgcv" />
+<meta property="og:type" content="page" />
+<meta property="og:url" content="https://ecogambler.netlify.app/blog/phylogenetic-smooths-mgcv/" />
+<meta property="og:locale" content="en">
+
+
+
+
+    
+        <meta property="og:image" content="https://ecogambler.netlify.app/blog/phylogenetic-smooths-mgcv/featured.png" >
+        <meta property="twitter:card" content="summary_large_image">
+        <meta name="twitter:image" content="https://ecogambler.netlify.app/blog/phylogenetic-smooths-mgcv/featured.png" >
+    
+    
+  <meta itemprop="name" content="Phylogenetic smoothing using mgcv">
+<meta itemprop="description" content="I have been highly interested in multivariate time series modeling for the last few years and have spent a lot of time working out how to use hierarchical GAMs to tackle many of the questions I&rsquo;m interested in. As you may already know, GAMs afford us a huge amount of flexibility to address nonlinear associations in ecological models ( see this paper by Pedersen et al for some more context). I have done quite a bit of work to extend these models to also capture complex dynamic processes, which are available in my mvgam R package."><meta itemprop="datePublished" content="2024-02-24T00:00:00+00:00" />
+<meta itemprop="dateModified" content="2024-02-24T00:00:00+00:00" />
+<meta itemprop="wordCount" content="1655"><meta itemprop="image" content="https://ecogambler.netlify.app/blog/phylogenetic-smooths-mgcv/featured.png" />
+<meta itemprop="keywords" content="rstats,mgcv,tutorial,simulation," />
+  
+  <!--[if IE]><script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script><![endif]-->
+  <link rel="shortcut icon" href="/img/header_logo.ico" type="image/x-icon">
+  <link rel="icon" href="/img/header_logo.ico" type="image/x-icon">
+  
+  
+  <link rel="stylesheet" href="/style.main.min.13ba2c07d7acc52c13dbb9003240e2adf360a5d73e1392ede873916180ee1701.css" integrity="sha256-E7osB9esxSwT27kAMkDirfNgpdc&#43;E5Lt6HORYYDuFwE=" media="screen">
+  
+  
+  <script src="/panelset.min.ed1ac24b6e16f4e2481e3d1d098ae66f5bc77438aef619e6e266d8ac5b00dc72.js" type="text/javascript"></script>
+  
+  
+  <script src="/main.min.7c7401b27b903bdc8736f72a2f739f7602bf606c451e8cb5e7fab2bf6b4af582.js" type="text/javascript"></script>
+</head>
+<body>
+      <div class="grid-container single-sidebar">
+<header class="site-header pt4 pb2 mb4 bb b--transparent ph5 headroom z-max" role="banner">
+  <nav class="site-nav db dt-l w-100" role="navigation">
+    <a class="site-brand db dtc-l v-mid link no-underline w-100 w-33-l tc tl-l" href="https://ecogambler.netlify.app/" title="Home">
+      <img src="/img/header_logo.png" class="dib db-l h2 w-auto" alt="GAMbler">
+    </a>
+    <div class="site-links db dtc-l v-mid w-100 w-47-l tc tr-l mt3 mt0-l ttu tracked">
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 active" href="/blog/" title="Blog">Blog</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/project/" title="Project Portfolio">Software</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/talk/" title="Talks">Talks &amp; Workshops</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/opportunities/" title="Opportunities">Opportunities</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/archives/" title="Archive">Archive</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/blogroll/" title="Blogroll">Blogroll</a>
+      
+      
+    </div>
+  </nav>
+</header>
+
+<main class="page-main pa4" role="main">
+  <section class="page-content mw7 center">
+    <article class="post-content pa0 pr3-l">
+      <header class="post-header">
+        <h1 class="f1 lh-solid measure-narrow mb3 fw4">Phylogenetic smoothing using mgcv</h1>
+        
+        <p class="f6 measure lh-copy mv1">By Nicholas Clark in <a href="https://ecogambler.netlify.app/categories/rstats">rstats</a>  <a href="https://ecogambler.netlify.app/categories/mgcv">mgcv</a> </p>
+        <p class="f7 db mv0 ttu">February 24, 2024</p>
+      </header>
+      <section class="post-body pt5 pb4">
+        <p>I have been highly interested in multivariate time series modeling for the last few years and have spent a lot of time working out how to use hierarchical GAMs to tackle many of the questions I&rsquo;m interested in. As you may already know, GAMs afford us a huge amount of flexibility to address nonlinear associations in ecological models (
+<a href="https://peerj.com/articles/6876/" target="_blank" rel="noopener">see this paper by Pedersen et al for some more context</a>). I have done quite a bit of work to extend these models to also capture complex dynamic processes, which are available in my 
+<a href="https://nicholasjclark.github.io/mvgam/" target="_blank" rel="noopener"><code>mvgam</code></a> R package.</p>
+<p>But I have recently become aware that it is possible to use phylogenetic or functional information to regularize these hierarchical functions. This works by taking advantage of the hugely flexible <code>mrf</code> basis that is provided in <code>mgcv</code> (see <code>?mgcv::mrf</code> for details). This basis allows users to provide their own penalty matrices, which will act as a prior precision for the basis coefficients when estimating the model. By providing the right kind of penalty matrix, for example one that is constructed from a phylogenetic tree or functional dendrogram, we can force the model to <em>regularize</em> species&rsquo; nonlinear effects toward those from their most closely related neighbours. This is an incredible advance that opens many new possibilities for asking targeted questions about niche conservatism, trait evolution, functional redundancy and a whole host of other directions. A very basic example of how this can be done in <code>mgcv</code> is presented here.</p>
+
+
+
+
+<h2 id="environment-setup">Environment setup
+  <a href="#environment-setup"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>Load libraries necessary for data manipulation and modeling</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(ape)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(mgcv)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(mvnfast)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(ggplot2)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(dplyr)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(MRFtools) <span style="color:#998;font-style:italic"># devtools::install_github(&#34;eric-pedersen/MRFtools&#34;)</span>
+</span></span></code></pre></div><p>A utility function to simulate from a squared exponential Gaussian Process, which we will use to create species&rsquo; nonlinear temporal trends</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>sim_gp <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">function</span>(N, alpha, rho){
+</span></span><span style="display:flex;"><span>  Sigma <span style="color:#000;font-weight:bold">&lt;-</span> alpha ^ <span style="color:#099">2</span> <span style="color:#000;font-weight:bold">*</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">exp</span>(<span style="color:#099">-0.5</span> <span style="color:#000;font-weight:bold">*</span> ((<span style="color:#900;font-weight:bold">outer</span>(<span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span>N, <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span>N, <span style="color:#d14">&#34;-&#34;</span>) <span style="color:#000;font-weight:bold">/</span> rho) ^ <span style="color:#099">2</span>)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">diag</span>(<span style="color:#099">1e-9</span>, N)
+</span></span><span style="display:flex;"><span>  mvnfast<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">rmvn</span>(<span style="color:#099">1</span>,
+</span></span><span style="display:flex;"><span>                mu <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">rep</span>(<span style="color:#099">0</span>, N),
+</span></span><span style="display:flex;"><span>                sigma <span style="color:#000;font-weight:bold">=</span> Sigma)[1,]
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div>
+
+
+
+<h2 id="phylogenetically-structured-trends">Phylogenetically structured trends
+  <a href="#phylogenetically-structured-trends"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>Simulate a random phylogenetic tree to inform species&rsquo; relationships</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>N_species <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">12</span>
+</span></span><span style="display:flex;"><span>tree <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">rcoal</span>(N_species, tip.label <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">paste0</span>(<span style="color:#d14">&#39;sp_&#39;</span>, <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span>N_species))
+</span></span><span style="display:flex;"><span>species_names <span style="color:#000;font-weight:bold">&lt;-</span> tree<span style="color:#000;font-weight:bold">$</span>tip.label
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot</span>(tree)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/phylogenetic-smooths-mgcv/index_files/figure-html/unnamed-chunk-4-1.png" width="672" />
+<p>Now simulate a &lsquo;shared&rsquo; nonlinear temporal trend, which will anchor each species&rsquo; trend</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>N <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">50</span>
+</span></span><span style="display:flex;"><span>shared <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">sim_gp</span>(N, alpha <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>, rho <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">8</span>) <span style="color:#000;font-weight:bold">+</span> <span style="color:#099">10</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot</span>(shared, type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;l&#39;</span>, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>, xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Time&#39;</span>, ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Trend&#39;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/phylogenetic-smooths-mgcv/index_files/figure-html/unnamed-chunk-5-1.png" width="672" />
+<p>Next we construct the phylogenetically-informed trends. In this example, each species&rsquo; actual trend is a perturbation of the shared trend, whereby the final trend is a weighted sum of the shared trend and two other GP trends. Because the weights are simulated using phylogenetic information (using the <code>rTraitCont()</code> function from the <code>ape</code> library), this process allows us to construct smooth trends that will hopefully capture the property we&rsquo;re after, i.e. that more closely related species will have more similar functional shapes</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>warp1 <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">sim_gp</span>(N, alpha <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>, rho <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">20</span>) <span style="color:#000;font-weight:bold">+</span> <span style="color:#099">10</span>
+</span></span><span style="display:flex;"><span>warp2 <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">sim_gp</span>(N, alpha <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>, rho <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">20</span>) <span style="color:#000;font-weight:bold">+</span> <span style="color:#099">10</span>
+</span></span><span style="display:flex;"><span>weights1 <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">as.vector</span>(<span style="color:#900;font-weight:bold">scale</span>(<span style="color:#900;font-weight:bold">rTraitCont</span>(tree)))
+</span></span><span style="display:flex;"><span>weights2 <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">as.vector</span>(<span style="color:#900;font-weight:bold">scale</span>(<span style="color:#900;font-weight:bold">rTraitCont</span>(tree)))
+</span></span></code></pre></div><p>Create the trends for each species and take noisy observations. For the third and seventh species, we set observations to <code>NA</code> so we can test if the model is able to recover their trends. Store all necessary data in a <code>data.frame</code></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>dat <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">do.call</span>(rbind, 
+</span></span><span style="display:flex;"><span>               <span style="color:#900;font-weight:bold">lapply</span>(<span style="color:#900;font-weight:bold">seq_len</span>(N_species),
+</span></span><span style="display:flex;"><span>                      <span style="color:#000;font-weight:bold">function</span>(i){
+</span></span><span style="display:flex;"><span>                        sp_trend <span style="color:#000;font-weight:bold">&lt;-</span> warp1 <span style="color:#000;font-weight:bold">*</span> weights1[i] <span style="color:#000;font-weight:bold">+</span> 
+</span></span><span style="display:flex;"><span>                          warp2 <span style="color:#000;font-weight:bold">*</span> weights2[i] <span style="color:#000;font-weight:bold">+</span> shared
+</span></span><span style="display:flex;"><span>                        obs <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">rnorm</span>(N, 
+</span></span><span style="display:flex;"><span>                                     mean <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">as.vector</span>(<span style="color:#900;font-weight:bold">scale</span>(sp_trend)),
+</span></span><span style="display:flex;"><span>                                     sd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.35</span>)
+</span></span><span style="display:flex;"><span>                        <span style="color:#000;font-weight:bold">if</span>(i <span style="color:#000;font-weight:bold">%in%</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">3</span>, <span style="color:#099">7</span>)){
+</span></span><span style="display:flex;"><span>                          weight <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">0</span>
+</span></span><span style="display:flex;"><span>                          obs <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#000;font-weight:bold">NA</span>
+</span></span><span style="display:flex;"><span>                        } <span style="color:#000;font-weight:bold">else</span> {
+</span></span><span style="display:flex;"><span>                          weight <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">1</span>
+</span></span><span style="display:flex;"><span>                        }
+</span></span><span style="display:flex;"><span>                        <span style="color:#900;font-weight:bold">data.frame</span>(species <span style="color:#000;font-weight:bold">=</span> species_names[i],
+</span></span><span style="display:flex;"><span>                                   weight <span style="color:#000;font-weight:bold">=</span> weight,
+</span></span><span style="display:flex;"><span>                                   time <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span>N,
+</span></span><span style="display:flex;"><span>                                   truth <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">as.vector</span>(<span style="color:#900;font-weight:bold">scale</span>(sp_trend)),
+</span></span><span style="display:flex;"><span>                                   y <span style="color:#000;font-weight:bold">=</span> obs)
+</span></span><span style="display:flex;"><span>                      }))
+</span></span><span style="display:flex;"><span>dat<span style="color:#000;font-weight:bold">$</span>species <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">factor</span>(dat<span style="color:#000;font-weight:bold">$</span>species, levels <span style="color:#000;font-weight:bold">=</span> species_names)
+</span></span></code></pre></div><p>We&rsquo;ll also leave out the last 5 observations for each species so we can see how well (or how poorly) the trends extrapolate, though this isn&rsquo;t the primary focus of the example</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>dat <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">mutate</span>(y <span style="color:#000;font-weight:bold">=</span> dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">case_when</span>(
+</span></span><span style="display:flex;"><span>    time <span style="color:#000;font-weight:bold">&lt;=</span> N<span style="color:#099">-5</span> <span style="color:#000;font-weight:bold">~</span> y,
+</span></span><span style="display:flex;"><span>    time <span style="color:#000;font-weight:bold">&gt;</span> N<span style="color:#099">-5</span> <span style="color:#000;font-weight:bold">~</span> <span style="color:#000;font-weight:bold">NA</span>,
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">TRUE</span> <span style="color:#000;font-weight:bold">~</span> y
+</span></span><span style="display:flex;"><span>  )) <span style="color:#000;font-weight:bold">-&gt;</span> dat
+</span></span></code></pre></div>
+
+
+
+<h2 id="data-visualisation">Data visualisation
+  <a href="#data-visualisation"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>Plot the true simulated trends for each species</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">ggplot</span>(dat, <span style="color:#900;font-weight:bold">aes</span>(x <span style="color:#000;font-weight:bold">=</span> time, y <span style="color:#000;font-weight:bold">=</span> truth, col <span style="color:#000;font-weight:bold">=</span> species)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_line</span>() <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">facet_wrap</span>(<span style="color:#000;font-weight:bold">~</span>species, scales <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;free_y&#39;</span>) <span style="color:#000;font-weight:bold">+</span> 
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">theme_classic</span>() <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">theme</span>(legend.position <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;none&#39;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/phylogenetic-smooths-mgcv/index_files/figure-html/unnamed-chunk-9-1.png" alt="Simulating species' nonlinear time trends using phylogenetic relationships." width="672" />
+<p>Plot the noisy observations (noting that all obs are missing for two species)</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">ggplot</span>(dat, <span style="color:#900;font-weight:bold">aes</span>(x <span style="color:#000;font-weight:bold">=</span> time, y <span style="color:#000;font-weight:bold">=</span> y<span style="color:#000;font-weight:bold">*</span>weight, col <span style="color:#000;font-weight:bold">=</span> species)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_point</span>() <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">facet_wrap</span>(<span style="color:#000;font-weight:bold">~</span>species, scales <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;free_y&#39;</span>) <span style="color:#000;font-weight:bold">+</span> 
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">theme_classic</span>() <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">theme</span>(legend.position <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;none&#39;</span>)
+</span></span></code></pre></div><pre tabindex="0"><code>## Warning: Removed 150 rows containing missing values or values outside the scale range
+## (`geom_point()`).
+</code></pre><img src="https://ecogambler.netlify.app/blog/phylogenetic-smooths-mgcv/index_files/figure-html/unnamed-chunk-10-1.png" alt="Simulating noisy observations of species' nonlinear time trends using phylogenetic relationships." width="672" />
+
+
+
+
+<h2 id="model-setup">Model setup
+  <a href="#model-setup"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>Create the MRF penalty matrix using the phylogenetic precision matrix</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>omega <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">solve</span>(<span style="color:#900;font-weight:bold">vcv</span>(tree))
+</span></span></code></pre></div><p>Now add an MRF penalty that forces the temporal trend to evolve as a Random Walk using utilities provided by Pedersen et al&rsquo;s <code>MRFtools</code> package. This requires that we have a factor variable for <code>time</code> in our data, and we should ensure the levels of this <code>time_factor</code> go as high as we would potentially like to forecast. Note that this package can also create the phylogenetic penalty but I feel it is better to show these steps explicitly for this example.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>rw_penalty <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">mrf_penalty</span>(object <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#900;font-weight:bold">max</span>(dat<span style="color:#000;font-weight:bold">$</span>time), 
+</span></span><span style="display:flex;"><span>                          type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;linear&#39;</span>)
+</span></span><span style="display:flex;"><span>dat<span style="color:#000;font-weight:bold">$</span>time_factor <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">factor</span>(<span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#900;font-weight:bold">max</span>(dat<span style="color:#000;font-weight:bold">$</span>time))
+</span></span></code></pre></div><p>Fit a GAM using a tensor product of the RW MRF basis and the phylogenetic MRF basis. We also use a &lsquo;shared&rsquo; smooth of time so that the phylogenetic smooths are estimated as deviations around this shared smooth. Set <code>drop.unused.levels = FALSE</code> to ensure there are no errors because of the extra species and times in the penalty matrices</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>mod <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">gam</span>(y <span style="color:#000;font-weight:bold">~</span> <span style="color:#900;font-weight:bold">s</span>(time, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">10</span>) <span style="color:#000;font-weight:bold">+</span> 
+</span></span><span style="display:flex;"><span>               <span style="color:#900;font-weight:bold">te</span>(time_factor, species, 
+</span></span><span style="display:flex;"><span>                  bs <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;mrf&#34;</span>, <span style="color:#d14">&#34;mrf&#34;</span>),
+</span></span><span style="display:flex;"><span>                  k <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">8</span>, N_species),
+</span></span><span style="display:flex;"><span>                  xt <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">list</span>(<span style="color:#900;font-weight:bold">list</span>(penalty <span style="color:#000;font-weight:bold">=</span> rw_penalty), 
+</span></span><span style="display:flex;"><span>                            <span style="color:#900;font-weight:bold">list</span>(penalty <span style="color:#000;font-weight:bold">=</span> omega))),
+</span></span><span style="display:flex;"><span>           data <span style="color:#000;font-weight:bold">=</span> dat,
+</span></span><span style="display:flex;"><span>           drop.unused.levels <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">FALSE</span>,
+</span></span><span style="display:flex;"><span>           method <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;REML&#34;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">summary</span>(mod)
+</span></span></code></pre></div><pre tabindex="0"><code>## 
+## Family: gaussian 
+## Link function: identity 
+## 
+## Formula:
+## y ~ s(time, k = 10) + te(time_factor, species, bs = c(&#34;mrf&#34;, 
+##     &#34;mrf&#34;), k = c(8, N_species), xt = list(list(penalty = rw_penalty), 
+##     list(penalty = omega)))
+## 
+## Parametric coefficients:
+##             Estimate Std. Error t value Pr(&gt;|t|)  
+## (Intercept) -0.03469    0.01665  -2.084   0.0378 *
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Approximate significance of smooth terms:
+##                            edf Ref.df      F p-value    
+## s(time)                  6.011  6.576  2.239  0.0281 *  
+## te(time_factor,species) 67.709 79.000 39.045  &lt;2e-16 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## R-sq.(adj) =  0.892   Deviance explained =   91%
+## -REML = 291.42  Scale est. = 0.12468   n = 450
+</code></pre>
+
+
+
+<h2 id="predictions-and-evaluation">Predictions and evaluation
+  <a href="#predictions-and-evaluation"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>Calculate predictions from the model for the full dataset (including the missing species) and overlay the actual true simulated trends as black points. Did the model successfully estimate the missing species&rsquo; temporal trend?</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>preds <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">predict</span>(mod, newdata <span style="color:#000;font-weight:bold">=</span> dat, type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;response&#39;</span>, se <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>)
+</span></span><span style="display:flex;"><span>dat<span style="color:#000;font-weight:bold">$</span>pred <span style="color:#000;font-weight:bold">&lt;-</span> preds<span style="color:#000;font-weight:bold">$</span>fit
+</span></span><span style="display:flex;"><span>dat<span style="color:#000;font-weight:bold">$</span>upper <span style="color:#000;font-weight:bold">&lt;-</span> preds<span style="color:#000;font-weight:bold">$</span>fit <span style="color:#000;font-weight:bold">+</span> <span style="color:#099">1.96</span><span style="color:#000;font-weight:bold">*</span>preds<span style="color:#000;font-weight:bold">$</span>se.fit
+</span></span><span style="display:flex;"><span>dat<span style="color:#000;font-weight:bold">$</span>lower <span style="color:#000;font-weight:bold">&lt;-</span> preds<span style="color:#000;font-weight:bold">$</span>fit <span style="color:#000;font-weight:bold">-</span> <span style="color:#099">1.96</span><span style="color:#000;font-weight:bold">*</span>preds<span style="color:#000;font-weight:bold">$</span>se.fit
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">ggplot</span>(dat, <span style="color:#900;font-weight:bold">aes</span>(x <span style="color:#000;font-weight:bold">=</span> time, y <span style="color:#000;font-weight:bold">=</span> pred, col <span style="color:#000;font-weight:bold">=</span> species)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_point</span>(<span style="color:#900;font-weight:bold">aes</span>(y <span style="color:#000;font-weight:bold">=</span> truth), col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;black&#39;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_line</span>(linewidth <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>, alpha <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.6</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_ribbon</span>(<span style="color:#900;font-weight:bold">aes</span>(ymin <span style="color:#000;font-weight:bold">=</span> lower, ymax <span style="color:#000;font-weight:bold">=</span> upper, fill <span style="color:#000;font-weight:bold">=</span> species),
+</span></span><span style="display:flex;"><span>              alpha <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.3</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">NA</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">facet_wrap</span>(<span style="color:#000;font-weight:bold">~</span>species, scales <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;free_y&#39;</span>) <span style="color:#000;font-weight:bold">+</span> 
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">theme_classic</span>() <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">theme</span>(legend.position <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;none&#39;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/phylogenetic-smooths-mgcv/index_files/figure-html/unnamed-chunk-14-1.png" alt="Predicting species' nonlinear time trends using Hierarchical Generalized Additive Models with phylogenetic smooths." width="672" />
+<p>Hot Damn it worked! But could we recover these missing trends without the information provided in the phylogenetic structure? Fit a second GAM that uses a similar hierarchical smooth of time, but in this case the deviations around the shared smooth do not have any phylogenetic information to leverage</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>mod2 <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">gam</span>(y <span style="color:#000;font-weight:bold">~</span> <span style="color:#900;font-weight:bold">s</span>(time, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">10</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>              <span style="color:#900;font-weight:bold">s</span>(time, species, bs <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;fs&#39;</span>, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">8</span>),
+</span></span><span style="display:flex;"><span>           data <span style="color:#000;font-weight:bold">=</span> dat,
+</span></span><span style="display:flex;"><span>           method <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;REML&#34;</span>,
+</span></span><span style="display:flex;"><span>           drop.unused.levels <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">FALSE</span>)
+</span></span></code></pre></div><pre tabindex="0"><code>## Warning in gam.side(sm, X, tol = .Machine$double.eps^0.5): model has repeated
+## 1-d smooths of same variable.
+</code></pre><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">summary</span>(mod2)
+</span></span></code></pre></div><pre tabindex="0"><code>## 
+## Family: gaussian 
+## Link function: identity 
+## 
+## Formula:
+## y ~ s(time, k = 10) + s(time, species, bs = &#34;fs&#34;, k = 8)
+## 
+## Parametric coefficients:
+##             Estimate Std. Error t value Pr(&gt;|t|)
+## (Intercept) -0.03469    0.03615   -0.96    0.338
+## 
+## Approximate significance of smooth terms:
+##                    edf Ref.df     F  p-value    
+## s(time)          7.668  8.285  5.13 3.06e-06 ***
+## s(time,species) 56.239 78.000 38.27  &lt; 2e-16 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## R-sq.(adj) =  0.889   Deviance explained = 90.5%
+## -REML = 285.82  Scale est. = 0.12807   n = 450
+</code></pre><p>Now predict from the non-phylogenetic model</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>preds <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">predict</span>(mod2, newdata <span style="color:#000;font-weight:bold">=</span> dat, type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;response&#39;</span>, se <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>)
+</span></span><span style="display:flex;"><span>dat<span style="color:#000;font-weight:bold">$</span>pred <span style="color:#000;font-weight:bold">&lt;-</span> preds<span style="color:#000;font-weight:bold">$</span>fit
+</span></span><span style="display:flex;"><span>dat<span style="color:#000;font-weight:bold">$</span>upper <span style="color:#000;font-weight:bold">&lt;-</span> preds<span style="color:#000;font-weight:bold">$</span>fit <span style="color:#000;font-weight:bold">+</span> <span style="color:#099">1.96</span><span style="color:#000;font-weight:bold">*</span>preds<span style="color:#000;font-weight:bold">$</span>se.fit
+</span></span><span style="display:flex;"><span>dat<span style="color:#000;font-weight:bold">$</span>lower <span style="color:#000;font-weight:bold">&lt;-</span> preds<span style="color:#000;font-weight:bold">$</span>fit <span style="color:#000;font-weight:bold">-</span> <span style="color:#099">1.96</span><span style="color:#000;font-weight:bold">*</span>preds<span style="color:#000;font-weight:bold">$</span>se.fit
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">ggplot</span>(dat, <span style="color:#900;font-weight:bold">aes</span>(x <span style="color:#000;font-weight:bold">=</span> time, y <span style="color:#000;font-weight:bold">=</span> pred, col <span style="color:#000;font-weight:bold">=</span> species)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_point</span>(<span style="color:#900;font-weight:bold">aes</span>(y <span style="color:#000;font-weight:bold">=</span> truth), col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;black&#39;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_line</span>(linewidth <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>, alpha <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.6</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_ribbon</span>(<span style="color:#900;font-weight:bold">aes</span>(ymin <span style="color:#000;font-weight:bold">=</span> lower, ymax <span style="color:#000;font-weight:bold">=</span> upper, fill <span style="color:#000;font-weight:bold">=</span> species),
+</span></span><span style="display:flex;"><span>              alpha <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.3</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">NA</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">facet_wrap</span>(<span style="color:#000;font-weight:bold">~</span>species, scales <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;free_y&#39;</span>) <span style="color:#000;font-weight:bold">+</span> 
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">theme_classic</span>() <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">theme</span>(legend.position <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;none&#39;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/phylogenetic-smooths-mgcv/index_files/figure-html/unnamed-chunk-16-1.png" alt="Predicting species' nonlinear time trends using hierarchical Generalized Additive Models." width="672" />
+<p>Predictions from this model draw from the &lsquo;average&rsquo; smooth, rather than leveraging phylogenetic information, to predict the trends for the missing species. So the predictions for both missing species are identical. Obviously we can tell by eye that the predictions are worse than those from the phylogenetic model. But we could use Continuous Rank Probability Scores for each model&rsquo;s predictions to quantify <em>how much</em> worse</p>
+
+
+
+
+<h2 id="further-reading">Further reading
+  <a href="#further-reading"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>The following papers and resources offer useful material about Hierarchical Generalized Additive Models and comparative phylogenetic modeling</p>
+<p>Blomberg, S. P., Garland Jr, T., &amp; Ives, A. R. (2003). 
+<a href="https://onlinelibrary.wiley.com/doi/abs/10.1111/j.0014-3820.2003.tb00285.x" target="_blank" rel="noopener">Testing for phylogenetic signal in comparative data: behavioral traits are more labile</a>. <em>Evolution</em>, 57(4), 717-745.</p>
+<p>Clark, N. J., Drovetski, S. V., &amp; Voelker, G. (2020). 
+<a href="https://onlinelibrary.wiley.com/doi/full/10.1111/mec.15545" target="_blank" rel="noopener">Robust geographical determinants of infection prevalence and a contrasting latitudinal diversity gradient for haemosporidian parasites in Western Palearctic birds</a>. <em>Molecular Ecology</em>, 29(16), 3131-3143.</p>
+<p>Clark, N. J. (2023) 
+<a href="https://github.com/nicholasjclark/physalia-forecasting-course" target="_blank" rel="noopener">Ecological forecasting with R 📦&rsquo;s {mvgam} and {brms}</a>. A workshop hosted for 
+<a href="https://www.physalia-courses.org/" target="_blank" rel="noopener">Physalia Courses</a></p>
+<p>Pedersen, E. J., Miller, D. L., Simpson, G. L., &amp; Ross, N. (2019). 
+<a href="https://peerj.com/articles/6876/" target="_blank" rel="noopener">Hierarchical generalized additive models in ecology: an introduction with mgcv</a>. <em>PeerJ</em>, 7, e6876.</p>
+
+      </section>
+      <footer class="post-footer">
+        <div class="post-pagination dt w-100 mt4 mb2">
+  
+  
+    <a class="prev dtc pr2 tl v-top fw6"
+    href="https://ecogambler.netlify.app/blog/stan-detection-error/">&larr; Using Stan for logistic regressions with detection error</a>
+  
+  
+  
+    <a class="next dtc pl2 tr v-top fw6"
+    href="https://ecogambler.netlify.app/blog/stan-discrete-geostatistical/">Using Stan to model geostatistical count data with distance matrices &rarr;</a>
+  
+</div>
+
+      </footer>
+    </article>
+    
+      
+<div class="post-comments pa0 pa4-l mt4">
+  
+  <script src="https://utteranc.es/client.js"
+          repo="apreshill/apero"
+          issue-term="pathname"
+          theme="boxy-light"
+          label="comments :crystal_ball:"
+          crossorigin="anonymous"
+          async
+          type="text/javascript">
+  </script>
+  
+</div>
+
+    
+  </section>
+</main>
+<aside class="page-sidebar" role="complementary">
+                         
+ 
+
+
+                       
+ 
+
+
+
+
+
+
+
+
+
+
+
+  <img src="/blog/sidebar-listing.jpg" class="db ma0">
+
+
+<div class="blog-info ph4 pt4 pb4 pb0-l">
+  
+
+  <h1 class="f3">GAMbler</h1>
+  <p class="f6 lh-copy measure">A blog on (somewhat) interesting and (hopefully) useful tips for ecological modeling, with (perhaps too much) emphasis on Generalized Additive Models.</p>
+  <p class="f7 measure lh-copy i mh0-l">Written by Nicholas Clark (n.clark&rsquo;at&rsquo;uq.edu.au)</p>
+
+
+  
+  <div class="dib bt bw1 b--black-10">
+    
+      <small class="db f7 pt3"><a href="/blog/" class="dib fw7 ttu">View recent posts</a></small>
+    
+    
+    
+    
+  </div>
+
+
+</div>
+
+
+  
+  <details open class="f6 fw7 input-reset">
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Posted on:</dt>
+    <dd class="fw5 ml0">February 24, 2024</dd>
+  </dl>
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Length:</dt>
+    <dd class="fw5 ml0">8 minute read, 1655 words</dd>
+  </dl>
+  
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Categories:</dt>
+    <dd class="fw5 ml0"> <a href="https://ecogambler.netlify.app/categories/rstats">rstats</a>  <a href="https://ecogambler.netlify.app/categories/mgcv">mgcv</a> </dd>
+  </dl>
+  
+  
+  
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Tags:</dt>
+    <dd class="fw5 ml0"> <a href="https://ecogambler.netlify.app/tags/rstats">rstats</a>  <a href="https://ecogambler.netlify.app/tags/mgcv">mgcv</a>  <a href="https://ecogambler.netlify.app/tags/tutorial">tutorial</a>  <a href="https://ecogambler.netlify.app/tags/simulation">simulation</a> </dd>
+  </dl>
+  
+  <dl class="f6 lh-copy">
+    <dt class="fw7">See Also:</dt>
+    
+    <dd class="fw5 ml0"><a href="/blog/emergency-department-shiny/">Building an Interactive Emergency Department Dashboard with Shiny</a></dd>
+    
+    <dd class="fw5 ml0"><a href="/blog/plant-community-dirichlet/">Compositional modeling of plant communities with Dirichlet regression</a></dd>
+    
+    <dd class="fw5 ml0"><a href="/blog/clv-prediction/">GAMs for Customer Lifetime Value (CLV) prediction</a></dd>
+    
+  </dl>
+</details>
+
+                           
+  
+  
+  
+ <nav id="TableOfContents" class="sticky ph4 pb4 pt6" role="navigation"> 
+   <h2 class="mv0 f5 fw7 ttu tracked dib">On this page</h2> 
+     <nav id="TableOfContents">
+  <ul>
+    <li><a href="#environment-setup">Environment setup</a></li>
+    <li><a href="#phylogenetically-structured-trends">Phylogenetically structured trends</a></li>
+    <li><a href="#data-visualisation">Data visualisation</a></li>
+    <li><a href="#model-setup">Model setup</a></li>
+    <li><a href="#predictions-and-evaluation">Predictions and evaluation</a></li>
+    <li><a href="#further-reading">Further reading</a></li>
+  </ul>
+</nav> 
+ </nav> 
+  
+
+</aside>
+<footer class="site-footer pv4 bt b--transparent ph5" role="contentinfo">
+  <nav class="db dt-l w-100">
+    <p class="site-copyright f7 db dtc-l v-mid w-100 w-33-l tc tl-l pv2 pv0-l mv0 lh-copy">
+      © Nicholas J Clark (2024)
+      <span class="middot-divider"></span>
+      Made with <span xmlns:dct="http://purl.org/dc/terms/" property="dct:title"><a xmlns:dct="http://purl.org/dc/terms/" href="https://github.com/hugo-apero/" rel="dct:source">Hugo Apéro</a></span>.
+      <br />
+      
+Based on <span xmlns:dct="http://purl.org/dc/terms/" property="dct:title"><a xmlns:dct="http://purl.org/dc/terms/" href="https://github.com/formspree/blogophonic-hugo" rel="dct:source">Blogophonic</a></span> by <a xmlns:cc="http://creativecommons.org/ns#" href="https://formspree.io" property="cc:attributionName" rel="cc:attributionURL">Formspree</a>.
+    </p>
+    
+    <div class="site-social-links db dtc-l v-mid w-100 w-33-l tc pv2 pv0-l mv0">
+      <div class="social-icon-links" aria-hidden="true">
+  
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://github.com/nicholasjclark" title="github" target="_blank" rel="me noopener">
+      <i class="fab fa-github fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://www.youtube.com/@NJ_Clark" title="youtube" target="_blank" rel="me noopener">
+      <i class="fab fa-youtube fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://bsky.app/profile/njclark.bsky.social" title="mixcloud" target="_blank" rel="me noopener">
+      <i class="fab fa-mixcloud fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://orcid.org/0000-0001-7131-3301" title="orcid" target="_blank" rel="me noopener">
+      <i class="ai ai-orcid fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://scholar.google.com.au/citations?user=5bO9uxEAAAAJ&amp;hl=en" title="google-scholar" target="_blank" rel="me noopener">
+      <i class="ai ai-google-scholar fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="/blog/index.xml" title="rss" >
+      <i class="fas fa-rss fa-lg fa-fw"></i>
+    </a>
+  
+</div>
+
+    </div>
+    
+    <div class="site-links f6 db dtc-l v-mid w-100 w-67-l tc tr-l pv2 pv0-l mv0">
+      
+      <a class="dib pv1 ph2 link" href="/license/" title="License">License</a>
+      
+      <a class="dib pv1 ph2 link" href="/contributors/" title="Contributors">Collaborators</a>
+      
+    </div>
+  </nav>
+  
+    <script>
+
+    var i, text, code, codes = document.getElementsByTagName('code');
+    for (let i = 0; i < codes.length;) {
+      code = codes[i];
+      if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+        text = code.textContent;
+        if (/^\$[^$]/.test(text) && /[^$]\$$/.test(text)) {
+          text = text.replace(/^\$/, '\\(').replace(/\$$/, '\\)');
+          code.textContent = text;
+        }
+        if (/^\\\((.|\s)+\\\)$/.test(text) ||
+            /^\\\[(.|\s)+\\\]$/.test(text) ||
+            /^\$(.|\s)+\$$/.test(text) ||
+            /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+          code.outerHTML = code.innerHTML;  
+          continue;
+        }
+      }
+      i++;
+    }
+</script>
+
+  
+    
+    
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/katex.min.css" integrity="sha384-RZU/ijkSsFbcmivfdRBQDtwuwVqK7GMOw6IMvKyeWL2K5UAlyp6WonmB8m7Jd0Hn" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/katex.min.js" integrity="sha384-pK1WpvzWVBQiP0/GjnvRxV4mOb0oxFuyRxJlk6vVw146n3egcN5C925NCP7a7BY8" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/contrib/auto-render.min.js" integrity="sha384-vZTG03m+2yp6N6BNi5iM4rW4oIwk5DfcNdFfxkk9ZWpDriOkXX8voJBFrAO7MpVl" crossorigin="anonymous" onload="renderMathInElement(document.body);"></script>
+
+
+
+    
+  
+  
+</footer>
+
+      </div>
+    </body>
+</html>

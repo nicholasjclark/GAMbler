@@ -1,0 +1,35 @@
+---
+title: "Blogroll"
+author: "Nicholas Clark"
+date: "`r format(Sys.Date())`"
+output:
+  html_document:
+    df_print: paged
+# layout: single
+layout: standard # standard or wide-body
+show_title_as_headline: false
+---
+
+# r-bloggers
+
+[R-Bloggers.com](https://www.r-bloggers.com/) is a blog aggregator of content contributed by bloggers who write about R (in English). The site helps R bloggers and users to connect and follow the “R blogosphere”
+
+# R weekly
+
+[rweekly.org](https://rweekly.org/) collates useful information from  blogs, tutorials and other formats of resources to help the R community become more accessible to everyone
+
+# Hyndsight
+
+[Rob J Hyndman's Hyndsight](https://robjhyndman.com/hyndsight/) collates many helpful tips and examples for time series analysis, forecasting and more general statistical practice
+
+# elevanth
+
+[Richard McElreath's elevanth](https://elevanth.org/) gives interesting views and critiques of research practice, as well as practical tips for probabilistic reasoning / modeling
+
+# Recology
+
+[recology.info/](https://recology.info/) is a useful and interesting blog by [Scott Chamberlain](https://scottchamberlain.info/), a researcher, software engineer and co-founder of [rOpenSci](https://ropensci.org/)
+
+# Blue Ecology
+
+[Blue Ecology](https://www.seascapemodels.org/bluecology_blog.html) is an insightful blog on ocean science, quantitative ecology and R programming by [Chris Brown](https://discover.utas.edu.au/C.J.Brown), a marine scientist and computational ecologist at the University of Tasmania

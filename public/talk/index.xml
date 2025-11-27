@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+  <title>Research seminars and workshops on GAMbler</title>
+  <link>https://ecogambler.netlify.app/talk/</link>
+  <description>Recent content in Research seminars and workshops on GAMbler</description>
+  <generator>Hugo</generator>
+  <language>en</language>
+<copyright>© Nicholas J Clark (2024)</copyright>
+<lastBuildDate>Tue, 22 Jul 2025 17:05:00 -0600</lastBuildDate>
+<atom:link href="https://ecogambler.netlify.app/talk/index.xml" rel="self" type="application/rss+xml" />
+<item>
+  <title>Why you should embrace ecological forecasting</title>
+  <link>https://ecogambler.netlify.app/talk/cbcs-2025/</link>
+  <pubDate>Tue, 22 Jul 2025 17:05:00 -0600</pubDate>
+<guid>https://ecogambler.netlify.app/talk/cbcs-2025/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Ecological forecasting with R 📦&#39;s {mvgam} and {brms}</title>
+  <link>https://ecogambler.netlify.app/talk/physalia-mvgam-2025/</link>
+  <pubDate>Mon, 24 Mar 2025 14:14:05 -0600</pubDate>
+<guid>https://ecogambler.netlify.app/talk/physalia-mvgam-2025/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>2025 R Workshops @ UQ</title>
+  <link>https://ecogambler.netlify.app/talk/uq-r-workshops/</link>
+  <pubDate>Mon, 10 Feb 2025 09:30:00 -0600</pubDate>
+<guid>https://ecogambler.netlify.app/talk/uq-r-workshops/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Harnessing the power of ecological forecasting</title>
+  <link>https://ecogambler.netlify.app/talk/esa-australia-2024/</link>
+  <pubDate>Tue, 10 Dec 2024 17:25:00 -0600</pubDate>
+<guid>https://ecogambler.netlify.app/talk/esa-australia-2024/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Ecological forecasting with R 📦&#39;s {mvgam} and {brms}</title>
+  <link>https://ecogambler.netlify.app/talk/physalia-mvgam-2024/</link>
+  <pubDate>Mon, 27 May 2024 14:14:05 -0600</pubDate>
+<guid>https://ecogambler.netlify.app/talk/physalia-mvgam-2024/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Time series modeling with Bayesian Dynamic Generalized Additive Models</title>
+  <link>https://ecogambler.netlify.app/talk/dynamic-gams/</link>
+  <pubDate>Thu, 14 Dec 2023 14:15:59 -0600</pubDate>
+<guid>https://ecogambler.netlify.app/talk/dynamic-gams/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Ecological forecasting with dynamic GAMs</title>
+  <link>https://ecogambler.netlify.app/talk/esa-stat-methods-2023/</link>
+  <pubDate>Sat, 04 Nov 2023 14:15:59 -0600</pubDate>
+<guid>https://ecogambler.netlify.app/talk/esa-stat-methods-2023/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Ecological forecasting with dynamic Generalized Additive Models (DGAMs)</title>
+  <link>https://ecogambler.netlify.app/talk/efi-oceania-2023/</link>
+  <pubDate>Thu, 02 Nov 2023 14:15:59 -0600</pubDate>
+<guid>https://ecogambler.netlify.app/talk/efi-oceania-2023/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Ascertainment and near-term forecasting of tick paralysis admissions</title>
+  <link>https://ecogambler.netlify.app/talk/vca-2023/</link>
+  <pubDate>Tue, 16 Aug 2022 14:14:05 -0600</pubDate>
+<guid>https://ecogambler.netlify.app/talk/vca-2023/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Rapid winter warming associated with major shifts in coastal fish communities</title>
+  <link>https://ecogambler.netlify.app/talk/esa-2021/</link>
+  <pubDate>Sun, 12 Dec 2021 14:15:05 -0600</pubDate>
+<guid>https://ecogambler.netlify.app/talk/esa-2021/</guid>
+  <description></description>
+  </item>
+</channel>
+  </rss>

@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr"><head>
+  
+                           
+     
+
+
+<meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="generator" content="Hugo 0.123.8">
+<title>First release of mvgam(v1.1.0) to CRAN | GAMbler</title>
+
+
+<meta property="twitter:site" content="@twitter = &#34;nj_clark&#34;">
+<meta property="twitter:creator" content="@twitter = &#34;nj_clark&#34;">
+
+
+
+
+
+
+
+  
+    
+  
+<meta name="description" content="The mvgam package has been officially released to CRAN. This package fits Bayesian Dynamic Generalized Additive Models to sets of time series. Users can build dynamic nonlinear State-Space models that can incorporate semiparametric effects in observation and process components, using a wide range of observation families. Estimation is performed using Markov Chain Monte Carlo with Hamiltonian Monte Carlo in the software Stan.">
+
+
+<meta property="og:site_name" content="GAMbler">
+<meta property="og:title" content="First release of mvgam(v1.1.0) to CRAN | GAMbler">
+<meta property="og:description" content="The mvgam package has been officially released to CRAN. This package fits Bayesian Dynamic Generalized Additive Models to sets of time series. Users can build dynamic nonlinear State-Space models that can incorporate semiparametric effects in observation and process components, using a wide range of observation families. Estimation is performed using Markov Chain Monte Carlo with Hamiltonian Monte Carlo in the software Stan." />
+<meta property="og:type" content="page" />
+<meta property="og:url" content="https://ecogambler.netlify.app/blog/mvgam-on-cran/" />
+<meta property="og:locale" content="en">
+
+
+
+
+    
+        <meta property="og:image" content="https://ecogambler.netlify.app/blog/mvgam-on-cran/featured.png" >
+        <meta property="twitter:card" content="summary_large_image">
+        <meta name="twitter:image" content="https://ecogambler.netlify.app/blog/mvgam-on-cran/featured.png" >
+    
+    
+  <meta itemprop="name" content="First release of mvgam(v1.1.0) to CRAN">
+<meta itemprop="description" content="Welcoming mvgam to the Comprehensive R Archive Network (CRAN) The goal of mvgam is to use a Bayesian framework to estimate parameters of Dynamic Generalized Additive Models (DGAMs) for time series with dynamic trend components. The package provides an interface to fit Bayesian DGAMs using Stan as the backend, and is particularly suited to the estimation of complex State-Space models. The formula syntax is based on that of the package mgcv to provide a familiar GAM modelling interface."><meta itemprop="datePublished" content="2024-05-08T00:00:00+00:00" />
+<meta itemprop="dateModified" content="2024-05-08T00:00:00+00:00" />
+<meta itemprop="wordCount" content="2289"><meta itemprop="image" content="https://ecogambler.netlify.app/blog/mvgam-on-cran/featured.png" />
+<meta itemprop="keywords" content="rstats,mvgam,package,cran,time-series," />
+  
+  <!--[if IE]><script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script><![endif]-->
+  <link rel="shortcut icon" href="/img/header_logo.ico" type="image/x-icon">
+  <link rel="icon" href="/img/header_logo.ico" type="image/x-icon">
+  
+  
+  <link rel="stylesheet" href="/style.main.min.13ba2c07d7acc52c13dbb9003240e2adf360a5d73e1392ede873916180ee1701.css" integrity="sha256-E7osB9esxSwT27kAMkDirfNgpdc&#43;E5Lt6HORYYDuFwE=" media="screen">
+  
+  
+  <script src="/panelset.min.ed1ac24b6e16f4e2481e3d1d098ae66f5bc77438aef619e6e266d8ac5b00dc72.js" type="text/javascript"></script>
+  
+  
+  <script src="/main.min.7c7401b27b903bdc8736f72a2f739f7602bf606c451e8cb5e7fab2bf6b4af582.js" type="text/javascript"></script>
+</head>
+<body>
+      <div class="grid-container single-sidebar">
+<header class="site-header pt4 pb2 mb4 bb b--transparent ph5 headroom z-max" role="banner">
+  <nav class="site-nav db dt-l w-100" role="navigation">
+    <a class="site-brand db dtc-l v-mid link no-underline w-100 w-33-l tc tl-l" href="https://ecogambler.netlify.app/" title="Home">
+      <img src="/img/header_logo.png" class="dib db-l h2 w-auto" alt="GAMbler">
+    </a>
+    <div class="site-links db dtc-l v-mid w-100 w-47-l tc tr-l mt3 mt0-l ttu tracked">
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 active" href="/blog/" title="Blog">Blog</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/project/" title="Project Portfolio">Software</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/talk/" title="Talks">Talks &amp; Workshops</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/opportunities/" title="Opportunities">Opportunities</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/archives/" title="Archive">Archive</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/blogroll/" title="Blogroll">Blogroll</a>
+      
+      
+    </div>
+  </nav>
+</header>
+
+<main class="page-main pa4" role="main">
+  <section class="page-content mw7 center">
+    <article class="post-content pa0 pr3-l">
+      <header class="post-header">
+        <h1 class="f1 lh-solid measure-narrow mb3 fw4">First release of mvgam(v1.1.0) to CRAN</h1>
+        
+        <p class="f6 measure lh-copy mv1">By Nicholas Clark in <a href="https://ecogambler.netlify.app/categories/rstats">rstats</a>  <a href="https://ecogambler.netlify.app/categories/package">package</a>  <a href="https://ecogambler.netlify.app/categories/mvgam">mvgam</a> </p>
+        <p class="f7 db mv0 ttu">May 8, 2024</p>
+      </header>
+      <section class="post-body pt5 pb4">
+        
+
+
+
+<h2 id="welcoming-mvgam-to-the-comprehensive-r-archive-network-cran">Welcoming mvgam to the Comprehensive R Archive Network (CRAN)
+  <a href="#welcoming-mvgam-to-the-comprehensive-r-archive-network-cran"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>The goal of <code>mvgam</code> is to use a Bayesian framework to estimate parameters of Dynamic Generalized Additive Models (DGAMs) for time series with dynamic trend components. The package provides an interface to fit Bayesian DGAMs using 
+<a href="https://mc-stan.org/" target="_blank" rel="noopener"><code>Stan</code></a> as the backend, and is particularly suited to the estimation of complex State-Space models. The formula syntax is based on that of the package 
+<a href="https://cran.r-project.org/web/packages/mgcv/index.html" target="_blank" rel="noopener"><code>mgcv</code></a> to provide a familiar GAM modelling interface. There is also built-in support for the increasingly powerful 
+<a href="https://marginaleffects.com/" target="_blank" rel="noopener"><code>marginaleffects</code> package</a> to make interpretation easy. The motivation for the package and some of its primary objectives are described in detail by Clark &amp; Wells 2022 (published in 
+<a href="https://besjournals.onlinelibrary.wiley.com/doi/full/10.1111/2041-210X.13974" target="_blank" rel="noopener">Methods in Ecology and Evolution</a>). An introduction to the package and some worked examples are also shown in the below seminar:</p>
+<p><strong>Ecological Forecasting with Dynamic Generalized Additive Models DGAMs)</strong></p>
+<div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden;">
+  <iframe src="https://www.youtube-nocookie.com/embed/0zZopLlomsQ" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border:0;" allowfullscreen title="YouTube Video"></iframe>
+</div>
+<p>The first release of <code>mvgam</code> 
+<a href="https://cran.rstudio.com/web/packages/mvgam/index.html" target="_blank" rel="noopener">has now been published on CRAN</a>. While the package has featured on this blog before, for example when I explained 
+<a href="https://ecogambler.netlify.app/blog/distributed-lags-mgcv/" target="_blank" rel="noopener">hierarchical distributed lag models</a> and 
+<a href="https://ecogambler.netlify.app/blog/autocorrelated-gams/" target="_blank" rel="noopener">how to model temporally autocorrelated time series with nonlinear trends</a>, I have not thorougly introduced the it yet. So the purpose of this brief post is to cover some of the features of this stable release, and to hint at a few of the development goals for upcoming releases.</p>
+
+
+
+
+<h2 id="what-are-generalized-additive-models-gams">What are Generalized Additive Models (GAMs)?
+  <a href="#what-are-generalized-additive-models-gams"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>Generalized Additive Models (GAMs) are flexible tools that replace one or more predictors in a Generalized Linear Model (GLM) with <em>smooth functions</em> of predictors. These are helpful for learning arbitrarily complex, nonlinear relationships between predictors and conditional responses without needing <em>a priori</em> expectations about the shapes of these relationships. Rather, they are learned using 
+<a href="https://ecogambler.netlify.app/blog/autocorrelated-gams/" target="_blank" rel="noopener"><em>penalized smoothing splines</em></a>.</p>
+<p><img src="smooth_only.gif" alt="Generalized Additive Models learn nonlinear effects from data using smoothing splines"></p>
+<p>How do these work? The secret is a <em>basis expansion</em>, which in lay terms means that the covariate (time, in this example) is evaluated at a smaller set of <em>basis functions</em> designed to cover the range of the observed covariate values. Below is one particular type of basis, called a cubic regression basis.</p>
+<p><img src="basis-functions-1.svg" alt="How basis functions can be used to build a smoothing spline in a GAM"></p>
+<p>Each basis function acts on its own local neighbourhood of the covariate. Once we have constructed the basis, we can estimate weights for each function. The weights allow the basis functions to have different impacts on the shape of the spline. They also give us a target for learning splines from data, as the weights act as the regression coefficients.</p>
+<p><img src="basis_weights.gif" alt="How basis functions can be used to build a smoothing spline in a GAM"></p>
+<p>There are many more types of basis expansions that can be used to form penalized smooths, including multidimensional smooths, spatial smooths or even monotonic smooths. For more information on GAMs and how they can smooth through data, see 
+<a href="https://ecogambler.netlify.app/blog/interpreting-gams/" target="_blank" rel="noopener">my blogpost on how to interpret nonlinear effects from Generalized Additive Models</a>.</p>
+
+
+
+
+<h2 id="what-does-mvgam-do">What does mvgam do?
+  <a href="#what-does-mvgam-do"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p><code>mvgam</code> is designed to propagate unobserved temporal processes to capture latent dynamics in the observed time series. This works in a state-space format, with the temporal <em>trend</em> evolving independently of the observation process. Briefly, assume <code>\(\tilde{\boldsymbol{y}}_{i,t}\)</code> is the conditional expectation of response variable <code>\(\boldsymbol{i}\)</code> at time <code>\(\boldsymbol{t}\)</code>. Assuming <code>\(\boldsymbol{y_i}\)</code> is drawn from an exponential distribution with an invertible link function, the linear predictor for a multivariate Dynamic GAM can be written as:</p>
+<p><code>$$for~i~in~1:N_{series}~...$$</code>
+<code>$$for~t~in~1:N_{timepoints}~...$$</code></p>
+<p><code>$$g^{-1}(\tilde{\boldsymbol{y}}_{i,t})=\alpha_{i}+\sum\limits_{j=1}^J\boldsymbol{s}_{i,j,t}\boldsymbol{x}_{j,t}+\boldsymbol{z}_{i,t}\,,$$</code></p>
+<p>Here <code>\(\alpha\)</code> are the unknown intercepts, the <code>\(\boldsymbol{s}\)</code>&rsquo;s are unknown smooth functions of covariates <code>\((\boldsymbol{x})\)</code>&rsquo;s, which can potentially vary among the response series, and <code>\(\boldsymbol{z}\)</code> are dynamic latent processes. Each smooth function <code>\(\boldsymbol{s_j}\)</code> is composed of basis expansions whose coefficients, which must be estimated, control the functional relationship between <code>\(\boldsymbol{x}_{j}\)</code> and <code>\(g^{-1}(\tilde{\boldsymbol{y}})\)</code>. But note that we can also include smooth functions of covariates in the process models <code>\(\boldsymbol{z}\)</code>.</p>
+<p>Several advantages of GAMs are that they can model a diversity of response families, including discrete distributions (i.e. Poisson, Negative Binomial, Gamma) that accommodate common ecological features such as zero-inflation or overdispersion, and that they can be formulated to include hierarchical smoothing for multivariate responses. <code>mvgam</code> supports a number of different observation families, which are summarized below.</p>
+
+
+
+
+<h2 id="supported-observation-families">Supported observation families
+  <a href="#supported-observation-families"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p><code>mvgam</code> was originally designed to analyse and forecast time series of non-negative integer-valued data (counts). These data are traditionally challenging to analyse with existing time series analysis packages. But further development of <code>mvgam</code> has resulted in support for a growing number of observation families that extend to other types of data. Currently, the package can handle data for the following families:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:center">Distribution</th>
+<th style="text-align:center">Function</th>
+<th style="text-align:center">Support</th>
+<th style="text-align:center">Extra parameter(s)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center">Gaussian (identity link)</td>
+<td style="text-align:center"><code>gaussian()</code></td>
+<td style="text-align:center">Real values in <code>\((-\infty, \infty)\)</code></td>
+<td style="text-align:center"><code>\(\sigma\)</code></td>
+</tr>
+<tr>
+<td style="text-align:center">Student&rsquo;s T (identity link)</td>
+<td style="text-align:center"><code>student-t()</code></td>
+<td style="text-align:center">Heavy-tailed real values in <code>\((-\infty, \infty)\)</code></td>
+<td style="text-align:center"><code>\(\sigma\)</code>, <code>\(\nu\)</code></td>
+</tr>
+<tr>
+<td style="text-align:center">LogNormal (identity link)</td>
+<td style="text-align:center"><code>lognormal()</code></td>
+<td style="text-align:center">Positive real values in <code>\([0, \infty)\)</code></td>
+<td style="text-align:center"><code>\(\sigma\)</code></td>
+</tr>
+<tr>
+<td style="text-align:center">Gamma (log link)</td>
+<td style="text-align:center"><code>Gamma()</code></td>
+<td style="text-align:center">Positive real values in <code>\([0, \infty)\)</code></td>
+<td style="text-align:center"><code>\(\alpha\)</code></td>
+</tr>
+<tr>
+<td style="text-align:center">Beta (logit link)</td>
+<td style="text-align:center"><code>betar()</code></td>
+<td style="text-align:center">Real values (proportional) in <code>\([0,1]\)</code></td>
+<td style="text-align:center"><code>\(\phi\)</code></td>
+</tr>
+<tr>
+<td style="text-align:center">Bernoulli (logit link)</td>
+<td style="text-align:center"><code>bernoulli()</code></td>
+<td style="text-align:center">Binary data in <code>\({0,1}\)</code></td>
+<td style="text-align:center">-</td>
+</tr>
+<tr>
+<td style="text-align:center">Poisson (log link)</td>
+<td style="text-align:center"><code>poisson()</code></td>
+<td style="text-align:center">Non-negative integers in <code>\((0,1,2,...)\)</code></td>
+<td style="text-align:center">-</td>
+</tr>
+<tr>
+<td style="text-align:center">Negative Binomial2 (log link)</td>
+<td style="text-align:center"><code>nb()</code></td>
+<td style="text-align:center">Non-negative integers in <code>\((0,1,2,...)\)</code></td>
+<td style="text-align:center"><code>\(\phi\)</code></td>
+</tr>
+<tr>
+<td style="text-align:center">Binomial (logit link)</td>
+<td style="text-align:center"><code>binomial()</code></td>
+<td style="text-align:center">Non-negative integers in <code>\((0,1,2,...)\)</code></td>
+<td style="text-align:center">-</td>
+</tr>
+<tr>
+<td style="text-align:center">Beta-Binomial (logit link)</td>
+<td style="text-align:center"><code>beta_binomial()</code></td>
+<td style="text-align:center">Non-negative integers in <code>\((0,1,2,...)\)</code></td>
+<td style="text-align:center"><code>\(\phi\)</code></td>
+</tr>
+<tr>
+<td style="text-align:center">Poisson Binomial N-mixture (log link)</td>
+<td style="text-align:center"><code>nmix()</code></td>
+<td style="text-align:center">Non-negative integers in <code>\((0,1,2,...)\)</code></td>
+<td style="text-align:center">-</td>
+</tr>
+</tbody>
+</table>
+<p>For all supported observation families, any extra parameters that need to be estimated (i.e. the <code>\(\sigma\)</code> in a Gaussian model or the <code>\(\phi\)</code> in a Negative Binomial model) are by default estimated independently for each series. However, users can opt to force all series to share extra observation parameters using <code>share_obs_params = TRUE</code> in <code>mvgam()</code>. Note that default link functions cannot currently be changed.</p>
+
+
+
+
+<h2 id="supported-temporal-dynamic-processes">Supported temporal dynamic processes
+  <a href="#supported-temporal-dynamic-processes"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>The dynamic processes that <code>mvgam</code> can fit to time series can take a wide variety of forms, some of which can be multivariate to allow the different time series to interact or be correlated. When using the <code>mvgam()</code> function, the user chooses between different process models with the <code>trend_model</code> argument. Available process models are described in 
+<a href="https://nicholasjclark.github.io/mvgam/reference/mvgam_trends.html" target="_blank" rel="noopener"><code>?mvgam_trends</code></a> and detailed below.</p>
+
+
+
+
+<h3 id="independent-random-walks">Independent Random Walks
+  <a href="#independent-random-walks"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h3>
+<p>Use <code>trend_model = 'RW'</code> or <code>trend_model = RW()</code> to set up a model where each series in <code>data</code> has independent latent temporal dynamics of the form:</p>
+<p><code>$$\begin{align*} z_{i,t} &amp; \sim \text{Normal}(z_{i,t-1}, \sigma_i) \end{align*}$$</code></p>
+<p>Process error parameters <code>\(\sigma\)</code> are modeled independently for each series. If a moving average process is required, use <code>trend_model = RW(ma = TRUE)</code> to set up the following:</p>
+<p><code>$$\begin{align*} z_{i,t} &amp; = z_{i,t-1} + \theta_i * error_{i,t-1} + error_{i,t} \\ error_{i,t} &amp; \sim \text{Normal}(0, \sigma_i) \end{align*}$$</code></p>
+<p>Moving average coefficients <code>\(\theta\)</code> are independently estimated for each series and will be forced to be stationary by default <code>\((abs(\theta)&lt;1)\)</code>. Only moving averages of order <code>\(q=1\)</code> are currently allowed.</p>
+
+
+
+
+<h3 id="multivariate-random-walks">Multivariate Random Walks
+  <a href="#multivariate-random-walks"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h3>
+<p>If more than one series is included in <code>data</code> <code>\((N_{series} &gt; 1)\)</code>, a multivariate Random Walk can be set up using <code>trend_model = RW(cor = TRUE)</code>, resulting in the following:</p>
+<p><code>$$\begin{align*} z_{t} &amp; \sim \text{MVNormal}(z_{t-1}, \Sigma) \end{align*}$$</code></p>
+<p>Where the latent process estimate <code>\(z_t\)</code> now takes the form of a vector. The covariance matrix <code>\(\Sigma\)</code> will capture contemporaneously correlated process errors. It is parameterised using a Cholesky factorization, which requires priors on the series-level variances <code>\(\sigma\)</code> and on the strength of correlations using <code>Stan</code>&rsquo;s <code>lkj_corr_cholesky</code> distribution.</p>
+<p>Moving average terms can also be included for multivariate random walks, in which case the moving average coefficients <code>\(\theta\)</code> will be parameterised as an <code>\(N_{series} * N_{series}\)</code> matrix</p>
+
+
+
+
+<h3 id="autoregressive-processes">Autoregressive processes
+  <a href="#autoregressive-processes"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h3>
+<p>Autoregressive models up to <code>\(p=3\)</code>, in which the autoregressive coefficients are estimated independently for each series, can be used by specifying <code>trend_model = 'AR1'</code>, <code>trend_model = 'AR2'</code>, <code>trend_model = 'AR3'</code>, or <code>trend_model = AR(p = 1, 2, or 3)</code>. For example, a univariate AR(1) model takes the form:</p>
+<p><code>$$\begin{align*} z_{i,t} &amp; \sim \text{Normal}(ar1_i * z_{i,t-1}, \sigma_i) \end{align*}$$</code></p>
+<p>All options are the same as for Random Walks, but additional options will be available for placing priors on the autoregressive coefficients. By default, these coefficients will not be forced into stationarity, but users can impose this restriction by changing the upper and lower bounds on their priors. See <code>?get_mvgam_priors</code> for more details.</p>
+
+
+
+
+<h3 id="vector-autoregressive-processes">Vector Autoregressive processes
+  <a href="#vector-autoregressive-processes"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h3>
+<p>A Vector Autoregression of order <code>\(p=1\)</code> can be specified if <code>\(N_{series} &gt; 1\)</code> using <code>trend_model = 'VAR1'</code> or <code>trend_model = VAR()</code>. A VAR(1) model takes the form:</p>
+<p><code>$$\begin{align*} z_{t} &amp; \sim \text{Normal}(A * z_{t-1}, \Sigma) \end{align*}$$</code></p>
+<p>Where <code>\(A\)</code> is an <code>\(N_{series} * N_{series}\)</code> matrix of autoregressive coefficients in which the diagonals capture lagged self-dependence (i.e. the effect of a process at time <code>\(t\)</code> on its own estimate at time <code>\(t+1\)</code>), while off-diagonals capture lagged cross-dependence (i.e. the effect of a process at time <code>\(t\)</code> on the process for another series at time <code>\(t+1\)</code>). By default, the covariance matrix <code>\(\Sigma\)</code> will assume no process error covariance by fixing the off-diagonals to <code>\(0\)</code>. To allow for correlated errors, use <code>trend_model = 'VAR1cor'</code> or <code>trend_model = VAR(cor = TRUE)</code>. A moving average of order <code>\(q=1\)</code> can also be included using <code>trend_model = VAR(ma = TRUE, cor = TRUE)</code>.</p>
+<p>Note that for all VAR models, stationarity of the process is enforced with a structured prior distribution that is described in detail in 
+<a href="https://www.tandfonline.com/doi/full/10.1080/10618600.2022.2079648" target="_blank" rel="noopener">Heaps 2022</a></p>
+<p>Heaps, Sarah E. &ldquo;
+<a href="https://www.tandfonline.com/doi/full/10.1080/10618600.2022.2079648" target="_blank" rel="noopener">Enforcing stationarity through the prior in vector autoregressions.</a>&rdquo; <em>Journal of Computational and Graphical Statistics</em> 32.1 (2023): 74-83.</p>
+
+
+
+
+<h3 id="gaussian-processes">Gaussian Processes
+  <a href="#gaussian-processes"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h3>
+<p>The final option for modelling temporal dynamics is to use a Gaussian Process with squared exponential kernel. These are set up independently for each series (there is currently no multivariate GP option), using <code>trend_model = 'GP'</code>. The dynamics for each latent process are modelled as:</p>
+<p><code>$$\begin{align*} z &amp; \sim \text{MVNormal}(0, \Sigma_{error}) \\ \Sigma_{error}[t_i, t_j] &amp; = \alpha^2 * exp(-0.5 * ((|t_i - t_j| / \rho))^2) \end{align*}$$</code></p>
+<p>The latent dynamic process evolves from a complex, high-dimensional Multivariate Normal distribution which depends on <code>\(\rho\)</code> (often called the length scale parameter) to control how quickly the correlations between the model&rsquo;s errors decay as a function of time. For these models, covariance decays exponentially fast with the squared distance (in time) between the observations. The functions also depend on a parameter <code>\(\alpha\)</code>, which controls the marginal variability of the temporal function at all points; in other words it controls how much the GP term contributes to the linear predictor. <code>mvgam</code> capitalizes on some advances that allow GPs to be approximated using Hilbert space basis functions, which 
+<a href="https://link.springer.com/article/10.1007/s11222-022-10167-2" target="_blank" rel="noopener">considerably speed up computation at little cost to accuracy or prediction performance</a>.</p>
+
+
+
+
+<h3 id="piecewise-logistic-and-linear-trends">Piecewise logistic and linear trends
+  <a href="#piecewise-logistic-and-linear-trends"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h3>
+<p>Modeling growth for many types of time series is often similar to modeling population growth in natural ecosystems, where there series exhibits nonlinear growth that saturates at some particular carrying capacity. The logistic trend model available in {<code>mvgam</code>} allows for a time-varying capacity <code>\(C(t)\)</code> as well as a non-constant growth rate. Changes in the base growth rate <code>\(k\)</code> are incorporated by explicitly defining changepoints throughout the training period where the growth rate is allowed to vary. The changepoint vector <code>\(a\)</code> is represented as a vector of <code>1</code>s and <code>0</code>s, and the rate of growth at time <code>\(t\)</code> is represented as <code>\(k+a(t)^T\delta\)</code>. Potential changepoints are selected uniformly across the training period, and the number of changepoints, as well as the flexibility of the potential rate changes at these changepoints, can be controlled using <code>trend_model = PW()</code>. The full piecewise logistic growth model is then:</p>
+<p><code>$$\begin{align*} z_t &amp; = \frac{C_t}{1 + \exp(-(k+a(t)^T\delta)(t-(m+a(t)^T\gamma)))}  \end{align*}$$</code></p>
+<p>For time series that do not appear to exhibit saturating growth, a piece-wise constant rate of growth can often provide a useful trend model. The piecewise linear trend is defined as:</p>
+<p><code>$$\begin{align*} z_t &amp; = (k+a(t)^T\delta)t + (m+a(t)^T\gamma)  \end{align*}$$</code></p>
+<p>In both trend models, <code>\(m\)</code> is an offset parameter that controls the trend intercept. Because of this parameter, it is not recommended that you include an intercept in your observation formula because this will not be identifiable. You can read about the full description of piecewise linear and logistic trends 
+<a href="https://www.tandfonline.com/doi/abs/10.1080/00031305.2017.1380080" target="_blank" rel="noopener">in this paper by Taylor and Letham</a>.</p>
+<p>Sean J. Taylor and Benjamin Letham. &ldquo;
+<a href="https://www.tandfonline.com/doi/full/10.1080/00031305.2017.1380080" target="_blank" rel="noopener">Forecasting at scale.</a>&rdquo; <em>The American Statistician</em> 72.1 (2018): 37-45.</p>
+
+
+
+
+<h3 id="continuous-time-ar1-processes">Continuous time AR(1) processes
+  <a href="#continuous-time-ar1-processes"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h3>
+<p>Most trend models in the <code>mvgam()</code> function expect time to be measured in regularly-spaced, discrete intervals (i.e. one measurement per week, or one per year for example). But some time series are taken at irregular intervals and we&rsquo;d like to model autoregressive properties of these. The <code>trend_model = CAR()</code> can be useful to set up these models, which currently only support autoregressive processes of order <code>1</code>. The evolution of the latent dynamic process follows the form:</p>
+<p><code>$$\begin{align*} z_{i,t} &amp; \sim \text{Normal}(ar1_i^{distance} * z_{i,t-1}, \sigma_i) \end{align*}$$</code></p>
+<p>Where <code>\(distance\)</code> is a vector of non-negative measurements of the time differences between successive observations. See 
+<a href="https://nicholasjclark.github.io/mvgam/reference/RW.html" target="_blank" rel="noopener">the <strong>Examples</strong> section in <code>?CAR</code></a> for an illustration of how to set these models up.</p>
+
+
+
+
+<h2 id="regression-formulae">Regression formulae
+  <a href="#regression-formulae"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p><code>mvgam</code> supports an observation model regression formula, built off the <code>mgcv</code> package, as well as an optional process model regression formula. The formulae supplied to <code>mvgam()</code> are exactly like those supplied to <code>glm()</code> except that smooth terms, <code>s()</code>,
+<code>te()</code>, <code>ti()</code> and <code>t2()</code>, time-varying effects using <code>dynamic()</code>, monotonically increasing (using <code>s(x, bs = 'moi')</code>) or decreasing penalized splines (using <code>s(x, bs = 'mod')</code>; see <code>?smooth.construct.moi.smooth.spec</code> for details), as well as Gaussian Process functions using <code>gp()</code>, can be added to the right hand side (and <code>.</code> is not supported in <code>mvgam</code> formulae). See 
+<a href="https://nicholasjclark.github.io/mvgam/reference/mvgam_formulae.html" target="_blank" rel="noopener"><code>?mvgam_formulae</code></a> for more guidance.</p>
+<p>For setting up State-Space models, the optional process model formula can be used (see 
+<a href="https://nicholasjclark.github.io/mvgam/articles/trend_formulas.html" target="_blank" rel="noopener">the State-Space model vignette</a> and 
+<a href="https://nicholasjclark.github.io/mvgam/articles/trend_formulas.html" target="_blank" rel="noopener">the shared latent states vignette</a> for guidance on using trend formulae).</p>
+
+
+
+
+<h2 id="see-the-cheatsheet-for-a-workflow-overview">See the cheatsheet for a workflow overview
+  <a href="#see-the-cheatsheet-for-a-workflow-overview"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>
+<a href="https://github.com/nicholasjclark/mvgam/raw/master/misc/mvgam_cheatsheet.pdf" target="_blank" rel="noopener"><img src="https://github.com/nicholasjclark/mvgam/raw/master/misc/mvgam_cheatsheet.png" alt="mvgam usage cheatsheet"></a></p>
+
+
+
+
+<h2 id="future-plans">Future plans
+  <a href="#future-plans"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>I have several priorities to help improve the workflow of <code>mvgam</code>, as well as some features I would like to implement. These include</p>
+<ul>
+<li>Converting all graphics to <code>ggplot2</code> so that users can modify figures as they wish</li>
+<li>Incorporating options for hierarchical modelling of dynamic process parameters (such as <code>\(\sigma\)</code> parameters in AR or RW processes)</li>
+<li>Adding support for zero-inflated observation models</li>
+<li>Adding support for more flexible predictor effects including correlated random effects, hierarchical GPs with shared length scales <code>\(\rho\)</code> and dynamic factor spatiotemporal effects</li>
+</ul>
+
+      </section>
+      <footer class="post-footer">
+        <div class="post-pagination dt w-100 mt4 mb2">
+  
+  
+    <a class="prev dtc pr2 tl v-top fw6"
+    href="https://ecogambler.netlify.app/blog/time-varying-seasonality/">&larr; Incorporating time-varying seasonality in forecast models</a>
+  
+  
+  
+    <a class="next dtc pl2 tr v-top fw6"
+    href="https://ecogambler.netlify.app/blog/interpreting-gams/">How to interpret and report nonlinear effects from Generalized Additive Models &rarr;</a>
+  
+</div>
+
+      </footer>
+    </article>
+    
+      
+<div class="post-comments pa0 pa4-l mt4">
+  
+  <script src="https://utteranc.es/client.js"
+          repo="apreshill/apero"
+          issue-term="pathname"
+          theme="boxy-light"
+          label="comments :crystal_ball:"
+          crossorigin="anonymous"
+          async
+          type="text/javascript">
+  </script>
+  
+</div>
+
+    
+  </section>
+</main>
+<aside class="page-sidebar" role="complementary">
+                         
+ 
+
+
+                       
+ 
+
+
+
+
+
+
+
+
+
+
+
+  <img src="/blog/sidebar-listing.jpg" class="db ma0">
+
+
+<div class="blog-info ph4 pt4 pb4 pb0-l">
+  
+
+  <h1 class="f3">GAMbler</h1>
+  <p class="f6 lh-copy measure">A blog on (somewhat) interesting and (hopefully) useful tips for ecological modeling, with (perhaps too much) emphasis on Generalized Additive Models.</p>
+  <p class="f7 measure lh-copy i mh0-l">Written by Nicholas Clark (n.clark&rsquo;at&rsquo;uq.edu.au)</p>
+
+
+  
+  <div class="dib bt bw1 b--black-10">
+    
+      <small class="db f7 pt3"><a href="/blog/" class="dib fw7 ttu">View recent posts</a></small>
+    
+    
+    
+    
+  </div>
+
+
+</div>
+
+
+  
+  <details open class="f6 fw7 input-reset">
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Posted on:</dt>
+    <dd class="fw5 ml0">May 8, 2024</dd>
+  </dl>
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Length:</dt>
+    <dd class="fw5 ml0">11 minute read, 2289 words</dd>
+  </dl>
+  
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Categories:</dt>
+    <dd class="fw5 ml0"> <a href="https://ecogambler.netlify.app/categories/rstats">rstats</a>  <a href="https://ecogambler.netlify.app/categories/package">package</a>  <a href="https://ecogambler.netlify.app/categories/mvgam">mvgam</a> </dd>
+  </dl>
+  
+  
+  
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Tags:</dt>
+    <dd class="fw5 ml0"> <a href="https://ecogambler.netlify.app/tags/rstats">rstats</a>  <a href="https://ecogambler.netlify.app/tags/mvgam">mvgam</a>  <a href="https://ecogambler.netlify.app/tags/package">package</a>  <a href="https://ecogambler.netlify.app/tags/cran">cran</a>  <a href="https://ecogambler.netlify.app/tags/time-series">time-series</a> </dd>
+  </dl>
+  
+  <dl class="f6 lh-copy">
+    <dt class="fw7">See Also:</dt>
+    
+    <dd class="fw5 ml0"><a href="/blog/emergency-department-shiny/">Building an Interactive Emergency Department Dashboard with Shiny</a></dd>
+    
+    <dd class="fw5 ml0"><a href="/blog/plant-community-dirichlet/">Compositional modeling of plant communities with Dirichlet regression</a></dd>
+    
+    <dd class="fw5 ml0"><a href="/blog/clv-prediction/">GAMs for Customer Lifetime Value (CLV) prediction</a></dd>
+    
+  </dl>
+</details>
+
+                           
+  
+  
+  
+ <nav id="TableOfContents" class="sticky ph4 pb4 pt6" role="navigation"> 
+   <h2 class="mv0 f5 fw7 ttu tracked dib">On this page</h2> 
+     <nav id="TableOfContents">
+  <ul>
+    <li><a href="#welcoming-mvgam-to-the-comprehensive-r-archive-network-cran">Welcoming mvgam to the Comprehensive R Archive Network (CRAN)</a></li>
+    <li><a href="#what-are-generalized-additive-models-gams">What are Generalized Additive Models (GAMs)?</a></li>
+    <li><a href="#what-does-mvgam-do">What does mvgam do?</a></li>
+    <li><a href="#supported-observation-families">Supported observation families</a></li>
+    <li><a href="#supported-temporal-dynamic-processes">Supported temporal dynamic processes</a></li>
+    <li><a href="#regression-formulae">Regression formulae</a></li>
+    <li><a href="#see-the-cheatsheet-for-a-workflow-overview">See the cheatsheet for a workflow overview</a></li>
+    <li><a href="#future-plans">Future plans</a></li>
+  </ul>
+</nav> 
+ </nav> 
+  
+
+</aside>
+<footer class="site-footer pv4 bt b--transparent ph5" role="contentinfo">
+  <nav class="db dt-l w-100">
+    <p class="site-copyright f7 db dtc-l v-mid w-100 w-33-l tc tl-l pv2 pv0-l mv0 lh-copy">
+      © Nicholas J Clark (2024)
+      <span class="middot-divider"></span>
+      Made with <span xmlns:dct="http://purl.org/dc/terms/" property="dct:title"><a xmlns:dct="http://purl.org/dc/terms/" href="https://github.com/hugo-apero/" rel="dct:source">Hugo Apéro</a></span>.
+      <br />
+      
+Based on <span xmlns:dct="http://purl.org/dc/terms/" property="dct:title"><a xmlns:dct="http://purl.org/dc/terms/" href="https://github.com/formspree/blogophonic-hugo" rel="dct:source">Blogophonic</a></span> by <a xmlns:cc="http://creativecommons.org/ns#" href="https://formspree.io" property="cc:attributionName" rel="cc:attributionURL">Formspree</a>.
+    </p>
+    
+    <div class="site-social-links db dtc-l v-mid w-100 w-33-l tc pv2 pv0-l mv0">
+      <div class="social-icon-links" aria-hidden="true">
+  
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://github.com/nicholasjclark" title="github" target="_blank" rel="me noopener">
+      <i class="fab fa-github fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://www.youtube.com/@NJ_Clark" title="youtube" target="_blank" rel="me noopener">
+      <i class="fab fa-youtube fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://bsky.app/profile/njclark.bsky.social" title="mixcloud" target="_blank" rel="me noopener">
+      <i class="fab fa-mixcloud fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://orcid.org/0000-0001-7131-3301" title="orcid" target="_blank" rel="me noopener">
+      <i class="ai ai-orcid fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://scholar.google.com.au/citations?user=5bO9uxEAAAAJ&amp;hl=en" title="google-scholar" target="_blank" rel="me noopener">
+      <i class="ai ai-google-scholar fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="/blog/index.xml" title="rss" >
+      <i class="fas fa-rss fa-lg fa-fw"></i>
+    </a>
+  
+</div>
+
+    </div>
+    
+    <div class="site-links f6 db dtc-l v-mid w-100 w-67-l tc tr-l pv2 pv0-l mv0">
+      
+      <a class="dib pv1 ph2 link" href="/license/" title="License">License</a>
+      
+      <a class="dib pv1 ph2 link" href="/contributors/" title="Contributors">Collaborators</a>
+      
+    </div>
+  </nav>
+  
+    <script>
+
+    var i, text, code, codes = document.getElementsByTagName('code');
+    for (let i = 0; i < codes.length;) {
+      code = codes[i];
+      if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+        text = code.textContent;
+        if (/^\$[^$]/.test(text) && /[^$]\$$/.test(text)) {
+          text = text.replace(/^\$/, '\\(').replace(/\$$/, '\\)');
+          code.textContent = text;
+        }
+        if (/^\\\((.|\s)+\\\)$/.test(text) ||
+            /^\\\[(.|\s)+\\\]$/.test(text) ||
+            /^\$(.|\s)+\$$/.test(text) ||
+            /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+          code.outerHTML = code.innerHTML;  
+          continue;
+        }
+      }
+      i++;
+    }
+</script>
+
+  
+    
+    
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/katex.min.css" integrity="sha384-RZU/ijkSsFbcmivfdRBQDtwuwVqK7GMOw6IMvKyeWL2K5UAlyp6WonmB8m7Jd0Hn" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/katex.min.js" integrity="sha384-pK1WpvzWVBQiP0/GjnvRxV4mOb0oxFuyRxJlk6vVw146n3egcN5C925NCP7a7BY8" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/contrib/auto-render.min.js" integrity="sha384-vZTG03m+2yp6N6BNi5iM4rW4oIwk5DfcNdFfxkk9ZWpDriOkXX8voJBFrAO7MpVl" crossorigin="anonymous" onload="renderMathInElement(document.body);"></script>
+
+
+
+    
+  
+  
+</footer>
+
+      </div>
+    </body>
+</html>

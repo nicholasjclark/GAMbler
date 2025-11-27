@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+  <title>R on GAMbler</title>
+  <link>https://ecogambler.netlify.app/categories/r/</link>
+  <description>Recent content in R on GAMbler</description>
+  <generator>Hugo</generator>
+  <language>en</language>
+<copyright>© Nicholas J Clark (2024)</copyright>
+<lastBuildDate>Tue, 12 Mar 2024 00:00:00 +0000</lastBuildDate>
+<atom:link href="https://ecogambler.netlify.app/categories/r/index.xml" rel="self" type="application/rss+xml" />
+<item>
+  <title>mvgam</title>
+  <link>https://ecogambler.netlify.app/project/mvgam/</link>
+  <pubDate>Tue, 12 Mar 2024 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/project/mvgam/</guid>
+  <description>&lt;p&gt;The goal of mvgam is to use a Bayesian framework to estimate parameters of Dynamic Generalized Additive Models (DGAMs) for time series with dynamic trend components. The package provides an interface to fit Bayesian DGAMs using either &#xA;&lt;a href=&#34;https://mcmc-jags.sourceforge.io/&#34; target=&#34;_blank&#34; rel=&#34;noopener&#34;&gt;&lt;code&gt;JAGS&lt;/code&gt;&lt;/a&gt; or &#xA;&lt;a href=&#34;https://mc-stan.org/&#34; target=&#34;_blank&#34; rel=&#34;noopener&#34;&gt;&lt;code&gt;Stan&lt;/code&gt;&lt;/a&gt; as the backend, but note that users are strongly encouraged to opt for Stan over JAGS. The formula syntax is based on that of the package &#xA;&lt;a href=&#34;https://cran.r-project.org/web/packages/mgcv/index.html&#34; target=&#34;_blank&#34; rel=&#34;noopener&#34;&gt;&lt;code&gt;mgcv&lt;/code&gt;&lt;/a&gt; to provide a familiar GAM modelling interface. There is also built-in support for the increasingly powerful &#xA;&lt;a href=&#34;https://marginaleffects.com/&#34; target=&#34;_blank&#34; rel=&#34;noopener&#34;&gt;&lt;code&gt;marginaleffects&lt;/code&gt; package&lt;/a&gt; to make interpretation easy. The motivation for the package and some of its primary objectives are described in detail by Clark &amp;amp; Wells 2022 (published in &#xA;&lt;a href=&#34;https://besjournals.onlinelibrary.wiley.com/doi/full/10.1111/2041-210X.13974&#34; target=&#34;_blank&#34; rel=&#34;noopener&#34;&gt;Methods in Ecology and Evolution&lt;/a&gt;). An introduction to the package and some worked examples are also shown in the below seminar:&lt;/p&gt;&#xA;&lt;p&gt;&lt;strong&gt;Ecological Forecasting with Dynamic Generalized Additive Models DGAMs)&lt;/strong&gt;&lt;/p&gt;&#xA;&lt;div style=&#34;position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden;&#34;&gt;&#xA;  &lt;iframe src=&#34;https://www.youtube-nocookie.com/embed/0zZopLlomsQ&#34; style=&#34;position: absolute; top: 0; left: 0; width: 100%; height: 100%; border:0;&#34; allowfullscreen title=&#34;YouTube Video&#34;&gt;&lt;/iframe&gt;&#xA;&lt;/div&gt;&#xA;</description>
+  </item>
+<item>
+  <title>mrIML</title>
+  <link>https://ecogambler.netlify.app/project/mriml/</link>
+  <pubDate>Tue, 14 Mar 2023 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/project/mriml/</guid>
+  <description>&lt;p&gt;This goal of &lt;code&gt;mrIML&lt;/code&gt; is to enable users to build and interpret multivariate machine learning models by harnessing the power and flexibility of the &lt;code&gt;tidyverse&lt;/code&gt; (tidy model syntax in particular). This package builds off ideas from Gradient Forests (&#xA;&lt;a href=&#34;https://esajournals.onlinelibrary.wiley.com/doi/10.1890/11-0252.1&#34; target=&#34;_blank&#34; rel=&#34;noopener&#34;&gt;Ellis et al 2012&lt;/a&gt;), and ecological genomics (&#xA;&lt;a href=&#34;https://onlinelibrary.wiley.com/doi/abs/10.1111/ele.12376&#34; target=&#34;_blank&#34; rel=&#34;noopener&#34;&gt;Fitzpatrick and Keller, 2014&lt;/a&gt;).&lt;/p&gt;&#xA;&lt;p&gt;This package can be of use for any multi-response machine learning problem, but was designed to handle data common to community ecology (site by species data) and ecological genomics (individual or population by SNP loci). An introduction to the package and some worked examples are also provided by &#xA;&lt;a href=&#34;https://onlinelibrary.wiley.com/doi/abs/10.1111/1755-0998.13495&#34; target=&#34;_blank&#34; rel=&#34;noopener&#34;&gt;Fountain-Jones et al, 2021&lt;/a&gt;&lt;/p&gt;&#xA;</description>
+  </item>
+<item>
+  <title>MRFcov</title>
+  <link>https://ecogambler.netlify.app/project/mrfcov/</link>
+  <pubDate>Mon, 21 Jun 2021 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/project/mrfcov/</guid>
+  <description>&lt;p&gt;This goal of &lt;code&gt;MRFcov&lt;/code&gt; is to approximate interaction parameters of nodes in undirected Markov Random Fields (MRF) graphical networks. Models can incorporate covariates (a class of models known as Conditional Random Fields; CRFs; following methods developed by &#xA;&lt;a href=&#34;https://academic.oup.com/biometrics/article/70/4/943/7419933&#34; target=&#34;_blank&#34; rel=&#34;noopener&#34;&gt;Cheng et al 2014&lt;/a&gt; and &#xA;&lt;a href=&#34;https://www.utupub.fi/handle/10024/124199&#34; target=&#34;_blank&#34; rel=&#34;noopener&#34;&gt;Lindberg 2016&lt;/a&gt;), allowing users to estimate how interactions between nodes are predicted to change across covariate gradients. .&lt;/p&gt;&#xA;&lt;p&gt;This package was primarily designed for ecological networks to infer interactions between co-occurring species, which is key to identifying processes governing community assembly. Markov random fields (MRFs) are especially useful for estimating interspecific partial correlations and how these change across environmental gradients. For more details, see the primary publication that describes their implementation (&#xA;&lt;a href=&#34;https://esajournals.onlinelibrary.wiley.com/doi/abs/10.1002/ecy.2221&#34; target=&#34;_blank&#34; rel=&#34;noopener&#34;&gt;Clark et al 2016&lt;/a&gt;)&lt;/p&gt;&#xA;</description>
+  </item>
+</channel>
+  </rss>

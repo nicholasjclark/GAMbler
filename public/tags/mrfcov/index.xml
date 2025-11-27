@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+  <title>MRFcov on GAMbler</title>
+  <link>https://ecogambler.netlify.app/tags/mrfcov/</link>
+  <description>Recent content in MRFcov on GAMbler</description>
+  <generator>Hugo</generator>
+  <language>en</language>
+<copyright>© Nicholas J Clark (2024)</copyright>
+<lastBuildDate>Mon, 21 Jun 2021 00:00:00 +0000</lastBuildDate>
+<atom:link href="https://ecogambler.netlify.app/tags/mrfcov/index.xml" rel="self" type="application/rss+xml" />
+<item>
+  <title>MRFcov</title>
+  <link>https://ecogambler.netlify.app/project/mrfcov/</link>
+  <pubDate>Mon, 21 Jun 2021 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/project/mrfcov/</guid>
+  <description>&lt;p&gt;This goal of &lt;code&gt;MRFcov&lt;/code&gt; is to approximate interaction parameters of nodes in undirected Markov Random Fields (MRF) graphical networks. Models can incorporate covariates (a class of models known as Conditional Random Fields; CRFs; following methods developed by &#xA;&lt;a href=&#34;https://academic.oup.com/biometrics/article/70/4/943/7419933&#34; target=&#34;_blank&#34; rel=&#34;noopener&#34;&gt;Cheng et al 2014&lt;/a&gt; and &#xA;&lt;a href=&#34;https://www.utupub.fi/handle/10024/124199&#34; target=&#34;_blank&#34; rel=&#34;noopener&#34;&gt;Lindberg 2016&lt;/a&gt;), allowing users to estimate how interactions between nodes are predicted to change across covariate gradients. .&lt;/p&gt;&#xA;&lt;p&gt;This package was primarily designed for ecological networks to infer interactions between co-occurring species, which is key to identifying processes governing community assembly. Markov random fields (MRFs) are especially useful for estimating interspecific partial correlations and how these change across environmental gradients. For more details, see the primary publication that describes their implementation (&#xA;&lt;a href=&#34;https://esajournals.onlinelibrary.wiley.com/doi/abs/10.1002/ecy.2221&#34; target=&#34;_blank&#34; rel=&#34;noopener&#34;&gt;Clark et al 2016&lt;/a&gt;)&lt;/p&gt;&#xA;</description>
+  </item>
+</channel>
+  </rss>

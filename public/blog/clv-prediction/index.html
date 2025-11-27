@@ -1,0 +1,1223 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr"><head>
+  
+                           
+     
+
+
+<meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="generator" content="Hugo 0.123.8">
+<title>GAMs for Customer Lifetime Value (CLV) prediction | GAMbler</title>
+
+
+<meta property="twitter:site" content="@twitter = &#34;nj_clark&#34;">
+<meta property="twitter:creator" content="@twitter = &#34;nj_clark&#34;">
+
+
+
+
+
+
+
+  
+    
+  
+<meta name="description" content="Customer Lifetime Value models are critical for SaaS businesses, but standard regression approaches often predict impossible values like negative revenue or infinite growth. There are established methods to handle this (i.e. constrained optimization, truncation), but these can be complex to implement and maintain in production. Even fewer approaches naturally incorporate business logic while remaining interpretable and deployable. This post demonstrates how to build CLV models that automatically respect business reality using GAMs, creating predictions that make sense without complex constraint matrices or manual bounds checking.">
+
+
+<meta property="og:site_name" content="GAMbler">
+<meta property="og:title" content="GAMs for Customer Lifetime Value (CLV) prediction | GAMbler">
+<meta property="og:description" content="Customer Lifetime Value models are critical for SaaS businesses, but standard regression approaches often predict impossible values like negative revenue or infinite growth. There are established methods to handle this (i.e. constrained optimization, truncation), but these can be complex to implement and maintain in production. Even fewer approaches naturally incorporate business logic while remaining interpretable and deployable. This post demonstrates how to build CLV models that automatically respect business reality using GAMs, creating predictions that make sense without complex constraint matrices or manual bounds checking." />
+<meta property="og:type" content="page" />
+<meta property="og:url" content="https://ecogambler.netlify.app/blog/clv-prediction/" />
+<meta property="og:locale" content="en">
+
+
+
+
+    
+        <meta property="og:image" content="https://ecogambler.netlify.app/blog/clv-prediction/featured.png" >
+        <meta property="twitter:card" content="summary_large_image">
+        <meta name="twitter:image" content="https://ecogambler.netlify.app/blog/clv-prediction/featured.png" >
+    
+    
+  <meta itemprop="name" content="GAMs for Customer Lifetime Value (CLV) prediction">
+<meta itemprop="description" content="I typically work in quantitative ecology and molecular epidemiology, where we use statistical models to predict species distributions or disease transmission patterns. Recently though, I had an interesting conversation with a data science PhD student who mentioned they were applying GAMs to predict Customer Lifetime Value at a SaaS startup. This caught my attention because CLV prediction, as it turns out, faces remarkably similar statistical challenges to ecological forecasting: nonlinear relationships that saturate at biological or business limits, hierarchical structures where groups behave differently, and the need to balance model flexibility with interpretability for stakeholders who need to understand why the model makes certain predictions."><meta itemprop="datePublished" content="2025-10-11T00:00:00+00:00" />
+<meta itemprop="dateModified" content="2025-10-11T00:00:00+00:00" />
+<meta itemprop="wordCount" content="5264"><meta itemprop="image" content="https://ecogambler.netlify.app/blog/clv-prediction/featured.png" />
+<meta itemprop="keywords" content="rstats,mgcv,tutorial,forecasting,time-series," />
+  
+  <!--[if IE]><script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script><![endif]-->
+  <link rel="shortcut icon" href="/img/header_logo.ico" type="image/x-icon">
+  <link rel="icon" href="/img/header_logo.ico" type="image/x-icon">
+  
+  
+  <link rel="stylesheet" href="/style.main.min.13ba2c07d7acc52c13dbb9003240e2adf360a5d73e1392ede873916180ee1701.css" integrity="sha256-E7osB9esxSwT27kAMkDirfNgpdc&#43;E5Lt6HORYYDuFwE=" media="screen">
+  
+  
+  <script src="/panelset.min.ed1ac24b6e16f4e2481e3d1d098ae66f5bc77438aef619e6e266d8ac5b00dc72.js" type="text/javascript"></script>
+  
+  
+  <script src="/main.min.7c7401b27b903bdc8736f72a2f739f7602bf606c451e8cb5e7fab2bf6b4af582.js" type="text/javascript"></script>
+</head>
+<body>
+      <div class="grid-container single-sidebar">
+<header class="site-header pt4 pb2 mb4 bb b--transparent ph5 headroom z-max" role="banner">
+  <nav class="site-nav db dt-l w-100" role="navigation">
+    <a class="site-brand db dtc-l v-mid link no-underline w-100 w-33-l tc tl-l" href="https://ecogambler.netlify.app/" title="Home">
+      <img src="/img/header_logo.png" class="dib db-l h2 w-auto" alt="GAMbler">
+    </a>
+    <div class="site-links db dtc-l v-mid w-100 w-47-l tc tr-l mt3 mt0-l ttu tracked">
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 active" href="/blog/" title="Blog">Blog</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/project/" title="Project Portfolio">Software</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/talk/" title="Talks">Talks &amp; Workshops</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/opportunities/" title="Opportunities">Opportunities</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/archives/" title="Archive">Archive</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/blogroll/" title="Blogroll">Blogroll</a>
+      
+      
+    </div>
+  </nav>
+</header>
+
+<main class="page-main pa4" role="main">
+  <section class="page-content mw7 center">
+    <article class="post-content pa0 pr3-l">
+      <header class="post-header">
+        <h1 class="f1 lh-solid measure-narrow mb3 fw4">GAMs for Customer Lifetime Value (CLV) prediction</h1>
+        
+        <p class="f6 measure lh-copy mv1">By Nicholas Clark in <a href="https://ecogambler.netlify.app/categories/rstats">rstats</a>  <a href="https://ecogambler.netlify.app/categories/time-series">time-series</a>  <a href="https://ecogambler.netlify.app/categories/mgcv">mgcv</a> </p>
+        <p class="f7 db mv0 ttu">October 11, 2025</p>
+      </header>
+      <section class="post-body pt5 pb4">
+        <p>I typically work in quantitative ecology and molecular epidemiology, where we use statistical models to predict species distributions or disease transmission patterns. Recently though, I had an interesting conversation with a data science PhD student who mentioned they were applying GAMs to predict Customer Lifetime Value at a SaaS startup. This caught my attention because CLV prediction, as it turns out, faces remarkably similar statistical challenges to ecological forecasting: nonlinear relationships that saturate at biological or business limits, hierarchical structures where groups behave differently, and the need to balance model flexibility with interpretability for stakeholders who need to understand <em>why</em> the model makes certain predictions.</p>
+<p>After diving into the business analytics literature, I discovered that companies take wildly different approaches to this problem. Many rely on simple heuristics like average order value × frequency × lifespan that ignore individual customer trajectories and temporal dynamics. Others implement sophisticated probabilistic models (the Pareto/NBD and BG/NBD families are particularly elegant), though these often require specialized knowledge to tune and interpret. Black-box machine learning models can capture complex patterns but sacrifice the interpretability that executives need for strategic decisions. Meanwhile, standard regression approaches often predict impossible values like negative revenue or infinite growth.</p>
+<p>
+<a href="https://doi.org/10.1201/9781315370279" target="_blank" rel="noopener">Generalized Additive Models</a> provide a compelling middle ground that I think deserves more attention in this space. GAMs capture complex nonlinear relationships while maintaining full interpretability through visualizable smooth functions. They handle the heteroscedastic variance inherent in revenue data, automatically adapt to saturation effects, and provide uncertainty quantification that&rsquo;s crucial for risk assessment. This post demonstrates how to build CLV models that respect business constraints, capturing channel decay patterns, tier-specific behaviors, and feature adoption dynamics, while remaining straightforward enough to deploy without extensive infrastructure or specialized optimization expertise.</p>
+
+
+
+
+<h2 id="understanding-saas-business-dynamics">Understanding SaaS business dynamics
+  <a href="#understanding-saas-business-dynamics"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>Before we dive into the modeling (I promise we&rsquo;ll get to the GAMs soon), it&rsquo;s worth understanding why 
+<a href="https://en.wikipedia.org/wiki/Software_as_a_service" target="_blank" rel="noopener">Software as a Service (SaaS)</a> businesses present such interesting statistical challenges. Unlike traditional software vendors who sell one-time licenses, or e-commerce platforms with discrete transactions, SaaS companies operate on subscription-based recurring revenue. Customers pay monthly or annually for continued access to cloud-hosted software, which fundamentally changes the economics and, more importantly for us, the statistical patterns we need to model.</p>
+<p>Here&rsquo;s the key challenge: 
+<a href="https://blog.hubspot.com/service/what-does-cac-stand-for" target="_blank" rel="noopener">customer acquisition costs</a> are typically massive relative to monthly revenue. Think about it, a customer paying $99/month with a $500 acquisition cost needs at least six months just to break even. This is where accurate CLV prediction becomes critical. You need to know which customer segments will stick around long enough to justify that upfront investment, and traditional models often miss the mark completely.</p>
+<p>What makes this particularly interesting from a modeling perspective is how customer value evolves. 
+<a href="https://userpilot.com/blog/feature-adoption/" target="_blank" rel="noopener">Feature adoption</a> doesn&rsquo;t just correlate with retention, it actively drives 
+<a href="https://blog.hubspot.com/sales/saas-revenue-model" target="_blank" rel="noopener">expansion revenue</a> through tier upgrades and add-ons. I&rsquo;ve seen datasets where highly engaged Basic tier customers generate more lifetime value than barely-engaged Enterprise customers, despite the 6x price difference. Meanwhile, 
+<a href="https://blog.hubspot.com/service/customer-success" target="_blank" rel="noopener">customer success teams</a> intervene based on usage patterns, creating feedback loops where our predictions influence outcomes. Add in the fact that churned customers can be reactivated (unlike, say, a dead coral reef in my usual work), and you&rsquo;ve got a complex dynamic system.</p>
+<p>The statistical requirements here are non-trivial: we need models that handle nonlinear feature effects (adoption plateaus around 80-90% for most products), tier-specific behaviors (Enterprise customers behave fundamentally differently), temporal decay patterns (paid acquisition channels show diminishing returns), and heteroscedastic variance (high-value customers are inherently more variable). Linear models with their constant effects and variance assumptions? They&rsquo;ll predict negative revenue or infinite growth. Simple multipliers? They miss all the interesting dynamics. This is exactly where GAMs shine.</p>
+<p>In this post, I&rsquo;ll walk through building a production-ready CLV prediction model using GAMs, starting from simulated data that captures realistic SaaS dynamics through to extracting specific business insights like upgrade thresholds and feature investment ROI. By the end, you&rsquo;ll have a complete workflow that you can adapt to your own customer data, whether you&rsquo;re in SaaS, e-commerce, or any business with recurring customer relationships.</p>
+
+
+
+
+<h2 id="environment-setup">Environment setup
+  <a href="#environment-setup"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>Before we dive into the modeling, let&rsquo;s load our packages. Nothing exotic here, just the usual suspects for GAM fitting and visualization:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Load libraries</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(mgcv)            <span style="color:#998;font-style:italic"># Fit flexible GAMs with smooth terms</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(tidyverse)       <span style="color:#998;font-style:italic"># Data manipulation and visualization</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(marginaleffects) <span style="color:#998;font-style:italic"># Extract interpretable predictions from GAMs</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(gratia)          <span style="color:#998;font-style:italic"># Beautiful plots and posterior sampling for GAMs</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(scales)          <span style="color:#998;font-style:italic"># Format axes for currency and percentages</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Set a clean plotting theme</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">theme_set</span>(<span style="color:#900;font-weight:bold">theme_bw</span>(base_size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">15</span>, base_family <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;serif&#39;</span>) <span style="color:#000;font-weight:bold">+</span> 
+</span></span><span style="display:flex;"><span>           <span style="color:#900;font-weight:bold">theme</span>(panel.grid <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">element_blank</span>()))
+</span></span></code></pre></div>
+
+
+
+<h2 id="simulating-realistic-saas-customer-dynamics">Simulating realistic SaaS customer dynamics
+  <a href="#simulating-realistic-saas-customer-dynamics"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>Let&rsquo;s build some synthetic data that captures real 
+<a href="https://blog.hubspot.com/marketing/b2b-saas-marketing" target="_blank" rel="noopener">B2B SaaS</a> patterns. I&rsquo;m a big believer in 
+<a href="https://ecogambler.netlify.app/blog/simulating-data-r/" target="_blank" rel="noopener">simulation for understanding model behavior</a>, it&rsquo;s something I use constantly in my ecological work, and it translates perfectly here. By controlling the data generating process, we know exactly what patterns our GAM should recover.</p>
+<p>I&rsquo;ll simulate 100 customers tracked over 5 months, using realistic SaaS pricing tiers: Basic ($99/month), Pro ($299/month), and Enterprise ($599/month). The target variable is 6-month CLV, a common planning horizon in SaaS businesses. Now here&rsquo;s where it gets interesting, and where we build in patterns that would break traditional models:</p>
+<p>First, feature adoption naturally plateaus. Nobody uses 100% of features (trust me, I still discover new RStudio shortcuts after a decade). Second, paid acquisition channels show decay, customers attracted by promotions gradually revert to their natural engagement levels. Third, and this is crucial, Enterprise customers don&rsquo;t just have higher baseline value, they exhibit completely different response curves to adoption. These nonlinearities are exactly what GAMs handle naturally, no feature engineering required.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Set seed for reproducibility</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">set.seed</span>(<span style="color:#099">55</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Generate customer-month observations</span>
+</span></span><span style="display:flex;"><span>train_data <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">expand.grid</span>(
+</span></span><span style="display:flex;"><span>  customer_id <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">100</span>,
+</span></span><span style="display:flex;"><span>  month <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">5</span>
+</span></span><span style="display:flex;"><span>) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">mutate</span>(
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># Assign customers to pricing tiers with typical SaaS distribution</span>
+</span></span><span style="display:flex;"><span>    contract_tier <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">sample</span>(<span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;Basic&#34;</span>, <span style="color:#d14">&#34;Pro&#34;</span>, <span style="color:#d14">&#34;Enterprise&#34;</span>), <span style="color:#099">100</span>, 
+</span></span><span style="display:flex;"><span>                          replace <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>, 
+</span></span><span style="display:flex;"><span>                          prob <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">0.5</span>, <span style="color:#099">0.3</span>, <span style="color:#099">0.2</span>))[customer_id],
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># Customer acquisition channels affect initial value and retention</span>
+</span></span><span style="display:flex;"><span>    acquisition_channel <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">sample</span>(<span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;Organic&#34;</span>, <span style="color:#d14">&#34;Paid&#34;</span>, <span style="color:#d14">&#34;Partner&#34;</span>), 
+</span></span><span style="display:flex;"><span>                                <span style="color:#099">100</span>, replace <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>)[customer_id],
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># Feature adoption grows over time but naturally caps around 95%</span>
+</span></span><span style="display:flex;"><span>    feature_adoption_pct <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">pmin</span>(<span style="color:#099">95</span>, <span style="color:#900;font-weight:bold">pmax</span>(<span style="color:#099">5</span>, 
+</span></span><span style="display:flex;"><span>                                         <span style="color:#099">20</span> <span style="color:#000;font-weight:bold">+</span> month <span style="color:#000;font-weight:bold">*</span> <span style="color:#099">12</span> <span style="color:#000;font-weight:bold">+</span> 
+</span></span><span style="display:flex;"><span>                                         <span style="color:#900;font-weight:bold">rnorm</span>(dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">n</span>(), <span style="color:#099">0</span>, <span style="color:#099">10</span>))),
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># Monthly recurring revenue depends on tier</span>
+</span></span><span style="display:flex;"><span>    base_mrr <span style="color:#000;font-weight:bold">=</span> dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">case_when</span>(
+</span></span><span style="display:flex;"><span>      contract_tier <span style="color:#000;font-weight:bold">==</span> <span style="color:#d14">&#34;Basic&#34;</span> <span style="color:#000;font-weight:bold">~</span> <span style="color:#099">99</span>,
+</span></span><span style="display:flex;"><span>      contract_tier <span style="color:#000;font-weight:bold">==</span> <span style="color:#d14">&#34;Pro&#34;</span> <span style="color:#000;font-weight:bold">~</span> <span style="color:#099">299</span>,
+</span></span><span style="display:flex;"><span>      contract_tier <span style="color:#000;font-weight:bold">==</span> <span style="color:#d14">&#34;Enterprise&#34;</span> <span style="color:#000;font-weight:bold">~</span> <span style="color:#099">599</span>,
+</span></span><span style="display:flex;"><span>      <span style="color:#000;font-weight:bold">TRUE</span> <span style="color:#000;font-weight:bold">~</span> <span style="color:#099">99</span>
+</span></span><span style="display:flex;"><span>    ),
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># Paid acquisition provides early boost that decays over time</span>
+</span></span><span style="display:flex;"><span>    marketing_boost <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">ifelse</span>(acquisition_channel <span style="color:#000;font-weight:bold">==</span> <span style="color:#d14">&#34;Paid&#34;</span>, 
+</span></span><span style="display:flex;"><span>                            <span style="color:#099">0.3</span> <span style="color:#000;font-weight:bold">*</span> <span style="color:#900;font-weight:bold">exp</span>(<span style="color:#099">-0.2</span> <span style="color:#000;font-weight:bold">*</span> month), <span style="color:#099">0</span>),
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># CLV with stronger saturation effects for Enterprise</span>
+</span></span><span style="display:flex;"><span>    adoption_multiplier <span style="color:#000;font-weight:bold">=</span> dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">case_when</span>(
+</span></span><span style="display:flex;"><span>      contract_tier <span style="color:#000;font-weight:bold">==</span> <span style="color:#d14">&#34;Enterprise&#34;</span> <span style="color:#000;font-weight:bold">~</span> 
+</span></span><span style="display:flex;"><span>        <span style="color:#099">1</span> <span style="color:#000;font-weight:bold">+</span> <span style="color:#099">2</span> <span style="color:#000;font-weight:bold">*</span> (<span style="color:#099">1</span> <span style="color:#000;font-weight:bold">-</span> <span style="color:#900;font-weight:bold">exp</span>(<span style="color:#099">-0.05</span> <span style="color:#000;font-weight:bold">*</span> feature_adoption_pct)),
+</span></span><span style="display:flex;"><span>      contract_tier <span style="color:#000;font-weight:bold">==</span> <span style="color:#d14">&#34;Pro&#34;</span> <span style="color:#000;font-weight:bold">~</span> 
+</span></span><span style="display:flex;"><span>        <span style="color:#099">1</span> <span style="color:#000;font-weight:bold">+</span> <span style="color:#099">0.5</span> <span style="color:#000;font-weight:bold">*</span> (feature_adoption_pct<span style="color:#000;font-weight:bold">/</span><span style="color:#099">100</span>),
+</span></span><span style="display:flex;"><span>      <span style="color:#000;font-weight:bold">TRUE</span> <span style="color:#000;font-weight:bold">~</span> <span style="color:#099">1</span> <span style="color:#000;font-weight:bold">+</span> <span style="color:#099">0.2</span> <span style="color:#000;font-weight:bold">*</span> (feature_adoption_pct<span style="color:#000;font-weight:bold">/</span><span style="color:#099">100</span>)
+</span></span><span style="display:flex;"><span>    ),
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># Calculate CLV with clear asymptotic behavior</span>
+</span></span><span style="display:flex;"><span>    clv_6m <span style="color:#000;font-weight:bold">=</span> base_mrr <span style="color:#000;font-weight:bold">*</span> <span style="color:#099">6</span> <span style="color:#000;font-weight:bold">*</span> adoption_multiplier <span style="color:#000;font-weight:bold">*</span> 
+</span></span><span style="display:flex;"><span>             (<span style="color:#099">1</span> <span style="color:#000;font-weight:bold">+</span> marketing_boost) <span style="color:#000;font-weight:bold">*</span> 
+</span></span><span style="display:flex;"><span>             <span style="color:#900;font-weight:bold">exp</span>(<span style="color:#900;font-weight:bold">rnorm</span>(<span style="color:#900;font-weight:bold">n</span>(), <span style="color:#099">0</span>, <span style="color:#099">0.15</span>))
+</span></span><span style="display:flex;"><span>  ) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Convert to factors after numeric calculations</span>
+</span></span><span style="display:flex;"><span>  dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">mutate</span>(
+</span></span><span style="display:flex;"><span>    contract_tier <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">factor</span>(contract_tier, 
+</span></span><span style="display:flex;"><span>                           levels <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;Basic&#34;</span>, <span style="color:#d14">&#34;Pro&#34;</span>, <span style="color:#d14">&#34;Enterprise&#34;</span>)),
+</span></span><span style="display:flex;"><span>    acquisition_channel <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">factor</span>(acquisition_channel)
+</span></span><span style="display:flex;"><span>  )
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Let&#39;s visualize the data we just created to understand the patterns</span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># we&#39;re asking our GAM to capture</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">ggplot</span>(train_data, <span style="color:#900;font-weight:bold">aes</span>(x <span style="color:#000;font-weight:bold">=</span> feature_adoption_pct, y <span style="color:#000;font-weight:bold">=</span> clv_6m, 
+</span></span><span style="display:flex;"><span>                       color <span style="color:#000;font-weight:bold">=</span> contract_tier)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Add individual customer data points</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_point</span>(alpha <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.6</span>, size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1.5</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Use a quadratic term to show nonlinear relationships</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_smooth</span>(method <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;lm&#34;</span>, formula <span style="color:#000;font-weight:bold">=</span> y <span style="color:#000;font-weight:bold">~</span> <span style="color:#900;font-weight:bold">poly</span>(x, <span style="color:#099">2</span>), 
+</span></span><span style="display:flex;"><span>              se <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>, alpha <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.2</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Format y-axis as currency</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">scale_y_continuous</span>(labels <span style="color:#000;font-weight:bold">=</span> scales<span style="color:#000;font-weight:bold">::</span>dollar) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Use consistent color scheme across tiers</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">scale_color_manual</span>(values <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;darkblue&#34;</span>, <span style="color:#d14">&#34;darkred&#34;</span>, <span style="color:#d14">&#34;black&#34;</span>)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Separate panels by acquisition channel</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">facet_wrap</span>(<span style="color:#000;font-weight:bold">~</span> acquisition_channel) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Add informative axis labels</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">labs</span>(x <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Feature Adoption Rate (%)&#34;</span>, 
+</span></span><span style="display:flex;"><span>       y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;6-Month Customer Lifetime Value ($)&#34;</span>,
+</span></span><span style="display:flex;"><span>       color <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Contract Tier&#34;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/clv-prediction/index_files/figure-html/unnamed-chunk-4-1.png" alt="Scatter plot showing SaaS customer lifetime value CLV prediction by feature adoption percentage across three pricing tiers Basic Pro Enterprise and three acquisition channels Organic Paid Partner with polynomial smoothing curves" width="60%" style="display: block; margin: auto;" />
+<p>Notice how the relationship between adoption and CLV isn&rsquo;t just nonlinear, it&rsquo;s differently nonlinear for each tier. Enterprise customers hit a ceiling hard (classic diminishing returns), while Basic tier customers show nearly linear growth. The Paid acquisition channel generates higher initial CLV, but look closely at high adoption rates, that premium fades. This suggests organic customers eventually match paid ones if they stick around and engage with the product. But we will see a clearer plot of these relationships when we <em>estimate</em> them using our GAM below.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Now examine temporal patterns - how does CLV evolve over time?</span>
+</span></span><span style="display:flex;"><span>train_data <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">ggplot</span>(<span style="color:#900;font-weight:bold">aes</span>(x <span style="color:#000;font-weight:bold">=</span> month, y <span style="color:#000;font-weight:bold">=</span> clv_6m, color <span style="color:#000;font-weight:bold">=</span> acquisition_channel)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Add LOESS smoothing with confidence bands for each channel</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_smooth</span>(<span style="color:#900;font-weight:bold">aes</span>(fill <span style="color:#000;font-weight:bold">=</span> acquisition_channel),
+</span></span><span style="display:flex;"><span>              method <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;loess&#34;</span>, 
+</span></span><span style="display:flex;"><span>              se <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>, 
+</span></span><span style="display:flex;"><span>              alpha <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.3</span>,
+</span></span><span style="display:flex;"><span>              linewidth <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1.2</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Format y-axis as currency</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">scale_y_continuous</span>(labels <span style="color:#000;font-weight:bold">=</span> scales<span style="color:#000;font-weight:bold">::</span>dollar) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span> 
+</span></span><span style="display:flex;"><span>   <span style="color:#998;font-style:italic"># Apply consistent color scheme for channels</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">scale_color_manual</span>(values <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;darkblue&#34;</span>, <span style="color:#d14">&#34;darkred&#34;</span>, <span style="color:#d14">&#34;black&#34;</span>)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">scale_fill_manual</span>(values <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;darkblue&#34;</span>, <span style="color:#d14">&#34;darkred&#34;</span>, <span style="color:#d14">&#34;black&#34;</span>)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Create separate panels for each tier with independent y-scales</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">facet_wrap</span>(<span style="color:#000;font-weight:bold">~</span> contract_tier, scales <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;free_y&#34;</span>, ncol <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Add informative axis labels</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">labs</span>(x <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Months Since Customer Acquisition&#34;</span>, 
+</span></span><span style="display:flex;"><span>       y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;6-Month Customer Lifetime Value ($)&#34;</span>,
+</span></span><span style="display:flex;"><span>       color <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Channel&#34;</span>,
+</span></span><span style="display:flex;"><span>       fill <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Channel&#34;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/clv-prediction/index_files/figure-html/unnamed-chunk-5-1.png" alt="LOESS smoothed trends with confidence intervals showing B2B SaaS customer lifetime value over 5 months comparing Organic Paid Partner acquisition channels across Basic Pro Enterprise pricing tiers" width="60%" style="display: block; margin: auto;" />
+<p>The temporal patterns here are interesting. Paid customers maintain higher CLV consistently, but the effect varies by tier. In Enterprise, we&rsquo;re talking nearly $2,000 premium for Paid acquisition, while in Basic it&rsquo;s much smaller. Partner channels are the wild card, they match Organic in most tiers but start to outperform in Pro. If I were building acquisition strategy from these patterns, we might want to focus paid spending on Enterprise and partner relationships on Pro customers.</p>
+
+
+
+
+<h2 id="initial-gam-gaussian-with-log-link">Initial GAM: Gaussian with log link
+  <a href="#initial-gam-gaussian-with-log-link"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>But rather than trying to make interpretations directly from the observed data, we would do better by fitting some models. So let&rsquo;s fit our first GAM. I&rsquo;m starting with a Gaussian distribution and log link, which at least ensures positive predictions (unlike linear models that cheerfully predict negative revenue):</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Fit our first GAM with hierarchical smooths</span>
+</span></span><span style="display:flex;"><span>clv_model <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">gam</span>(
+</span></span><span style="display:flex;"><span>  clv_6m <span style="color:#000;font-weight:bold">~</span> 
+</span></span><span style="display:flex;"><span>    contract_tier <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># Global smooth of feature adoption: captures the overall</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># nonlinear relationship between adoption and CLV</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">s</span>(feature_adoption_pct, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">6</span>) <span style="color:#000;font-weight:bold">+</span> 
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># Tier-specific adoption curves: allows each tier to have</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># different saturation patterns (e.g., Enterprise plateaus earlier)</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">s</span>(feature_adoption_pct, by <span style="color:#000;font-weight:bold">=</span> contract_tier, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">6</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># Channel-specific temporal effects: models how acquisition</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># channel impacts CLV evolution over customer lifetime</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">s</span>(month, by <span style="color:#000;font-weight:bold">=</span> acquisition_channel, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">4</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># Overall time trend: captures market-wide changes or </span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># seasonal patterns affecting all customers</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">s</span>(month, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">4</span>),
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  data <span style="color:#000;font-weight:bold">=</span> train_data,
+</span></span><span style="display:flex;"><span>  method <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;REML&#34;</span>,
+</span></span><span style="display:flex;"><span>  family <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">gaussian</span>(link <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;log&#34;</span>)
+</span></span><span style="display:flex;"><span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">summary</span>(clv_model)
+</span></span></code></pre></div><pre tabindex="0"><code>## 
+## Family: gaussian 
+## Link function: log 
+## 
+## Formula:
+## clv_6m ~ contract_tier + s(feature_adoption_pct, k = 6) + s(feature_adoption_pct, 
+##     by = contract_tier, k = 6) + s(month, by = acquisition_channel, 
+##     k = 4) + s(month, k = 4)
+## 
+## Parametric coefficients:
+##                         Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)              6.55559    0.08326   78.74   &lt;2e-16 ***
+## contract_tierPro         1.25791    0.08945   14.06   &lt;2e-16 ***
+## contract_tierEnterprise  2.72850    0.08356   32.66   &lt;2e-16 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Approximate significance of smooth terms:
+##                                                      edf   Ref.df     F p-value
+## s(feature_adoption_pct)                         2.530042 3.042080 1.424 0.22991
+## s(feature_adoption_pct):contract_tierBasic      0.001621 0.003221 0.005 0.99691
+## s(feature_adoption_pct):contract_tierPro        1.001362 1.002606 0.684 0.40869
+## s(feature_adoption_pct):contract_tierEnterprise 1.681453 1.959838 0.725 0.52648
+## s(month):acquisition_channelOrganic             1.000103 1.000205 4.438 0.03566
+## s(month):acquisition_channelPaid                0.451201 0.749047 0.136 0.74953
+## s(month):acquisition_channelPartner             1.000556 1.001099 4.129 0.04265
+## s(month)                                        1.000119 1.000227 9.978 0.00168
+##                                                   
+## s(feature_adoption_pct)                           
+## s(feature_adoption_pct):contract_tierBasic        
+## s(feature_adoption_pct):contract_tierPro          
+## s(feature_adoption_pct):contract_tierEnterprise   
+## s(month):acquisition_channelOrganic             * 
+## s(month):acquisition_channelPaid                  
+## s(month):acquisition_channelPartner             * 
+## s(month)                                        **
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Rank: 33/35
+## R-sq.(adj) =  0.959   Deviance explained =   96%
+## -REML = 4118.5  Scale est. = 8.0808e+05  n = 500
+</code></pre><p>Take a moment to look at that summary output. The model structure here deserves some attention because it showcases what makes GAMs so powerful. We&rsquo;ve got a global smooth of <code>feature_adoption_pct</code> that captures the overall adoption-CLV relationship, then <code>by = contract_tier</code> terms that let each tier deviate from this baseline. Think of it as saying &ldquo;there&rsquo;s a general pattern, but Enterprise customers can do their own thing if the data supports it.&rdquo;</p>
+<p>This hierarchical setup is more elegant than fitting separate models per tier (which would ignore shared patterns) but more flexible than forcing all tiers into the same mold. The same logic applies to our temporal smooths, we model overall time trends while allowing channels to evolve differently. As 
+<a href="https://ecogambler.netlify.app/blog/interpreting-gams/" target="_blank" rel="noopener">I&rsquo;ve discussed elsewhere</a>, the penalized likelihood estimation automatically handles the bias-variance tradeoff. Weak tier-specific patterns get shrunk toward zero (defaulting to the global pattern), while strong signals are preserved.</p>
+<p>But here&rsquo;s the problem with this Gaussian model: it assumes constant variance. In revenue data? That&rsquo;s wishful thinking. High-value Enterprise customers vary wildly in their outcomes, while Basic customers are more predictable. This heteroscedasticity isn&rsquo;t just a statistical nuisance, it directly impacts business decisions about risk and investment.</p>
+
+
+
+
+<h2 id="the-tweedie-advantage-matching-the-datas-reality">The Tweedie advantage: Matching the data&rsquo;s reality
+  <a href="#the-tweedie-advantage-matching-the-datas-reality"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>Here&rsquo;s something that took me years to fully appreciate: choosing the right distribution family is often more important than adding model complexity. Business metrics, particularly revenue, violate pretty much every assumption of the Gaussian distribution. Values are strictly positive, the variance grows with the mean (bigger customers are less predictable), and you might have exact zeros when customers churn immediately. Sound familiar? In ecology, we deal with the same issues when modeling species abundance.</p>
+<p>The Tweedie distribution handles all of this elegantly. Mathematically, it&rsquo;s characterized by its variance function:
+<code>$$\text{Var}(Y) = \phi \cdot \mu^p$$</code></p>
+<p>where <code>\(\mu\)</code> is the mean, <code>\(\phi\)</code> is the dispersion parameter, and <code>\(p\)</code> is the power parameter. Now here&rsquo;s the clever bit: when <code>\(1 &lt; p &lt; 2\)</code>, you get a compound Poisson-Gamma distribution that models continuous positive values with possible exact zeros. The parameter <code>\(p\)</code> tells you about your data&rsquo;s nature. Values near 1 suggest count-like behavior, near 2 indicates pure continuous data, and CLV typically lands around 1.5 to 1.8 (mostly continuous revenue with occasional immediate churners).</p>
+<p>What I find particularly satisfying is how this matches business reality. Enterprise customers with high mean CLV naturally show more variance than predictable Basic customers, and the Tweedie captures this automatically through that <code>\(\mu^p\)</code> relationship. No variance stabilizing transformations, no separate zero-inflation component, just pick the right tool for the job. As 
+<a href="https://ecogambler.netlify.app/blog/autocorrelated-gams/" target="_blank" rel="noopener">I&rsquo;ve written about when modeling temporal patterns</a>, respecting your data&rsquo;s generative process isn&rsquo;t just statistically proper, it leads to better predictions and honest uncertainty estimates.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Now fit with Tweedie distribution - same model structure,</span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># just changing the family to handle heteroscedastic variance</span>
+</span></span><span style="display:flex;"><span>clv_tweedie <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">gam</span>(
+</span></span><span style="display:flex;"><span>  clv_6m <span style="color:#000;font-weight:bold">~</span> 
+</span></span><span style="display:flex;"><span>    contract_tier <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># Global adoption smooth: overall adoption-CLV relationship</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">s</span>(feature_adoption_pct, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">6</span>) <span style="color:#000;font-weight:bold">+</span> 
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># Tier-specific adoption responses: different value curves</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># per pricing tier (Enterprise vs Pro vs Basic)</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">s</span>(feature_adoption_pct, by <span style="color:#000;font-weight:bold">=</span> contract_tier, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">6</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># Channel decay patterns: how acquisition source affects</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># CLV trajectory over time </span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">s</span>(month, by <span style="color:#000;font-weight:bold">=</span> acquisition_channel, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">4</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># Market-wide temporal effects: overall time trends</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">s</span>(month, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">4</span>),
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  data <span style="color:#000;font-weight:bold">=</span> train_data,
+</span></span><span style="display:flex;"><span>  method <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;REML&#34;</span>,
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Tweedie family: handles positive continuous data with</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># potential exact zeros and heteroscedastic variance</span>
+</span></span><span style="display:flex;"><span>  family <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">tw</span>(link <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;log&#34;</span>)
+</span></span><span style="display:flex;"><span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Compare model fits - lower AIC is better</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">AIC</span>(clv_model, clv_tweedie)
+</span></span></code></pre></div><pre tabindex="0"><code>##                   df      AIC
+## clv_model   13.75832 8235.860
+## clv_tweedie 14.28479 7248.197
+</code></pre><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#998;font-style:italic"># The power parameter tells us about our data&#39;s nature</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">cat</span>(<span style="color:#d14">&#34;Estimated Tweedie power parameter:&#34;</span>, 
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">round</span>(clv_tweedie<span style="color:#000;font-weight:bold">$</span>family<span style="color:#000;font-weight:bold">$</span><span style="color:#900;font-weight:bold">getTheta</span>(<span style="color:#000;font-weight:bold">TRUE</span>), <span style="color:#099">3</span>), <span style="color:#d14">&#34;\n&#34;</span>)
+</span></span></code></pre></div><pre tabindex="0"><code>## Estimated Tweedie power parameter: 1.935
+</code></pre><p>That estimated power parameter tells us something important about our CLV data. We&rsquo;re not dealing with pure counts (p=1) or pure continuous data (p=2), but something in between, exactly what you&rsquo;d expect from subscription revenue with occasional zeros.</p>
+<p>Let&rsquo;s visualize the fitted smooth functions to understand what the model learned about feature adoption and temporal patterns:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Visualize the smooth functions for feature adoption across tiers</span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># This shows the predicted CLV response to adoption for each tier</span>
+</span></span><span style="display:flex;"><span>marginaleffects<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">plot_predictions</span>(
+</span></span><span style="display:flex;"><span>  clv_tweedie, 
+</span></span><span style="display:flex;"><span>  condition <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#39;feature_adoption_pct&#39;</span>, <span style="color:#d14">&#39;contract_tier&#39;</span>, <span style="color:#d14">&#39;contract_tier&#39;</span>)
+</span></span><span style="display:flex;"><span>) <span style="color:#000;font-weight:bold">+</span> 
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Format y-axis as currency</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">scale_y_continuous</span>(labels <span style="color:#000;font-weight:bold">=</span> scales<span style="color:#000;font-weight:bold">::</span>dollar) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Use consistent color scheme</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">scale_color_manual</span>(values <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;darkblue&#34;</span>, <span style="color:#d14">&#34;darkred&#34;</span>, <span style="color:#d14">&#34;black&#34;</span>)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">scale_fill_manual</span>(values <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;darkblue&#34;</span>, <span style="color:#d14">&#34;darkred&#34;</span>, <span style="color:#d14">&#34;black&#34;</span>)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Clean up labels</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">labs</span>(x <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Feature Adoption Rate (%)&#34;</span>,
+</span></span><span style="display:flex;"><span>       y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Predicted CLV&#34;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Remove redundant legend since we&#39;re faceting</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">theme</span>(legend.position <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;none&#39;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/clv-prediction/index_files/figure-html/unnamed-chunk-8-1.png" alt="GAM predictions showing nonlinear feature adoption effects by contract tier" width="60%" style="display: block; margin: auto;" />
+<p>The smooth functions reveal some interesting patterns: Enterprise customers show classic saturation behavior, plateauing around 75% adoption as expected. Pro customers demonstrate steady growth with mild saturation at high adoption levels. Most intriguingly, Basic customers show a peaked response, with CLV actually declining after around 50% adoption. This suggests Basic customers might hit complexity barriers where additional features create more confusion than value.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Visualize temporal patterns by acquisition channel</span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># This reveals how CLV evolves differently for each channel over time</span>
+</span></span><span style="display:flex;"><span>marginaleffects<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">plot_predictions</span>(
+</span></span><span style="display:flex;"><span>  clv_tweedie, 
+</span></span><span style="display:flex;"><span>  condition <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#39;month&#39;</span>, <span style="color:#d14">&#39;acquisition_channel&#39;</span>, <span style="color:#d14">&#39;acquisition_channel&#39;</span>)
+</span></span><span style="display:flex;"><span>) <span style="color:#000;font-weight:bold">+</span> 
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Format y-axis as currency</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">scale_y_continuous</span>(labels <span style="color:#000;font-weight:bold">=</span> scales<span style="color:#000;font-weight:bold">::</span>dollar) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Use consistent color scheme</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">scale_color_manual</span>(values <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;darkblue&#34;</span>, <span style="color:#d14">&#34;darkred&#34;</span>, <span style="color:#d14">&#34;black&#34;</span>)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">scale_fill_manual</span>(values <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;darkblue&#34;</span>, <span style="color:#d14">&#34;darkred&#34;</span>, <span style="color:#d14">&#34;black&#34;</span>)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Clean up labels</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">labs</span>(x <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Months Since Acquisition&#34;</span>,
+</span></span><span style="display:flex;"><span>       y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Predicted CLV&#34;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Remove redundant legend since we&#39;re faceting</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">theme</span>(legend.position <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;none&#39;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/clv-prediction/index_files/figure-html/unnamed-chunk-9-1.png" alt="GAM predictions showing channel-specific temporal decay patterns" width="60%" style="display: block; margin: auto;" />
+<p>The temporal patterns tell a compelling story about channel effectiveness over time. Paid acquisition actually shows declining CLV, suggesting that promotional incentives attract customers who don&rsquo;t stick around or engage deeply. Organic and Partner channels both show steady growth, with customers becoming more valuable as they mature and discover the product&rsquo;s value naturally. This decay in Paid channel effectiveness over time is exactly the kind of pattern that traditional multiplier models would miss completely.</p>
+<p>Now let me show you why using the Tweedie matters for actual business decisions. I&rsquo;m going to use 
+<a href="https://gavinsimpson.github.io/gratia/articles/posterior-simulation.html" target="_blank" rel="noopener">posterior simulation</a> to generate prediction intervals, not just standard errors around the mean, but full uncertainty including observation-level variance. This is what executives actually need to know: &ldquo;what&rsquo;s the range of possible outcomes for this customer segment?&rdquo;</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Draw posterior samples from both models (includes all sources of uncertainty)</span>
+</span></span><span style="display:flex;"><span>posterior_gaussian <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">posterior_samples</span>(
+</span></span><span style="display:flex;"><span>  clv_model, 
+</span></span><span style="display:flex;"><span>  n <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1000</span>,
+</span></span><span style="display:flex;"><span>  data <span style="color:#000;font-weight:bold">=</span> train_data,
+</span></span><span style="display:flex;"><span>  seed <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">42</span>,
+</span></span><span style="display:flex;"><span>  unconditional <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>,
+</span></span><span style="display:flex;"><span>  mvn_method <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;mgcv&#34;</span>
+</span></span><span style="display:flex;"><span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>posterior_tweedie <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">posterior_samples</span>(
+</span></span><span style="display:flex;"><span>  clv_tweedie, 
+</span></span><span style="display:flex;"><span>  n <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1000</span>,
+</span></span><span style="display:flex;"><span>  data <span style="color:#000;font-weight:bold">=</span> train_data,
+</span></span><span style="display:flex;"><span>  seed <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">42</span>,
+</span></span><span style="display:flex;"><span>  unconditional <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>,
+</span></span><span style="display:flex;"><span>  mvn_method <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;mgcv&#34;</span>
+</span></span><span style="display:flex;"><span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Helper function to extract quantiles from posterior tibble</span>
+</span></span><span style="display:flex;"><span>get_intervals <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#000;font-weight:bold">function</span>(posterior_tbl) {
+</span></span><span style="display:flex;"><span>  posterior_tbl <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>    dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">group_by</span>(.row) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>    dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">summarise</span>(
+</span></span><span style="display:flex;"><span>      lower <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">quantile</span>(.response, <span style="color:#099">0.025</span>),
+</span></span><span style="display:flex;"><span>      upper <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">quantile</span>(.response, <span style="color:#099">0.975</span>),
+</span></span><span style="display:flex;"><span>      .groups <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;drop&#34;</span>
+</span></span><span style="display:flex;"><span>    )
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Calculate prediction intervals from posterior samples</span>
+</span></span><span style="display:flex;"><span>pred_data <span style="color:#000;font-weight:bold">&lt;-</span> train_data <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">mutate</span>(
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># Get point predictions for plotting centers</span>
+</span></span><span style="display:flex;"><span>    pred_gaussian <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">predict</span>(clv_model, newdata <span style="color:#000;font-weight:bold">=</span> ., 
+</span></span><span style="display:flex;"><span>                           type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;response&#34;</span>),
+</span></span><span style="display:flex;"><span>    pred_tweedie <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">predict</span>(clv_tweedie, newdata <span style="color:#000;font-weight:bold">=</span> ., 
+</span></span><span style="display:flex;"><span>                          type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;response&#34;</span>)
+</span></span><span style="display:flex;"><span>  ) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Calculate intervals for both models</span>
+</span></span><span style="display:flex;"><span>  dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">bind_cols</span>(
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">get_intervals</span>(posterior_gaussian) <span style="color:#000;font-weight:bold">%&gt;%</span> 
+</span></span><span style="display:flex;"><span>      dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">select</span>(lower_gaussian <span style="color:#000;font-weight:bold">=</span> lower, upper_gaussian <span style="color:#000;font-weight:bold">=</span> upper),
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">get_intervals</span>(posterior_tweedie) <span style="color:#000;font-weight:bold">%&gt;%</span> 
+</span></span><span style="display:flex;"><span>      dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">select</span>(lower_tweedie <span style="color:#000;font-weight:bold">=</span> lower, upper_tweedie <span style="color:#000;font-weight:bold">=</span> upper)
+</span></span><span style="display:flex;"><span>  ) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">mutate</span>(
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># Calculate interval width to highlight heteroscedasticity</span>
+</span></span><span style="display:flex;"><span>    interval_width_gaussian <span style="color:#000;font-weight:bold">=</span> upper_gaussian <span style="color:#000;font-weight:bold">-</span> lower_gaussian,
+</span></span><span style="display:flex;"><span>    interval_width_tweedie <span style="color:#000;font-weight:bold">=</span> upper_tweedie <span style="color:#000;font-weight:bold">-</span> lower_tweedie
+</span></span><span style="display:flex;"><span>  )
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Reshape data for faceting</span>
+</span></span><span style="display:flex;"><span>pred_data_long <span style="color:#000;font-weight:bold">&lt;-</span> pred_data <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  tidyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">pivot_longer</span>(
+</span></span><span style="display:flex;"><span>    cols <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(pred_gaussian, pred_tweedie),
+</span></span><span style="display:flex;"><span>    names_to <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;model&#34;</span>,
+</span></span><span style="display:flex;"><span>    names_pattern <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;pred_(.*)&#34;</span>,
+</span></span><span style="display:flex;"><span>    values_to <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;predicted&#34;</span>
+</span></span><span style="display:flex;"><span>  ) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">mutate</span>(
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># Add corresponding intervals</span>
+</span></span><span style="display:flex;"><span>    lower <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">ifelse</span>(model <span style="color:#000;font-weight:bold">==</span> <span style="color:#d14">&#34;gaussian&#34;</span>, lower_gaussian, lower_tweedie),
+</span></span><span style="display:flex;"><span>    upper <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">ifelse</span>(model <span style="color:#000;font-weight:bold">==</span> <span style="color:#d14">&#34;gaussian&#34;</span>, upper_gaussian, upper_tweedie),
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># Create model labels</span>
+</span></span><span style="display:flex;"><span>    model <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">factor</span>(model,
+</span></span><span style="display:flex;"><span>                   levels <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;gaussian&#34;</span>, 
+</span></span><span style="display:flex;"><span>                              <span style="color:#d14">&#34;tweedie&#34;</span>),
+</span></span><span style="display:flex;"><span>                   labels <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;Gaussian&#34;</span>, 
+</span></span><span style="display:flex;"><span>                             <span style="color:#d14">&#34;Tweedie&#34;</span>))
+</span></span><span style="display:flex;"><span>  )
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Create comparison plot with facets</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">ggplot</span>(pred_data_long, <span style="color:#900;font-weight:bold">aes</span>(x <span style="color:#000;font-weight:bold">=</span> clv_6m, y <span style="color:#000;font-weight:bold">=</span> predicted)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Add prediction interval as ribbon</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_ribbon</span>(<span style="color:#900;font-weight:bold">aes</span>(ymin <span style="color:#000;font-weight:bold">=</span> lower, ymax <span style="color:#000;font-weight:bold">=</span> upper,
+</span></span><span style="display:flex;"><span>                  fill <span style="color:#000;font-weight:bold">=</span> model), 
+</span></span><span style="display:flex;"><span>              alpha <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.25</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Add actual vs predicted points</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_point</span>(<span style="color:#900;font-weight:bold">aes</span>(color <span style="color:#000;font-weight:bold">=</span> model), 
+</span></span><span style="display:flex;"><span>             alpha <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.4</span>, size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.8</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Add perfect prediction line (45-degree)</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_abline</span>(slope <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>, intercept <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0</span>, 
+</span></span><span style="display:flex;"><span>              linetype <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;dashed&#34;</span>, alpha <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.5</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Use consistent color scheme</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">scale_color_manual</span>(values <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;darkblue&#34;</span>, <span style="color:#d14">&#34;darkred&#34;</span>)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">scale_fill_manual</span>(values <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;darkblue&#34;</span>, <span style="color:#d14">&#34;darkred&#34;</span>)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Format axes for currency</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">scale_x_continuous</span>(labels <span style="color:#000;font-weight:bold">=</span> scales<span style="color:#000;font-weight:bold">::</span>dollar) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">scale_y_continuous</span>(labels <span style="color:#000;font-weight:bold">=</span> scales<span style="color:#000;font-weight:bold">::</span>dollar) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Create side-by-side panels</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">facet_wrap</span>(<span style="color:#000;font-weight:bold">~</span> model, ncol <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Add informative labels</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">labs</span>(x <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Actual CLV&#34;</span>, 
+</span></span><span style="display:flex;"><span>       y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Predicted CLV&#34;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Remove legend since facet labels show the model</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">theme</span>(legend.position <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;none&#34;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/clv-prediction/index_files/figure-html/unnamed-chunk-10-1.png" alt="Comparison of prediction intervals between Gaussian and Tweedie GAMs for CLV, showing wider intervals for high-value customers under Tweedie" width="60%" style="display: block; margin: auto;" />
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Create interval width comparison plot to highlight heteroscedasticity</span>
+</span></span><span style="display:flex;"><span>pred_data <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  tidyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">pivot_longer</span>(
+</span></span><span style="display:flex;"><span>    cols <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(interval_width_gaussian, interval_width_tweedie),
+</span></span><span style="display:flex;"><span>    names_to <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;model&#34;</span>,
+</span></span><span style="display:flex;"><span>    names_pattern <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;interval_width_(.*)&#34;</span>,
+</span></span><span style="display:flex;"><span>    values_to <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;interval_width&#34;</span>
+</span></span><span style="display:flex;"><span>  ) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">mutate</span>(
+</span></span><span style="display:flex;"><span>    model <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">factor</span>(model, 
+</span></span><span style="display:flex;"><span>                   levels <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;gaussian&#34;</span>, <span style="color:#d14">&#34;tweedie&#34;</span>),
+</span></span><span style="display:flex;"><span>                   labels <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;Gaussian&#34;</span>, <span style="color:#d14">&#34;Tweedie&#34;</span>))
+</span></span><span style="display:flex;"><span>  ) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">ggplot</span>(<span style="color:#900;font-weight:bold">aes</span>(x <span style="color:#000;font-weight:bold">=</span> clv_6m, y <span style="color:#000;font-weight:bold">=</span> interval_width)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Add scatter points colored by model</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_point</span>(<span style="color:#900;font-weight:bold">aes</span>(color <span style="color:#000;font-weight:bold">=</span> model), alpha <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.5</span>, size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1.5</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Add smoothed trend lines to show patterns</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_smooth</span>(<span style="color:#900;font-weight:bold">aes</span>(color <span style="color:#000;font-weight:bold">=</span> model, fill <span style="color:#000;font-weight:bold">=</span> model), 
+</span></span><span style="display:flex;"><span>              method <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;loess&#34;</span>, se <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>, alpha <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.2</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Use consistent color scheme</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">scale_color_manual</span>(values <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;darkblue&#34;</span>, <span style="color:#d14">&#34;darkred&#34;</span>)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">scale_fill_manual</span>(values <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;darkblue&#34;</span>, <span style="color:#d14">&#34;darkred&#34;</span>)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Format axes appropriately</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">scale_x_continuous</span>(labels <span style="color:#000;font-weight:bold">=</span> scales<span style="color:#000;font-weight:bold">::</span>dollar) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">scale_y_continuous</span>(labels <span style="color:#000;font-weight:bold">=</span> scales<span style="color:#000;font-weight:bold">::</span>dollar) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Facet by model for clarity</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">facet_wrap</span>(<span style="color:#000;font-weight:bold">~</span> model, scales <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;free_y&#34;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Add informative labels</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">labs</span>(x <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Actual Customer Lifetime Value&#34;</span>, 
+</span></span><span style="display:flex;"><span>       y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;95% Prediction Interval Width&#34;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">theme</span>(legend.position <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;none&#34;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/clv-prediction/index_files/figure-html/unnamed-chunk-11-1.png" alt="Comparison of prediction interval width vs CLV showing heteroscedasticity in Tweedie model" width="60%" style="display: block; margin: auto;" />
+<p>Look at that difference! The Tweedie model&rsquo;s prediction intervals expand for high-value customers, while the Gaussian stubbornly maintains constant width. This isn&rsquo;t just statistical pedantry, it directly impacts business decisions. When you&rsquo;re evaluating a potential Enterprise account worth $10,000+, you need to know that outcome could range from $7,000 to $15,000, not the false precision of ±$2,000 that the Gaussian suggests. 
+<a href="https://en.wikipedia.org/wiki/Heteroscedasticity" target="_blank" rel="noopener">Heteroscedasticity</a> isn&rsquo;t a nuisance here, it&rsquo;s a feature of the business reality we&rsquo;re modeling.</p>
+
+
+
+
+<h2 id="extracting-actionable-insights">Extracting actionable insights
+  <a href="#extracting-actionable-insights"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>Alright, we&rsquo;ve got a well-fitting model with appropriate uncertainty quantification. But so what? In my experience, the real value of GAMs comes from their ability to answer specific &ldquo;what if&rdquo; questions. Let me show you how to extract insights that actually drive decisions.</p>
+<p>I&rsquo;ll tackle two questions that came up in my conversation with that data science student: First, if we improve feature adoption by 10% across our customer base, what&rsquo;s the expected CLV impact? Second, at what adoption level does it make financial sense to upgrade Basic customers to Pro? These aren&rsquo;t hypothetical, companies make million-dollar decisions based on these calculations.</p>
+
+
+
+
+<h3 id="quantifying-feature-adoption-roi">Quantifying feature adoption ROI
+  <a href="#quantifying-feature-adoption-roi"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h3>
+<p>Let&rsquo;s start with marginal effects. In ecology, we use these constantly to understand how species respond to environmental changes. Here, we&rsquo;re asking: &ldquo;what&rsquo;s the derivative of CLV with respect to feature adoption?&rdquo; The <code>marginaleffects</code> package makes this straightforward, and unlike taking derivatives by hand, it properly accounts for all the smooth functions and their interactions.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Calculate marginal effects - essentially taking derivatives</span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># of our smooth functions while accounting for uncertainty</span>
+</span></span><span style="display:flex;"><span>adoption_effects <span style="color:#000;font-weight:bold">&lt;-</span> marginaleffects<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">avg_slopes</span>(
+</span></span><span style="display:flex;"><span>  clv_tweedie,
+</span></span><span style="display:flex;"><span>  variables <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;feature_adoption_pct&#34;</span>,
+</span></span><span style="display:flex;"><span>  newdata <span style="color:#000;font-weight:bold">=</span> train_data
+</span></span><span style="display:flex;"><span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Population-averaged marginal effect (across all customers)</span>
+</span></span><span style="display:flex;"><span>adoption_effects
+</span></span></code></pre></div><pre tabindex="0"><code>## 
+##  Estimate Std. Error    z Pr(&gt;|z|)    S 2.5 % 97.5 %
+##      13.8       3.27 4.23   &lt;0.001 15.4  7.42   20.2
+## 
+## Term: feature_adoption_pct
+## Type: response
+## Comparison: dY/dX
+</code></pre><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Calculate marginal effects by tier for more granular insights</span>
+</span></span><span style="display:flex;"><span>tier_effects <span style="color:#000;font-weight:bold">&lt;-</span> marginaleffects<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">avg_slopes</span>(
+</span></span><span style="display:flex;"><span>  clv_tweedie,
+</span></span><span style="display:flex;"><span>  variables <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;feature_adoption_pct&#34;</span>,
+</span></span><span style="display:flex;"><span>  by <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;contract_tier&#34;</span>,
+</span></span><span style="display:flex;"><span>  newdata <span style="color:#000;font-weight:bold">=</span> train_data
+</span></span><span style="display:flex;"><span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Show tier-specific ROI differences</span>
+</span></span><span style="display:flex;"><span>tier_effects <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">mutate</span>(
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># Calculate 10% improvement impact with confidence intervals</span>
+</span></span><span style="display:flex;"><span>    impact_10pct <span style="color:#000;font-weight:bold">=</span> estimate <span style="color:#000;font-weight:bold">*</span> <span style="color:#099">10</span>,
+</span></span><span style="display:flex;"><span>    lower_10pct <span style="color:#000;font-weight:bold">=</span> (estimate <span style="color:#000;font-weight:bold">-</span> <span style="color:#099">1.96</span> <span style="color:#000;font-weight:bold">*</span> std.error) <span style="color:#000;font-weight:bold">*</span> <span style="color:#099">10</span>,
+</span></span><span style="display:flex;"><span>    upper_10pct <span style="color:#000;font-weight:bold">=</span> (estimate <span style="color:#000;font-weight:bold">+</span> <span style="color:#099">1.96</span> <span style="color:#000;font-weight:bold">*</span> std.error) <span style="color:#000;font-weight:bold">*</span> <span style="color:#099">10</span>
+</span></span><span style="display:flex;"><span>  ) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">ggplot</span>(<span style="color:#900;font-weight:bold">aes</span>(x <span style="color:#000;font-weight:bold">=</span> contract_tier, y <span style="color:#000;font-weight:bold">=</span> impact_10pct, 
+</span></span><span style="display:flex;"><span>             color <span style="color:#000;font-weight:bold">=</span> contract_tier)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Add confidence intervals as error bars</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_errorbar</span>(<span style="color:#900;font-weight:bold">aes</span>(ymin <span style="color:#000;font-weight:bold">=</span> lower_10pct, ymax <span style="color:#000;font-weight:bold">=</span> upper_10pct),
+</span></span><span style="display:flex;"><span>                width <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.2</span>, linewidth <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Add point estimates</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_point</span>(size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">4</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Format y-axis as currency</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">scale_y_continuous</span>(labels <span style="color:#000;font-weight:bold">=</span> scales<span style="color:#000;font-weight:bold">::</span>dollar) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Use consistent color scheme</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">scale_color_manual</span>(values <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;darkblue&#34;</span>, <span style="color:#d14">&#34;darkred&#34;</span>, <span style="color:#d14">&#34;black&#34;</span>)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Add informative labels</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">labs</span>(x <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Contract Tier&#34;</span>, 
+</span></span><span style="display:flex;"><span>       y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;CLV Impact of 10% Adoption Improvement&#34;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">theme</span>(legend.position <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;none&#34;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/clv-prediction/index_files/figure-html/unnamed-chunk-13-1.png" alt="ROI visualization showing CLV impact of feature adoption improvements across customer tiers" width="60%" style="display: block; margin: auto;" />
+
+
+
+
+<h3 id="identifying-upgrade-thresholds">Identifying upgrade thresholds
+  <a href="#identifying-upgrade-thresholds"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h3>
+<p>Here&rsquo;s a more complex question that showcases GAM flexibility: when should you upgrade Basic customers to Pro? This isn&rsquo;t about forcing upgrades (that rarely works), but rather identifying customers who would benefit from Pro features and justify the investment.</p>
+<p>The list prices are Basic ($99/month) and Pro ($299/month), a $200 difference. However, the real cost of upgrading a customer might be higher than this sticker price difference. You need to factor in customer success time for onboarding Pro features, potential discounts you&rsquo;ll offer to ease the transition, and implementation support. Let&rsquo;s suppose this upgrade pushes the real incremental cost to around $300/month. Over our 6-month CLV horizon, that&rsquo;s an $1,800 investment. The question becomes: at what adoption level does the incremental CLV exceed this cost?</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Build a prediction grid to explore the full adoption range</span>
+</span></span><span style="display:flex;"><span>adoption_range <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">seq</span>(<span style="color:#099">15</span>, <span style="color:#099">95</span>, by <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">5</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Create prediction grid for both tiers</span>
+</span></span><span style="display:flex;"><span>prediction_grid <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">expand.grid</span>(
+</span></span><span style="display:flex;"><span>  feature_adoption_pct <span style="color:#000;font-weight:bold">=</span> adoption_range,
+</span></span><span style="display:flex;"><span>  contract_tier <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;Basic&#34;</span>, <span style="color:#d14">&#34;Pro&#34;</span>),
+</span></span><span style="display:flex;"><span>  month <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>, 
+</span></span><span style="display:flex;"><span>  acquisition_channel <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Organic&#34;</span>
+</span></span><span style="display:flex;"><span>) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">mutate</span>(
+</span></span><span style="display:flex;"><span>    predicted_clv <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">predict</span>(clv_tweedie, newdata <span style="color:#000;font-weight:bold">=</span> ., type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;response&#34;</span>)
+</span></span><span style="display:flex;"><span>  )
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Reshape to have Basic and Pro CLV in separate columns</span>
+</span></span><span style="display:flex;"><span>threshold_analysis <span style="color:#000;font-weight:bold">&lt;-</span> prediction_grid <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  tidyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">pivot_wider</span>(
+</span></span><span style="display:flex;"><span>    names_from <span style="color:#000;font-weight:bold">=</span> contract_tier,
+</span></span><span style="display:flex;"><span>    names_prefix <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;clv_&#34;</span>,
+</span></span><span style="display:flex;"><span>    values_from <span style="color:#000;font-weight:bold">=</span> predicted_clv
+</span></span><span style="display:flex;"><span>  ) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Rename columns to lowercase for consistency</span>
+</span></span><span style="display:flex;"><span>  dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">rename</span>(clv_basic <span style="color:#000;font-weight:bold">=</span> clv_Basic, clv_pro <span style="color:#000;font-weight:bold">=</span> clv_Pro) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">mutate</span>(
+</span></span><span style="display:flex;"><span>    marginal_benefit <span style="color:#000;font-weight:bold">=</span> clv_pro <span style="color:#000;font-weight:bold">-</span> clv_basic,
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># Upgrade cost: $300/month price difference * 6 months = $1,800 total</span>
+</span></span><span style="display:flex;"><span>    upgrade_cost <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">300</span> <span style="color:#000;font-weight:bold">*</span> <span style="color:#099">6</span>,
+</span></span><span style="display:flex;"><span>    net_benefit <span style="color:#000;font-weight:bold">=</span> marginal_benefit <span style="color:#000;font-weight:bold">-</span> upgrade_cost,
+</span></span><span style="display:flex;"><span>    roi_ratio <span style="color:#000;font-weight:bold">=</span> marginal_benefit <span style="color:#000;font-weight:bold">/</span> upgrade_cost
+</span></span><span style="display:flex;"><span>  )
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Visualize the upgrade decision as cost-benefit analysis</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">ggplot</span>(threshold_analysis, <span style="color:#900;font-weight:bold">aes</span>(x <span style="color:#000;font-weight:bold">=</span> feature_adoption_pct)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Show marginal benefit of upgrading</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_line</span>(<span style="color:#900;font-weight:bold">aes</span>(y <span style="color:#000;font-weight:bold">=</span> marginal_benefit), 
+</span></span><span style="display:flex;"><span>            color <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;darkred&#34;</span>, linewidth <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1.2</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Show upgrade cost</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_hline</span>(yintercept <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1800</span>, color <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;black&#34;</span>, 
+</span></span><span style="display:flex;"><span>             linewidth <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1.2</span>, linetype <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;dashed&#34;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Add shaded region where upgrades are profitable</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_ribbon</span>(data <span style="color:#000;font-weight:bold">=</span> threshold_analysis <span style="color:#000;font-weight:bold">%&gt;%</span> 
+</span></span><span style="display:flex;"><span>                dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">filter</span>(marginal_benefit <span style="color:#000;font-weight:bold">&gt;</span> upgrade_cost),
+</span></span><span style="display:flex;"><span>              <span style="color:#900;font-weight:bold">aes</span>(ymin <span style="color:#000;font-weight:bold">=</span> upgrade_cost, ymax <span style="color:#000;font-weight:bold">=</span> marginal_benefit),
+</span></span><span style="display:flex;"><span>              fill <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;darkred&#34;</span>, alpha <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.2</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Add annotations using actual data values for positioning</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">annotate</span>(<span style="color:#d14">&#34;text&#34;</span>, 
+</span></span><span style="display:flex;"><span>           x <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">45</span>, 
+</span></span><span style="display:flex;"><span>           y <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1830</span>, 
+</span></span><span style="display:flex;"><span>           label <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Upgrade Cost ($1,800)&#34;</span>, 
+</span></span><span style="display:flex;"><span>           color <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;black&#34;</span>, size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">5</span>, hjust <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">annotate</span>(<span style="color:#d14">&#34;text&#34;</span>, 
+</span></span><span style="display:flex;"><span>           x <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">80</span>, 
+</span></span><span style="display:flex;"><span>           y <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1900</span>, 
+</span></span><span style="display:flex;"><span>           label <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Marginal Benefit\n(Pro CLV - Basic CLV)&#34;</span>, 
+</span></span><span style="display:flex;"><span>           color <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;darkred&#34;</span>, size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">5</span>, hjust <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.5</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Format axes for currency and percentages</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">scale_y_continuous</span>(labels <span style="color:#000;font-weight:bold">=</span> scales<span style="color:#000;font-weight:bold">::</span>dollar) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">scale_x_continuous</span>(labels <span style="color:#000;font-weight:bold">=</span> scales<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">percent_format</span>(scale <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Add informative labels</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">labs</span>(x <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Feature Adoption Rate&#34;</span>, 
+</span></span><span style="display:flex;"><span>       y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Incremental Value&#34;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/clv-prediction/index_files/figure-html/unnamed-chunk-15-1.png" alt="Upgrade cost-benefit analysis showing when Basic to Pro upgrades become profitable" width="60%" style="display: block; margin: auto;" />
+<p>The model identifies a clear threshold at 55% adoption. Below that, you&rsquo;re losing money on upgrades (spending $1,800 to gain $1,400-1,700 in CLV). Above 55%, the marginal benefits exceed the costs and keep growing. By 75% adoption, you&rsquo;re looking at $2,000+ gains. This transforms a fuzzy &ldquo;high engagement&rdquo; heuristic into a concrete decision rule: monitor Basic customers, and when they cross 55% adoption, that&rsquo;s your signal to discuss Pro features.</p>
+
+
+
+
+<h3 id="scenario-planning-where-to-invest-development-resources">Scenario planning: Where to invest development resources
+  <a href="#scenario-planning-where-to-invest-development-resources"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h3>
+<p>We can also perform detailed scenario planning using our GAM. Our results suggest that Basic customers hit complexity barriers that prevent them from extracting value. So let&rsquo;s model a scenario: what if we invested in simplification features that help Basic customers get more value from the product?</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Extract just Basic tier customers for our scenario</span>
+</span></span><span style="display:flex;"><span>basic_customers <span style="color:#000;font-weight:bold">&lt;-</span> train_data <span style="color:#000;font-weight:bold">%&gt;%</span> 
+</span></span><span style="display:flex;"><span>  dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">filter</span>(contract_tier <span style="color:#000;font-weight:bold">==</span> <span style="color:#d14">&#34;Basic&#34;</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Scenario: New features double the adoption impact for Basic customers</span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># This represents UI simplification, better onboarding, or automation</span>
+</span></span><span style="display:flex;"><span>scenario_data <span style="color:#000;font-weight:bold">&lt;-</span> basic_customers <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">mutate</span>(
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># Create a synthetic &#34;Pro-like&#34; response to adoption for Basic tier</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># This models features that help Basic users extract more value</span>
+</span></span><span style="display:flex;"><span>    original_tier <span style="color:#000;font-weight:bold">=</span> contract_tier,
+</span></span><span style="display:flex;"><span>    contract_tier <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">factor</span>(<span style="color:#d14">&#34;Pro&#34;</span>, levels <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;Basic&#34;</span>, <span style="color:#d14">&#34;Pro&#34;</span>, <span style="color:#d14">&#34;Enterprise&#34;</span>))
+</span></span><span style="display:flex;"><span>  )
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Generate predictions with uncertainty</span>
+</span></span><span style="display:flex;"><span>baseline_posterior <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">posterior_samples</span>(
+</span></span><span style="display:flex;"><span>  clv_tweedie, 
+</span></span><span style="display:flex;"><span>  n <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">500</span>, 
+</span></span><span style="display:flex;"><span>  data <span style="color:#000;font-weight:bold">=</span> basic_customers,
+</span></span><span style="display:flex;"><span>  seed <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">42</span>, 
+</span></span><span style="display:flex;"><span>  unconditional <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>,
+</span></span><span style="display:flex;"><span>  mvn_method <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;mgcv&#34;</span>
+</span></span><span style="display:flex;"><span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Predict with improved value extraction</span>
+</span></span><span style="display:flex;"><span>scenario_posterior <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">posterior_samples</span>(
+</span></span><span style="display:flex;"><span>  clv_tweedie, 
+</span></span><span style="display:flex;"><span>  n <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">500</span>, 
+</span></span><span style="display:flex;"><span>  data <span style="color:#000;font-weight:bold">=</span> scenario_data,
+</span></span><span style="display:flex;"><span>  seed <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">42</span>, 
+</span></span><span style="display:flex;"><span>  unconditional <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>,
+</span></span><span style="display:flex;"><span>  mvn_method <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;mgcv&#34;</span>
+</span></span><span style="display:flex;"><span>) 
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Calculate per-customer impact to inform investment decisions</span>
+</span></span><span style="display:flex;"><span>impact_per_customer <span style="color:#000;font-weight:bold">&lt;-</span> dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">tibble</span>(
+</span></span><span style="display:flex;"><span>  baseline <span style="color:#000;font-weight:bold">=</span> baseline_posterior <span style="color:#000;font-weight:bold">%&gt;%</span> 
+</span></span><span style="display:flex;"><span>    dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">group_by</span>(.row) <span style="color:#000;font-weight:bold">%&gt;%</span> 
+</span></span><span style="display:flex;"><span>    dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">summarise</span>(base_clv <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">mean</span>(.response), .groups <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;drop&#34;</span>) <span style="color:#000;font-weight:bold">%&gt;%</span> 
+</span></span><span style="display:flex;"><span>    dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">pull</span>(base_clv),
+</span></span><span style="display:flex;"><span>  scenario <span style="color:#000;font-weight:bold">=</span> scenario_posterior <span style="color:#000;font-weight:bold">%&gt;%</span> 
+</span></span><span style="display:flex;"><span>    dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">group_by</span>(.row) <span style="color:#000;font-weight:bold">%&gt;%</span> 
+</span></span><span style="display:flex;"><span>    dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">summarise</span>(scen_clv <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">mean</span>(.response), .groups <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;drop&#34;</span>) <span style="color:#000;font-weight:bold">%&gt;%</span> 
+</span></span><span style="display:flex;"><span>    dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">pull</span>(scen_clv)
+</span></span><span style="display:flex;"><span>) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">mutate</span>(
+</span></span><span style="display:flex;"><span>    uplift <span style="color:#000;font-weight:bold">=</span> scenario <span style="color:#000;font-weight:bold">-</span> baseline,
+</span></span><span style="display:flex;"><span>    roi_multiplier <span style="color:#000;font-weight:bold">=</span> scenario <span style="color:#000;font-weight:bold">/</span> baseline
+</span></span><span style="display:flex;"><span>  )
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Aggregate results</span>
+</span></span><span style="display:flex;"><span>investment_impact <span style="color:#000;font-weight:bold">&lt;-</span> dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">tibble</span>(
+</span></span><span style="display:flex;"><span>  metric <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;Mean CLV Uplift per Customer&#34;</span>, 
+</span></span><span style="display:flex;"><span>             <span style="color:#d14">&#34;95% CI Lower&#34;</span>, 
+</span></span><span style="display:flex;"><span>             <span style="color:#d14">&#34;95% CI Upper&#34;</span>,
+</span></span><span style="display:flex;"><span>             <span style="color:#d14">&#34;Mean ROI Multiple&#34;</span>),
+</span></span><span style="display:flex;"><span>  value <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#900;font-weight:bold">mean</span>(impact_per_customer<span style="color:#000;font-weight:bold">$</span>uplift),
+</span></span><span style="display:flex;"><span>            <span style="color:#900;font-weight:bold">quantile</span>(impact_per_customer<span style="color:#000;font-weight:bold">$</span>uplift, <span style="color:#099">0.025</span>),
+</span></span><span style="display:flex;"><span>            <span style="color:#900;font-weight:bold">quantile</span>(impact_per_customer<span style="color:#000;font-weight:bold">$</span>uplift, <span style="color:#099">0.975</span>),
+</span></span><span style="display:flex;"><span>            <span style="color:#900;font-weight:bold">mean</span>(impact_per_customer<span style="color:#000;font-weight:bold">$</span>roi_multiplier))
+</span></span><span style="display:flex;"><span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>investment_impact
+</span></span></code></pre></div><pre tabindex="0"><code>## # A tibble: 4 × 2
+##   metric                         value
+##   &lt;chr&gt;                          &lt;dbl&gt;
+## 1 Mean CLV Uplift per Customer 1781.  
+## 2 95% CI Lower                 1329.  
+## 3 95% CI Upper                 2127.  
+## 4 Mean ROI Multiple               3.52
+</code></pre><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Visualize investment impact distribution</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">ggplot</span>(impact_per_customer, <span style="color:#900;font-weight:bold">aes</span>(x <span style="color:#000;font-weight:bold">=</span> uplift)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_histogram</span>(bins <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">25</span>, fill <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;darkred&#34;</span>, alpha <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.5</span>, 
+</span></span><span style="display:flex;"><span>                 color <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;white&#34;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Format x-axis as currency</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">scale_x_continuous</span>(labels <span style="color:#000;font-weight:bold">=</span> scales<span style="color:#000;font-weight:bold">::</span>dollar) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Add informative labels</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">labs</span>(x <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;CLV Uplift per Basic Customer&#34;</span>, 
+</span></span><span style="display:flex;"><span>       y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Frequency&#34;</span>
+</span></span><span style="display:flex;"><span>  )
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/clv-prediction/index_files/figure-html/unnamed-chunk-17-1.png" alt="Distribution of CLV uplift from feature investments that help Basic customers extract more value" width="60%" style="display: block; margin: auto;" />
+<p>The results could make a case for simplification. If we can help Basic customers extract Pro-like value from their current adoption levels, we&rsquo;re looking at $1781 uplift per customer. With typical feature development costs around $500 per customer for this scale of work, that&rsquo;s a 3.6x return. Strategies to do this would depend on the context, but if we could help a Basic customer currently stuck at 40% adoption to reach 70% adoption (maybe with with better UX design), this would be one way of improving CLV by building customer loyalty.</p>
+
+
+
+
+<h3 id="taking-it-further">Taking it further
+  <a href="#taking-it-further"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h3>
+<p>If you want to push these models even further, here are some directions to explore:</p>
+<ul>
+<li><strong>
+<a href="https://github.com/nicholasjclark/mvgam" target="_blank" rel="noopener">mvgam</a></strong>: My R package for Bayesian Dynamic GAMs handles temporal dependencies and multivariate outcomes. Perfect if you&rsquo;re modeling customer cohorts with correlated behaviors or want proper time series features</li>
+<li><strong>Hierarchical structures</strong>: The 
+<a href="https://cran.r-project.org/package=gamm4" target="_blank" rel="noopener"><code>gamm4</code></a> and 
+<a href="https://paul-buerkner.github.io/brms/" target="_blank" rel="noopener"><code>brms</code></a> packages let you build models with customer-level random effects, useful when you have repeat observations</li>
+<li><strong>Zero-inflation</strong>: If you have many customers who never generate value, check out the <code>ziP()</code> or <code>ziplss()</code> families in 
+<a href="https://cran.r-project.org/package=mgcv" target="_blank" rel="noopener"><code>mgcv</code></a></li>
+<li><strong>Time-varying effects</strong>: Use tensor products <code>te()</code> to let feature importance change over the customer lifecycle</li>
+</ul>
+
+
+
+
+<h2 id="wrapping-up">Wrapping up
+  <a href="#wrapping-up"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>We&rsquo;ve covered a lot of ground here, from understanding why SaaS CLV presents unique modeling challenges to extracting specific business insights from smooth functions. The key advantages of using GAMs for CLV prediction:</p>
+<ol>
+<li><strong>Nonlinear relationships emerge naturally</strong> - We discovered Enterprise customers plateau hard while Basic customers grow linearly, without any manual feature engineering</li>
+<li><strong>Appropriate uncertainty quantification</strong> - The Tweedie distribution gives us honest prediction intervals that grow with customer value, not the false precision of constant variance</li>
+<li><strong>Actionable thresholds</strong> - We identified the exact 55% adoption level where Basic-to-Pro upgrades become profitable, transforming vague heuristics into decision rules</li>
+<li><strong>Scenario modeling</strong> - We can simulate interventions and get uncertainty bounds on their impact, critical for investment decisions</li>
+</ol>
+<p>What strikes me most is how similar these business problems are to ecological modeling challenges. In both domains, we need flexible models that respect natural constraints, provide interpretable outputs, and quantify uncertainty honestly. GAMs deliver on all fronts.</p>
+<p>Try this approach on your own customer data. I&rsquo;d be curious to hear what nonlinear patterns and thresholds you discover. The code above should translate directly, though you&rsquo;ll need to adjust the variable names and tier structures to match your business model.</p>
+
+
+
+
+<h2 id="further-reading">Further reading
+  <a href="#further-reading"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>The following papers and resources offer useful material about GAMs for business applications and customer analytics</p>
+<p>Basu, A. (2023). 
+<a href="https://onlinelibrary.wiley.com/doi/full/10.1002/mar.21908" target="_blank" rel="noopener">Marketing analytics: the bridge between customer psychology and marketing decision‐making</a>. <em>Psychology &amp; Marketing</em>, 40(12), 2509-2528.</p>
+<p>Glady, N., Baesens, B., &amp; Croux, C. (2009). 
+<a href="https://www.sciencedirect.com/science/article/abs/pii/S037722170800442X" target="_blank" rel="noopener">Modeling churn using customer lifetime value</a>. <em>European Journal of Operational Research</em>, 197(1), 402-411.</p>
+<p>Pedersen, E. J., Miller, D. L., Simpson, G. L., &amp; Ross, N. (2019). 
+<a href="https://peerj.com/articles/6876/" target="_blank" rel="noopener">Hierarchical generalized additive models in ecology: an introduction with mgcv</a>. <em>PeerJ</em>, 7, e6876.</p>
+<p>Theodorakopoulos, L., Kotsiantis, S., &amp; Koumanakos, E. (2024). 
+<a href="https://onlinelibrary.wiley.com/doi/10.1155/2024/3641502" target="_blank" rel="noopener">Leveraging big data analytics for understanding consumer behavior in digital marketing: a systematic review</a>. <em>Human Behavior and Emerging Technologies</em>, 2024, 3641502.</p>
+
+      </section>
+      <footer class="post-footer">
+        <div class="post-pagination dt w-100 mt4 mb2">
+  
+  
+    <a class="prev dtc pr2 tl v-top fw6"
+    href="https://ecogambler.netlify.app/blog/plant-community-dirichlet/">&larr; Compositional modeling of plant communities with Dirichlet regression</a>
+  
+  
+  
+    <a class="next dtc pl2 tr v-top fw6"
+    href="https://ecogambler.netlify.app/blog/vector-autoregressions/">State-Space Vector Autoregressions in mvgam &rarr;</a>
+  
+</div>
+
+      </footer>
+    </article>
+    
+      
+<div class="post-comments pa0 pa4-l mt4">
+  
+  <script src="https://utteranc.es/client.js"
+          repo="apreshill/apero"
+          issue-term="pathname"
+          theme="boxy-light"
+          label="comments :crystal_ball:"
+          crossorigin="anonymous"
+          async
+          type="text/javascript">
+  </script>
+  
+</div>
+
+    
+  </section>
+</main>
+<aside class="page-sidebar" role="complementary">
+                         
+ 
+
+
+                       
+ 
+
+
+
+
+
+
+
+
+
+
+
+  <img src="/blog/sidebar-listing.jpg" class="db ma0">
+
+
+<div class="blog-info ph4 pt4 pb4 pb0-l">
+  
+
+  <h1 class="f3">GAMbler</h1>
+  <p class="f6 lh-copy measure">A blog on (somewhat) interesting and (hopefully) useful tips for ecological modeling, with (perhaps too much) emphasis on Generalized Additive Models.</p>
+  <p class="f7 measure lh-copy i mh0-l">Written by Nicholas Clark (n.clark&rsquo;at&rsquo;uq.edu.au)</p>
+
+
+  
+  <div class="dib bt bw1 b--black-10">
+    
+      <small class="db f7 pt3"><a href="/blog/" class="dib fw7 ttu">View recent posts</a></small>
+    
+    
+    
+    
+  </div>
+
+
+</div>
+
+
+  
+  <details open class="f6 fw7 input-reset">
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Posted on:</dt>
+    <dd class="fw5 ml0">October 11, 2025</dd>
+  </dl>
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Length:</dt>
+    <dd class="fw5 ml0">25 minute read, 5264 words</dd>
+  </dl>
+  
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Categories:</dt>
+    <dd class="fw5 ml0"> <a href="https://ecogambler.netlify.app/categories/rstats">rstats</a>  <a href="https://ecogambler.netlify.app/categories/time-series">time-series</a>  <a href="https://ecogambler.netlify.app/categories/mgcv">mgcv</a> </dd>
+  </dl>
+  
+  
+  
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Tags:</dt>
+    <dd class="fw5 ml0"> <a href="https://ecogambler.netlify.app/tags/rstats">rstats</a>  <a href="https://ecogambler.netlify.app/tags/mgcv">mgcv</a>  <a href="https://ecogambler.netlify.app/tags/tutorial">tutorial</a>  <a href="https://ecogambler.netlify.app/tags/forecasting">forecasting</a>  <a href="https://ecogambler.netlify.app/tags/time-series">time-series</a> </dd>
+  </dl>
+  
+  <dl class="f6 lh-copy">
+    <dt class="fw7">See Also:</dt>
+    
+    <dd class="fw5 ml0"><a href="/blog/emergency-department-shiny/">Building an Interactive Emergency Department Dashboard with Shiny</a></dd>
+    
+    <dd class="fw5 ml0"><a href="/blog/plant-community-dirichlet/">Compositional modeling of plant communities with Dirichlet regression</a></dd>
+    
+    <dd class="fw5 ml0"><a href="/blog/vector-autoregressions/">State-Space Vector Autoregressions in mvgam</a></dd>
+    
+  </dl>
+</details>
+
+                           
+  
+  
+  
+ <nav id="TableOfContents" class="sticky ph4 pb4 pt6" role="navigation"> 
+   <h2 class="mv0 f5 fw7 ttu tracked dib">On this page</h2> 
+     <nav id="TableOfContents">
+  <ul>
+    <li><a href="#understanding-saas-business-dynamics">Understanding SaaS business dynamics</a></li>
+    <li><a href="#environment-setup">Environment setup</a></li>
+    <li><a href="#simulating-realistic-saas-customer-dynamics">Simulating realistic SaaS customer dynamics</a></li>
+    <li><a href="#initial-gam-gaussian-with-log-link">Initial GAM: Gaussian with log link</a></li>
+    <li><a href="#the-tweedie-advantage-matching-the-datas-reality">The Tweedie advantage: Matching the data&rsquo;s reality</a></li>
+    <li><a href="#extracting-actionable-insights">Extracting actionable insights</a></li>
+    <li><a href="#wrapping-up">Wrapping up</a></li>
+    <li><a href="#further-reading">Further reading</a></li>
+  </ul>
+</nav> 
+ </nav> 
+  
+
+</aside>
+<footer class="site-footer pv4 bt b--transparent ph5" role="contentinfo">
+  <nav class="db dt-l w-100">
+    <p class="site-copyright f7 db dtc-l v-mid w-100 w-33-l tc tl-l pv2 pv0-l mv0 lh-copy">
+      © Nicholas J Clark (2024)
+      <span class="middot-divider"></span>
+      Made with <span xmlns:dct="http://purl.org/dc/terms/" property="dct:title"><a xmlns:dct="http://purl.org/dc/terms/" href="https://github.com/hugo-apero/" rel="dct:source">Hugo Apéro</a></span>.
+      <br />
+      
+Based on <span xmlns:dct="http://purl.org/dc/terms/" property="dct:title"><a xmlns:dct="http://purl.org/dc/terms/" href="https://github.com/formspree/blogophonic-hugo" rel="dct:source">Blogophonic</a></span> by <a xmlns:cc="http://creativecommons.org/ns#" href="https://formspree.io" property="cc:attributionName" rel="cc:attributionURL">Formspree</a>.
+    </p>
+    
+    <div class="site-social-links db dtc-l v-mid w-100 w-33-l tc pv2 pv0-l mv0">
+      <div class="social-icon-links" aria-hidden="true">
+  
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://github.com/nicholasjclark" title="github" target="_blank" rel="me noopener">
+      <i class="fab fa-github fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://www.youtube.com/@NJ_Clark" title="youtube" target="_blank" rel="me noopener">
+      <i class="fab fa-youtube fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://bsky.app/profile/njclark.bsky.social" title="mixcloud" target="_blank" rel="me noopener">
+      <i class="fab fa-mixcloud fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://orcid.org/0000-0001-7131-3301" title="orcid" target="_blank" rel="me noopener">
+      <i class="ai ai-orcid fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://scholar.google.com.au/citations?user=5bO9uxEAAAAJ&amp;hl=en" title="google-scholar" target="_blank" rel="me noopener">
+      <i class="ai ai-google-scholar fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="/blog/index.xml" title="rss" >
+      <i class="fas fa-rss fa-lg fa-fw"></i>
+    </a>
+  
+</div>
+
+    </div>
+    
+    <div class="site-links f6 db dtc-l v-mid w-100 w-67-l tc tr-l pv2 pv0-l mv0">
+      
+      <a class="dib pv1 ph2 link" href="/license/" title="License">License</a>
+      
+      <a class="dib pv1 ph2 link" href="/contributors/" title="Contributors">Collaborators</a>
+      
+    </div>
+  </nav>
+  
+    <script>
+
+    var i, text, code, codes = document.getElementsByTagName('code');
+    for (let i = 0; i < codes.length;) {
+      code = codes[i];
+      if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+        text = code.textContent;
+        if (/^\$[^$]/.test(text) && /[^$]\$$/.test(text)) {
+          text = text.replace(/^\$/, '\\(').replace(/\$$/, '\\)');
+          code.textContent = text;
+        }
+        if (/^\\\((.|\s)+\\\)$/.test(text) ||
+            /^\\\[(.|\s)+\\\]$/.test(text) ||
+            /^\$(.|\s)+\$$/.test(text) ||
+            /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+          code.outerHTML = code.innerHTML;  
+          continue;
+        }
+      }
+      i++;
+    }
+</script>
+
+  
+    
+    
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/katex.min.css" integrity="sha384-RZU/ijkSsFbcmivfdRBQDtwuwVqK7GMOw6IMvKyeWL2K5UAlyp6WonmB8m7Jd0Hn" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/katex.min.js" integrity="sha384-pK1WpvzWVBQiP0/GjnvRxV4mOb0oxFuyRxJlk6vVw146n3egcN5C925NCP7a7BY8" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/contrib/auto-render.min.js" integrity="sha384-vZTG03m+2yp6N6BNi5iM4rW4oIwk5DfcNdFfxkk9ZWpDriOkXX8voJBFrAO7MpVl" crossorigin="anonymous" onload="renderMathInElement(document.body);"></script>
+
+
+
+    
+  
+  
+</footer>
+
+      </div>
+    </body>
+</html>

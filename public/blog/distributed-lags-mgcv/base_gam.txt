@@ -1,0 +1,38 @@
+model {
+  eta <- X %*% b ## linear predictor
+  for (i in 1:n) { mu[i] <-  exp(eta[i]) } ## expected response
+  for (i in 1:n) { y[i] ~ dpois(mu[i]) } ## response 
+  ## Parametric effect priors CHECK tau=1/26^2 is appropriate!
+  for (i in 1:1) { b[i] ~ dnorm(0,0.0015) }
+  ## prior for s(ndvi_ma12):seriesDM... 
+  K1 <- S1[1:4,1:4] * lambda[1]  + S1[1:4,5:8] * lambda[2]
+  b[2:5] ~ dmnorm(zero[2:5],K1) 
+  ## prior for s(ndvi_ma12):seriesDO... 
+  K2 <- S2[1:4,1:4] * lambda[3]  + S2[1:4,5:8] * lambda[4]
+  b[6:9] ~ dmnorm(zero[6:9],K2) 
+  ## prior for s(ndvi_ma12):seriesPB... 
+  K3 <- S3[1:4,1:4] * lambda[5]  + S3[1:4,5:8] * lambda[6]
+  b[10:13] ~ dmnorm(zero[10:13],K3) 
+  ## prior for s(ndvi_ma12):seriesPP... 
+  K4 <- S4[1:4,1:4] * lambda[7]  + S4[1:4,5:8] * lambda[8]
+  b[14:17] ~ dmnorm(zero[14:17],K4) 
+  ## prior for te(mintemp,lag):weights_dm... 
+  K5 <- S5[1:16,1:16] * lambda[9]  + S5[1:16,17:32] * lambda[10] + S5[1:16,33:48] * lambda[11]
+  b[18:33] ~ dmnorm(zero[18:33],K5) 
+  ## prior for te(mintemp,lag):weights_do... 
+  K6 <- S6[1:16,1:16] * lambda[12]  + S6[1:16,17:32] * lambda[13] + S6[1:16,33:48] * lambda[14]
+  b[34:49] ~ dmnorm(zero[34:49],K6) 
+  ## prior for te(mintemp,lag):weights_pb... 
+  K7 <- S7[1:16,1:16] * lambda[15]  + S7[1:16,17:32] * lambda[16] + S7[1:16,33:48] * lambda[17]
+  b[50:65] ~ dmnorm(zero[50:65],K7) 
+  ## prior for te(mintemp,lag):weights_pp... 
+  K8 <- S8[1:16,1:16] * lambda[18]  + S8[1:16,17:32] * lambda[19] + S8[1:16,33:48] * lambda[20]
+  b[66:81] ~ dmnorm(zero[66:81],K8) 
+  ## prior for s(series)... 
+  for (i in c(82:85)) { b[i] ~ dnorm(0, lambda[21]) }
+  ## smoothing parameter priors CHECK...
+  for (i in 1:21) {
+    lambda[i] ~ dgamma(.05,.005)
+    rho[i] <- log(lambda[i])
+  }
+}

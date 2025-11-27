@@ -1,0 +1,290 @@
+---
+title: "Building an Interactive Emergency Department Dashboard with Shiny"
+author: "Nicholas Clark"
+subtitle: ""
+excerpt: "Emergency department data tells compelling stories about healthcare access and system pressure, but static visualizations often fail to capture the full complexity of spatiotemporal patterns. I demonstrate how to build an interactive Shiny dashboard step-by-step, starting with simple static plots and progressively adding features like reactive filtering, interactive maps, and population-adjusted trend analysis. Using NSW and ACT hospital emergency admissions data, we'll create a dashboard that allows real-time exploration of triage categories, hospital networks, and temporal trends while implementing performance optimizations and deployment strategies."
+slug: emergency-department-shiny
+date: 2025-11-05
+draft: false
+images:
+series:
+tags:
+  - rstats
+  - shiny
+  - tutorial
+  - visualization
+  - leaflet
+  - healthcare
+categories:
+  - rstats
+  - shiny
+layout: single-sidebar
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,   
+  dpi = 150,
+  fig.asp = 0.8,
+  fig.width = 6,
+  out.width = "60%",
+  fig.align = "center",
+  warning = FALSE,
+  message = FALSE
+)
+```
+
+Healthcare systems generate enormous amounts of data, but turning these numbers into actionable insights requires more than static plots. Emergency department (ED) presentations are particularly rich datasets that capture both temporal patterns (seasonal flu spikes, weekend surges) and spatial distributions (urban vs rural access, network capacity). Static visualizations can show us snapshots, but interactive dashboards let us explore the full complexity of these patterns.
+
+In this post, I'll show you how to transform simple exploratory plots into a fully interactive Shiny dashboard for analyzing NSW and ACT emergency department data. We'll start with basic static visualizations, progressively add interactivity, and ultimately build a dashboard that healthcare administrators, researchers, or curious citizens could use to understand ED utilization patterns. Along the way, I'll cover reactive programming concepts, performance optimization strategies, and deployment considerations.
+
+If you've worked with [time series visualization in GAMs](https://ecogambler.netlify.app/blog/autocorrelated-gams/) like I have, you'll appreciate how interactive dashboards can make complex temporal patterns more accessible to non-technical audiences. And unlike my usual posts about [statistical modeling](https://ecogambler.netlify.app/blog/distributed-lags-mgcv/), this one focuses on making data exploration intuitive and engaging through interactivity.
+
+## Overview of this post
+
+Emergency departments are the frontline of healthcare systems, and understanding their utilization patterns is crucial for resource planning, policy decisions, and public health monitoring. This post addresses three key challenges in healthcare data visualization:
+
+1. **Static limitations**: Traditional plots can't capture the multidimensional nature of ED data—how do you simultaneously show temporal trends, geographic distributions, triage severity, and hospital-specific patterns?
+
+2. **Interactivity needs**: Different stakeholders need different views. Hospital administrators want network-level summaries, researchers need granular temporal data, and policymakers require population-adjusted metrics.
+
+3. **Performance at scale**: Healthcare datasets are large. How do we build responsive dashboards that can handle millions of records without frustrating users?
+
+I'll walk through building a dashboard that solves these challenges, starting with NSW and ACT hospital emergency admission data from the Australian Institute of Health and Welfare's MyHospitals portal. We'll build features incrementally: static exploration, basic Shiny conversion, reactive filtering, interactive maps, population adjustments, spatial smoothing, and linked visualizations.
+
+By the end, you'll know how to build production-ready Shiny dashboards that transform complex healthcare data into intuitive, interactive tools for exploration and decision-making.
+
+## Environment setup
+
+This tutorial uses data from the Australian Institute of Health and Welfare's MyHospitals portal. If you can't access the API directly, you can download sample data from [this link](https://www.aihw.gov.au/reports-data/myhospitals).
+```{r}
+library(tidyverse)
+library(viridis)
+library(scales)
+library(leaflet)
+library(sf)
+library(readaihw)
+```
+
+## Data acquisition and initial exploration
+
+Let's start by loading the emergency department data and understanding its structure. The MyHospitals dataset contains ED presentations broken down by hospital, time period, and triage category.
+
+```{r}
+# Load hospital location mappings and ED presentation data
+hosp_locs <- get_hospital_mappings()
+ed_presentations <- read_flat_data_extract("MYH-ED")
+```
+
+Now let's clean and prepare the data for analysis:
+
+```{r}
+# Clean and prepare the data - Focus on NSW and ACT
+ed_clean <- ed_presentations %>%
+  mutate(
+    value = as.numeric(value),
+    date = as.Date(reporting_end_date),
+    triage_category = reported_measure_category_name,
+    state = mapped_state
+  ) %>%
+  # Include NSW and ACT
+  filter(!is.na(value), value > 0, state %in% c("NSW", "ACT"))
+
+# Quick summary of the data structure
+ed_clean %>%
+  summarise(
+    n_hospitals = n_distinct(reporting_unit_code),
+    n_months = n_distinct(date),
+    date_range = paste(min(date), "to", max(date)),
+    total_presentations = sum(value)
+  ) %>%
+  knitr::kable()
+```
+
+## Static visualizations: Understanding the data
+
+Before diving into interactivity, let's create the three foundational visualizations from our exploratory analysis. These will form the core components of our dashboard.
+
+### Plot 1: NSW + ACT ED Presentations Over Time
+
+```{r, fig.alt="Time series plot showing NSW and ACT emergency department presentations over time with seasonal patterns"}
+# Plot 1: NSW + ACT ED Presentations Over Time
+nsw_ed_trend <- ed_clean %>% 
+  filter(reporting_unit_type_name == "State") %>% 
+  group_by(date) %>% 
+  summarise(
+    total_presentations = sum(value, na.rm = TRUE), 
+    .groups = 'drop'
+  )
+
+ggplot(nsw_ed_trend, aes(x = date, y = total_presentations)) +
+  geom_line(size = 1.2, color = "darkred") +
+  geom_point(size = 2, color = "darkred") +
+  labs(
+    title = "NSW + ACT ED Presentations Over Time",
+    x = "Date", 
+    y = "Total ED Presentations"
+  ) +
+  theme_classic() +
+  scale_y_continuous(labels = comma_format())
+```
+
+### Plot 2: NSW + ACT Triage Category Distribution
+
+```{r, fig.alt="Horizontal bar chart showing NSW and ACT emergency department presentations by triage category"}
+# Plot 2: NSW + ACT Triage Category Distribution
+triage_summary <- ed_clean %>%
+  group_by(triage_category) %>%
+  summarise(
+    total_presentations = sum(value, na.rm = TRUE), 
+    .groups = 'drop'
+  ) %>%
+  arrange(desc(total_presentations))
+
+ggplot(
+  triage_summary, 
+  aes(
+    x = reorder(triage_category, total_presentations), 
+    y = total_presentations, 
+    fill = triage_category
+  )
+) +
+  geom_col() +
+  coord_flip() +
+  labs(
+    title = "NSW + ACT ED Presentations by Triage Category",
+    x = "Triage Category", 
+    y = "Total Presentations"
+  ) +
+  theme_classic() +
+  theme(legend.position = "none") +
+  scale_fill_viridis_d() +
+  scale_y_continuous(labels = comma_format())
+```
+
+### Plot 3: Interactive Map of NSW + ACT Hospitals with ED Activity
+
+```{r, fig.alt="Interactive leaflet map of NSW and ACT hospitals showing emergency department activity with popup information", fig.asp = 0.5}
+# Plot 3: Interactive Map of NSW + ACT Hospitals with ED Activity
+nsw_hospital_activity <- ed_clean %>%
+  filter(reporting_unit_type_name == "Hospital") %>%
+  group_by(reporting_unit_code, reporting_unit_name) %>%
+  summarise(
+    total_presentations = sum(value, na.rm = TRUE),
+    avg_annual = mean(value, na.rm = TRUE),
+    years_reporting = n_distinct(year(date)),
+    .groups = 'drop'
+  ) %>%
+  left_join(
+    hosp_locs %>% 
+      filter(
+        state %in% c(
+          "New South Wales", 
+          "Australian Capital Territory"
+        )
+      ) %>%
+      mutate(
+        lat = as.numeric(latitude),
+        lon = as.numeric(longitude)
+      ) %>%
+      select(
+        code, 
+        name, 
+        lat, 
+        lon, 
+        sector, 
+        local_hospital_network_lhn
+      ),
+    by = c("reporting_unit_code" = "code")
+  ) %>%
+  filter(!is.na(lat), !is.na(lon), total_presentations > 0)
+
+# Load Australian state boundaries for mask layer
+aus_states <- read_sf(
+  "https://raw.githubusercontent.com/rowanhogan/australian-states/master/states.geojson"
+)
+
+# Create interactive map with minimal basemap
+map <- leaflet(nsw_hospital_activity, width = "100%") %>%
+  # Add state boundaries with NSW and ACT highlighted
+  addPolygons(
+    data = aus_states,
+    fillColor = ~ifelse(
+      STATE_NAME %in% c(
+        "New South Wales", 
+        "Australian Capital Territory"
+      ), 
+      "transparent", 
+      "black"
+    ),
+    fillOpacity = ~ifelse(
+      STATE_NAME %in% c(
+        "New South Wales", 
+        "Australian Capital Territory"
+      ), 
+      0, 
+      0.5
+    ),
+    color = "white",
+    weight = 0.5,
+    opacity = 0.5
+  ) %>%
+  addCircleMarkers(
+    lng = ~lon,
+    lat = ~lat,
+    # Scale by annual average
+    radius = ~sqrt(total_presentations / years_reporting) / 18,
+    color = "white",
+    fillColor = "darkred",
+    fillOpacity = 0.4,
+    stroke = TRUE,
+    weight = 1,
+    popup = ~paste(
+      "<b>", name, "</b><br/>",
+      "Total ED Presentations: ", 
+      scales::comma(total_presentations), 
+      "<br/>",
+      "Network: ", 
+      local_hospital_network_lhn, 
+      "<br/>",
+      "Years Reporting: ", 
+      years_reporting
+    )
+  ) %>%
+  addProviderTiles("CartoDB.Positron") %>%  # Clean, minimal basemap
+  # Add combined title and legend
+  addControl(
+    html = paste0(
+      '<div style="background: white; padding: 8px; border-radius: 5px; ',
+      'box-shadow: 0 0 10px rgba(0,0,0,0.2); font-family: Arial, sans-serif;">',
+      '<div style="font-size: 12px; font-weight: bold; color: #333; ',
+      'margin-bottom: 10px; border-bottom: 1px solid #ddd; ',
+      'padding-bottom: 8px;">NSW & ACT Emergencies</div>',
+      '<div style="margin: 5px 0; display: flex; align-items: center;">',
+      '<div style="width: 20px; height: 10px; display: flex; ',
+      'justify-content: center; align-items: center; margin-right: 8px;">',
+      '<span style="width: 20px; height: 20px; border-radius: 50%; ',
+      'background: darkred; display: block;"></span></div>',
+      '<span style="font-size: 11px;">High Volume</span></div>',
+      '<div style="margin: 8px 0; display: flex; align-items: center;">',
+      '<div style="width: 20px; height: 10px; display: flex; ',
+      'justify-content: center; align-items: center; margin-right: 8px;">',
+      '<span style="width: 12px; height: 12px; border-radius: 50%; ',
+      'background: darkred; display: block;"></span></div>',
+      '<span style="font-size: 11px;">Medium Volume</span></div>',
+      '<div style="margin: 8px 0; display: flex; align-items: center;">',
+      '<div style="width: 20px; height: 10px; display: flex; ',
+      'justify-content: center; align-items: center; margin-right: 8px;">',
+      '<span style="width: 6px; height: 6px; border-radius: 50%; ',
+      'background: darkred; display: block;"></span></div>',
+      '<span style="font-size: 11px;">Low Volume</span></div></div>'
+    ),
+    position = "topright"
+  ) %>%
+  # Center on Dubbo with fixed zoom
+  setView(lng = 148.6019, lat = -32.2431, zoom = 6)
+
+map
+```
+
+These three visualizations reveal key patterns in the NSW and ACT emergency department data. The time series shows clear seasonal fluctuations with potential COVID-19 impacts. The triage distribution highlights the relative frequency of different urgency levels. The interactive map allows exploration of individual hospitals and their networks, with markers sized by presentation volume.

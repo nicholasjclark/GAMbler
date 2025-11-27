@@ -1,0 +1,1343 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr"><head>
+  
+                           
+     
+
+
+<meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="generator" content="Hugo 0.123.8">
+<title>Compositional modeling of plant communities with Dirichlet regression | GAMbler</title>
+
+
+<meta property="twitter:site" content="@twitter = &#34;nj_clark&#34;">
+<meta property="twitter:creator" content="@twitter = &#34;nj_clark&#34;">
+
+
+
+
+
+
+
+  
+    
+  
+<meta name="description" content="Compositional data appears everywhere in scientific research, yet many analysts fall back on problematic approaches that ignore fundamental mathematical constraints. I demonstrate how Dirichlet regression with Gaussian process smooths provides a principled framework for modeling plant community composition across environmental gradients, using approximate Hilbert space methods that make these models computationally tractable for realistic datasets. Unlike separate binomial models that can predict impossible total abundances exceeding 100%, this approach automatically ensures predictions respect compositional constraints while capturing complex nonlinear environmental responses.">
+
+
+<meta property="og:site_name" content="GAMbler">
+<meta property="og:title" content="Compositional modeling of plant communities with Dirichlet regression | GAMbler">
+<meta property="og:description" content="Compositional data appears everywhere in scientific research, yet many analysts fall back on problematic approaches that ignore fundamental mathematical constraints. I demonstrate how Dirichlet regression with Gaussian process smooths provides a principled framework for modeling plant community composition across environmental gradients, using approximate Hilbert space methods that make these models computationally tractable for realistic datasets. Unlike separate binomial models that can predict impossible total abundances exceeding 100%, this approach automatically ensures predictions respect compositional constraints while capturing complex nonlinear environmental responses." />
+<meta property="og:type" content="page" />
+<meta property="og:url" content="https://ecogambler.netlify.app/blog/plant-community-dirichlet/" />
+<meta property="og:locale" content="en">
+
+
+
+
+    
+        <meta property="og:image" content="https://ecogambler.netlify.app/blog/plant-community-dirichlet/featured.png" >
+        <meta property="twitter:card" content="summary_large_image">
+        <meta name="twitter:image" content="https://ecogambler.netlify.app/blog/plant-community-dirichlet/featured.png" >
+    
+    
+  <meta itemprop="name" content="Compositional modeling of plant communities with Dirichlet regression">
+<meta itemprop="description" content="Compositional data, where observations represent proportions that sum to a constant, are ubiquitous in ecology, yet many analysts fall back on problematic approaches like separate binomial models, beta regression on ratios, or worse, standard linear regression on raw proportions. These methods ignore the fundamental constraint that proportions must sum to unity and fail to model the inherent dependencies between components. Aitchison&rsquo;s landmark work established the mathematical foundation for proper compositional analysis, while van den Boogaart &amp; Tolosana-Delgado provide comprehensive coverage of modern compositional data analysis methods."><meta itemprop="datePublished" content="2025-10-20T00:00:00+00:00" />
+<meta itemprop="dateModified" content="2025-10-20T00:00:00+00:00" />
+<meta itemprop="wordCount" content="5368"><meta itemprop="image" content="https://ecogambler.netlify.app/blog/plant-community-dirichlet/featured.png" />
+<meta itemprop="keywords" content="rstats,brms,compositional,ecology,tutorial," />
+  
+  <!--[if IE]><script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script><![endif]-->
+  <link rel="shortcut icon" href="/img/header_logo.ico" type="image/x-icon">
+  <link rel="icon" href="/img/header_logo.ico" type="image/x-icon">
+  
+  
+  <link rel="stylesheet" href="/style.main.min.13ba2c07d7acc52c13dbb9003240e2adf360a5d73e1392ede873916180ee1701.css" integrity="sha256-E7osB9esxSwT27kAMkDirfNgpdc&#43;E5Lt6HORYYDuFwE=" media="screen">
+  
+  
+  <script src="/panelset.min.ed1ac24b6e16f4e2481e3d1d098ae66f5bc77438aef619e6e266d8ac5b00dc72.js" type="text/javascript"></script>
+  
+  
+  <script src="/main.min.7c7401b27b903bdc8736f72a2f739f7602bf606c451e8cb5e7fab2bf6b4af582.js" type="text/javascript"></script>
+</head>
+<body>
+      <div class="grid-container single-sidebar">
+<header class="site-header pt4 pb2 mb4 bb b--transparent ph5 headroom z-max" role="banner">
+  <nav class="site-nav db dt-l w-100" role="navigation">
+    <a class="site-brand db dtc-l v-mid link no-underline w-100 w-33-l tc tl-l" href="https://ecogambler.netlify.app/" title="Home">
+      <img src="/img/header_logo.png" class="dib db-l h2 w-auto" alt="GAMbler">
+    </a>
+    <div class="site-links db dtc-l v-mid w-100 w-47-l tc tr-l mt3 mt0-l ttu tracked">
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 active" href="/blog/" title="Blog">Blog</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/project/" title="Project Portfolio">Software</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/talk/" title="Talks">Talks &amp; Workshops</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/opportunities/" title="Opportunities">Opportunities</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/archives/" title="Archive">Archive</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/blogroll/" title="Blogroll">Blogroll</a>
+      
+      
+    </div>
+  </nav>
+</header>
+
+<main class="page-main pa4" role="main">
+  <section class="page-content mw7 center">
+    <article class="post-content pa0 pr3-l">
+      <header class="post-header">
+        <h1 class="f1 lh-solid measure-narrow mb3 fw4">Compositional modeling of plant communities with Dirichlet regression</h1>
+        
+        <p class="f6 measure lh-copy mv1">By Nicholas Clark in <a href="https://ecogambler.netlify.app/categories/rstats">rstats</a>  <a href="https://ecogambler.netlify.app/categories/brms">brms</a>  <a href="https://ecogambler.netlify.app/categories/ecology">ecology</a> </p>
+        <p class="f7 db mv0 ttu">October 20, 2025</p>
+      </header>
+      <section class="post-body pt5 pb4">
+        <p>Compositional data, where observations represent proportions that sum to a constant, are ubiquitous in ecology, yet many analysts fall back on problematic approaches like separate binomial models, beta regression on ratios, or worse, standard linear regression on raw proportions. These methods ignore the fundamental constraint that proportions must sum to unity and fail to model the inherent dependencies between components. 
+<a href="https://doi.org/10.1111/j.2517-6161.1982.tb01195.x" target="_blank" rel="noopener">Aitchison&rsquo;s landmark work</a> established the mathematical foundation for proper compositional analysis, while 
+<a href="https://link.springer.com/book/10.1007/978-3-642-36809-7" target="_blank" rel="noopener">van den Boogaart &amp; Tolosana-Delgado</a> provide comprehensive coverage of modern compositional data analysis methods.</p>
+<p>Here I demonstrate how Dirichlet regression with Gaussian process smooths provides a principled, flexible framework for modeling plant community composition across environmental gradients. I&rsquo;ll use 
+<a href="https://link.springer.com/article/10.1007/s11222-022-10167-2" target="_blank" rel="noopener">Riutort-Mayol et al&rsquo;s approximate Hilbert space Gaussian processes</a>, which make these models computationally tractable even for moderately large datasets.</p>
+
+
+
+
+<h2 id="overview-of-this-post">Overview of this post
+  <a href="#overview-of-this-post"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>Compositional data appears everywhere in scientific research: microbiome relative abundances in biology, market share distributions in economics, geological mineral compositions in earth sciences, time allocation in behavioral studies, and survey response proportions in social research. Yet despite this ubiquity, many analysts resort to problematic approaches that ignore the fundamental constraint that components must sum to a constant (typically 1 or 100%).</p>
+<p>This post addresses two critical challenges data scientists face with compositional data. Methodologically, I demonstrate why standard approaches like separate Binomial models or Beta regression on ratios fail to capture the inherent dependencies between components, leading to impossible predictions and inefficient inference. If you&rsquo;ve worked with 
+<a href="https://ecogambler.netlify.app/blog/autocorrelated-gams/" target="_blank" rel="noopener">GAMs for time series analysis</a> like I have, you&rsquo;ll appreciate how Gaussian processes provide similar flexibility for capturing nonlinear relationships while respecting compositional constraints.</p>
+<p>Computationally, I show how approximate Hilbert space Gaussian processes make sophisticated nonlinear modeling feasible for realistic dataset sizes, overcoming the traditional scalability limitations of GP methods. This builds on the same computational advances that make 
+<a href="https://ecogambler.netlify.app/blog/distributed-lags-mgcv/" target="_blank" rel="noopener">complex hierarchical models</a> practical for everyday use.</p>
+<p>I begin with the mathematical foundation of the Dirichlet distribution and its regression parameterization, emphasizing how brms enables separate linear predictors for each component. Next, I simulate realistic plant community data to demonstrate complex ecological relationships. I then fit Dirichlet regression models with bivariate Gaussian process smooths, extract and visualize predictions across environmental gradients, and interpret the results. Throughout, I emphasize practical implementation details and computational considerations that make this approach accessible for real-world applications.</p>
+<p>By the end, you&rsquo;ll understand when and how to apply Dirichlet regression to your own compositional data, regardless of scientific domain. Plus, you&rsquo;ll never again have to explain to a collaborator why your separate logistic regressions predict that 130% of survey respondents chose option A.</p>
+
+
+
+
+<h2 id="the-dirichlet-distribution-and-compositional-constraints">The Dirichlet distribution and compositional constraints
+  <a href="#the-dirichlet-distribution-and-compositional-constraints"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>For a <code>\({\color{#FDE725}{K}}\)</code>-component composition <code>\({\color{#440154}{\boldsymbol{y}}} = ({\color{#440154}{y_1}}, {\color{#440154}{y_2}}, \ldots, {\color{#440154}{y_K}})\)</code> where <code>\(\sum_{k=1}^{\color{#FDE725}{K}} {\color{#440154}{y_k}} = 1\)</code> and <code>\({\color{#440154}{y_k}} &gt; 0\)</code>, the Dirichlet distribution provides a natural model:</p>
+<p><code>$${\color{#440154}{\boldsymbol{y}}} \sim \text{Dirichlet}({\color{#31688E}{\boldsymbol{\alpha}}})$$</code></p>
+<p>where <code>\({\color{#31688E}{\boldsymbol{\alpha}}} = ({\color{#31688E}{\alpha_1}}, {\color{#31688E}{\alpha_2}}, \ldots, {\color{#31688E}{\alpha_K}})\)</code> are positive concentration parameters. The probability density is:</p>
+<p><code>$$f({\color{#440154}{\boldsymbol{y}}}|{\color{#31688E}{\boldsymbol{\alpha}}}) = \frac{\Gamma({\color{#31688E}{\alpha_0}})}{\prod_{k=1}^{\color{#FDE725}{K}} \Gamma({\color{#31688E}{\alpha_k}})} \prod_{k=1}^{\color{#FDE725}{K}} {\color{#440154}{y_k}}^{{\color{#31688E}{\alpha_k}} - 1}$$</code></p>
+<p>with <code>\({\color{#31688E}{\alpha_0}} = \sum_{k=1}^{\color{#FDE725}{K}} {\color{#31688E}{\alpha_k}}\)</code> and <code>\(\Gamma(\cdot)\)</code> the gamma function. The expected proportion for component <code>\(k\)</code> is <code>\(\mathbb{E}[{\color{#440154}{y_k}}] = {\color{#31688E}{\alpha_k}} / {\color{#31688E}{\alpha_0}}\)</code>, while the precision (inverse variance) increases with <code>\({\color{#31688E}{\alpha_0}}\)</code>.</p>
+<p>In regression contexts, we model how <code>\({\color{#31688E}{\boldsymbol{\alpha}}}\)</code> depends on predictors. The brms package uses a multivariate logit parameterization where the expected proportions <code>\({\color{#35B779}{\boldsymbol{\mu}}} = \mathbb{E}[{\color{#440154}{\boldsymbol{y}}}]\)</code> are linked to linear predictors via:</p>
+<p><code>$${\color{#35B779}{\mu_j}} = \frac{\exp({\color{#21918C}{\eta_j}})}{\sum_{k=1}^{\color{#FDE725}{K}} \exp({\color{#21918C}{\eta_k}})}$$</code></p>
+<p>where <code>\({\color{#21918C}{\eta_j}}\)</code> is the linear predictor for category <code>\(j\)</code>. For identifiability, one category (typically the last) serves as reference with <code>\({\color{#21918C}{\eta_{\text{ref}}}} = 0\)</code>. This means we estimate separate linear predictors for <code>\({\color{#FDE725}{K}}-1\)</code> categories:</p>
+<p><code>$${\color{#21918C}{\eta_j}} = \boldsymbol{x}^T \boldsymbol{\beta}_j + f_j(\boldsymbol{x}), \quad j = 1, \ldots, {\color{#FDE725}{K}}-1$$</code></p>
+<p>where <code>\(f_j(\cdot)\)</code> represents smooth functions (like our Gaussian processes). This approach naturally ensures <code>\(\sum_{k=1}^K \mu_k = 1\)</code> while allowing each functional group to have its own flexible, nonlinear response to environmental gradients.</p>
+
+
+
+
+<h3 id="parameter-guide-for-dirichlet-regression">Parameter guide for Dirichlet regression
+  <a href="#parameter-guide-for-dirichlet-regression"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h3>
+<p>Let me break down what each parameter means in our ecological context, using the same color scheme as above:</p>
+<ul>
+<li>
+<p><strong>Observed composition</strong> <code>\({\color{#440154}{\boldsymbol{y}}} = ({\color{#440154}{y_1}}, ..., {\color{#440154}{y_K}})\)</code>: The actual proportions we observe at each site. In our case, this is a 5-element vector containing the relative abundances of grass, forb, shrub, tree, and lichen. These must sum to 1 and all be positive.</p>
+</li>
+<li>
+<p><strong>Concentration parameters</strong> <code>\({\color{#31688E}{\boldsymbol{\alpha}}} = ({\color{#31688E}{\alpha_1}}, ..., {\color{#31688E}{\alpha_K}})\)</code>: These control both the expected proportions and the precision of the distribution. Higher <code>\({\color{#31688E}{\alpha_k}}\)</code> means functional group <code>\(k\)</code> has higher expected proportion. The sum <code>\({\color{#31688E}{\alpha_0}} = \sum_k {\color{#31688E}{\alpha_k}}\)</code> determines overall precision. Larger values mean less variance around expected proportions.</p>
+</li>
+<li>
+<p><strong>Expected proportions</strong> <code>\({\color{#35B779}{\boldsymbol{\mu}}} = ({\color{#35B779}{\mu_1}}, ..., {\color{#35B779}{\mu_K}})\)</code>: The mean of the Dirichlet distribution, representing expected composition at any given environmental combination. This is what we&rsquo;re ultimately interested in predicting, how community composition changes across environmental gradients.</p>
+</li>
+<li>
+<p><strong>Linear predictors</strong> <code>\({\color{#21918C}{\eta_j}}\)</code> for <code>\(j = 1, ..., {\color{#FDE725}{K}}-1\)</code>: The unconstrained predictions before applying the softmax transformation. This is where we place our Gaussian process smooths of elevation and temperature. Note we only model <code>\({\color{#FDE725}{K}}-1\)</code> predictors, with the last category serving as reference.</p>
+</li>
+<li>
+<p><strong>Number of categories</strong> <code>\({\color{#FDE725}{K}}\)</code>: The dimensionality of our compositional data. For plant communities, <code>\({\color{#FDE725}{K}}=5\)</code> functional groups. This could be any number of categories in other applications like market shares, time allocation, or mineral compositions.</p>
+</li>
+</ul>
+<p>The key insight is that the linear predictors <code>\(\eta_j\)</code> are where we incorporate environmental effects through Gaussian process smooths, allowing each functional group to have its own flexible, nonlinear response to environmental gradients while ensuring all predictions respect compositional constraints.</p>
+
+
+
+
+<h2 id="environment-setup">Environment setup
+  <a href="#environment-setup"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>This tutorial relies on the following packages:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(brms)            <span style="color:#998;font-style:italic"># Bayesian modeling with Stan</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(tidyverse)       <span style="color:#998;font-style:italic"># Data manipulation and visualization  </span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(viridis)         <span style="color:#998;font-style:italic"># Color palettes</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(patchwork)       <span style="color:#998;font-style:italic"># Plot composition</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(waffle)          <span style="color:#998;font-style:italic"># Waffle plots for compositional visualization</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(cowplot)         <span style="color:#998;font-style:italic"># Extract and manipulate plot components</span>
+</span></span></code></pre></div><p>A custom <code>ggplot2</code> theme; feel free to ignore if you have your own plot preferences</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Set consistent ggplot theme for all visualizations</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">theme_set</span>(
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">theme_classic</span>(
+</span></span><span style="display:flex;"><span>    base_size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">15</span>, 
+</span></span><span style="display:flex;"><span>    base_family <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;serif&#39;</span>
+</span></span><span style="display:flex;"><span>  ) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">theme</span>(
+</span></span><span style="display:flex;"><span>    axis.line.x.bottom <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">element_line</span>(
+</span></span><span style="display:flex;"><span>      colour <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;black&#34;</span>,
+</span></span><span style="display:flex;"><span>      size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>
+</span></span><span style="display:flex;"><span>    ),
+</span></span><span style="display:flex;"><span>    axis.line.y.left <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">element_line</span>(
+</span></span><span style="display:flex;"><span>      colour <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;black&#34;</span>,
+</span></span><span style="display:flex;"><span>      size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>
+</span></span><span style="display:flex;"><span>    )
+</span></span><span style="display:flex;"><span>  )
+</span></span><span style="display:flex;"><span>)
+</span></span></code></pre></div>
+
+
+
+<h2 id="simulating-plant-community-data">Simulating plant community data
+  <a href="#simulating-plant-community-data"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>I simulate realistic plant community composition data across elevation and temperature gradients, where five functional groups (grasses, forbs, shrubs, trees, lichens) respond differently to environmental conditions. This simulation captures the ecological reality that different plant types show varying tolerance ranges and optimal growing conditions along environmental gradients—a pattern we&rsquo;ll later model using Dirichlet regression.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>simulate_plant_community <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#000;font-weight:bold">function</span>(
+</span></span><span style="display:flex;"><span>    n_sites <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">60</span>, 
+</span></span><span style="display:flex;"><span>    elevation_range <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">1</span>, <span style="color:#099">3</span>),
+</span></span><span style="display:flex;"><span>    temp_range <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">5</span>, <span style="color:#099">25</span>)
+</span></span><span style="display:flex;"><span>) {
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">set.seed</span>(<span style="color:#099">42</span>)
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Generate elevation gradient with uniform random sampling</span>
+</span></span><span style="display:flex;"><span>  elevation <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">runif</span>(
+</span></span><span style="display:flex;"><span>    n_sites, 
+</span></span><span style="display:flex;"><span>    elevation_range[1], 
+</span></span><span style="display:flex;"><span>    elevation_range[2]
+</span></span><span style="display:flex;"><span>  )
+</span></span><span style="display:flex;"><span>  elev_norm <span style="color:#000;font-weight:bold">&lt;-</span> (elevation <span style="color:#000;font-weight:bold">-</span> elevation_range[1]) <span style="color:#000;font-weight:bold">/</span> 
+</span></span><span style="display:flex;"><span>    (elevation_range[2] <span style="color:#000;font-weight:bold">-</span> elevation_range[1])
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Create realistic temperature-elevation relationship with plateau</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Temperature decreases with elevation but plateaus at high elevations</span>
+</span></span><span style="display:flex;"><span>  plateau_point <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">0.8</span>
+</span></span><span style="display:flex;"><span>  sharpness <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">2</span>
+</span></span><span style="display:flex;"><span>  temp_factor <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">0.5</span> <span style="color:#000;font-weight:bold">*</span> (<span style="color:#099">1</span> <span style="color:#000;font-weight:bold">-</span> <span style="color:#900;font-weight:bold">tanh</span>(sharpness <span style="color:#000;font-weight:bold">*</span> (elev_norm <span style="color:#000;font-weight:bold">-</span> plateau_point)))
+</span></span><span style="display:flex;"><span>  temperature <span style="color:#000;font-weight:bold">&lt;-</span> temp_range[1] <span style="color:#000;font-weight:bold">+</span> 
+</span></span><span style="display:flex;"><span>    (temp_range[2] <span style="color:#000;font-weight:bold">-</span> temp_range[1]) <span style="color:#000;font-weight:bold">*</span> temp_factor <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">rnorm</span>(n_sites, <span style="color:#099">0</span>, <span style="color:#099">3</span>)
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Define functional group responses to environmental gradients</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Each group has distinct ecological preferences that create realistic</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># community assembly patterns along elevation and temperature gradients</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Grasses: peak abundance at mid-elevations with moderate temperatures</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Strong quadratic responses in both elevation and temperature</span>
+</span></span><span style="display:flex;"><span>  grass_logit <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">0.2</span> <span style="color:#000;font-weight:bold">+</span> <span style="color:#099">0.6</span> <span style="color:#000;font-weight:bold">*</span> elevation <span style="color:#000;font-weight:bold">-</span> <span style="color:#099">0.3</span> <span style="color:#000;font-weight:bold">*</span> elevation^2 <span style="color:#000;font-weight:bold">+</span> 
+</span></span><span style="display:flex;"><span>    <span style="color:#099">0.08</span> <span style="color:#000;font-weight:bold">*</span> temperature <span style="color:#000;font-weight:bold">-</span> <span style="color:#099">0.004</span> <span style="color:#000;font-weight:bold">*</span> temperature^2 <span style="color:#000;font-weight:bold">+</span> <span style="color:#099">0.02</span> <span style="color:#000;font-weight:bold">*</span> elevation <span style="color:#000;font-weight:bold">*</span> temperature
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Forbs: prefer lower-mid elevations and warmer temperatures</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Negative elevation effect with positive temperature response</span>
+</span></span><span style="display:flex;"><span>  forb_logit <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">0.8</span> <span style="color:#000;font-weight:bold">-</span> <span style="color:#099">0.8</span> <span style="color:#000;font-weight:bold">*</span> elevation <span style="color:#000;font-weight:bold">+</span> <span style="color:#099">0.12</span> <span style="color:#000;font-weight:bold">*</span> temperature <span style="color:#000;font-weight:bold">-</span> 
+</span></span><span style="display:flex;"><span>    <span style="color:#099">0.005</span> <span style="color:#000;font-weight:bold">*</span> temperature^2 <span style="color:#000;font-weight:bold">+</span> <span style="color:#099">-0.03</span> <span style="color:#000;font-weight:bold">*</span> elevation <span style="color:#000;font-weight:bold">*</span> temperature
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Shrubs: adapted to mid-high elevations with moderate-cool temperatures</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Positive elevation effect with cool temperature preference</span>
+</span></span><span style="display:flex;"><span>  shrub_logit <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">0.3</span> <span style="color:#000;font-weight:bold">+</span> <span style="color:#099">0.6</span> <span style="color:#000;font-weight:bold">*</span> elevation <span style="color:#000;font-weight:bold">-</span> <span style="color:#099">0.2</span> <span style="color:#000;font-weight:bold">*</span> elevation^2 <span style="color:#000;font-weight:bold">+</span> 
+</span></span><span style="display:flex;"><span>    <span style="color:#099">-0.04</span> <span style="color:#000;font-weight:bold">*</span> temperature <span style="color:#000;font-weight:bold">-</span> <span style="color:#099">0.003</span> <span style="color:#000;font-weight:bold">*</span> temperature^2
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Trees: dominate at lower elevations and warmer temperatures</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Strong negative elevation effects with positive temperature response</span>
+</span></span><span style="display:flex;"><span>  tree_logit <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">1.2</span> <span style="color:#000;font-weight:bold">-</span> <span style="color:#099">1.5</span> <span style="color:#000;font-weight:bold">*</span> elevation <span style="color:#000;font-weight:bold">-</span> <span style="color:#099">0.3</span> <span style="color:#000;font-weight:bold">*</span> elevation^2 <span style="color:#000;font-weight:bold">+</span> 
+</span></span><span style="display:flex;"><span>    <span style="color:#099">0.15</span> <span style="color:#000;font-weight:bold">*</span> temperature <span style="color:#000;font-weight:bold">-</span> <span style="color:#099">0.005</span> <span style="color:#000;font-weight:bold">*</span> temperature^2 <span style="color:#000;font-weight:bold">+</span> <span style="color:#099">0.04</span> <span style="color:#000;font-weight:bold">*</span> elevation <span style="color:#000;font-weight:bold">*</span> temperature
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Lichens: alpine specialists preferring high elevation, cool temperatures</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Strong positive elevation effect with negative temperature preference</span>
+</span></span><span style="display:flex;"><span>  lichen_logit <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">-1.8</span> <span style="color:#000;font-weight:bold">+</span> <span style="color:#099">1.2</span> <span style="color:#000;font-weight:bold">*</span> elevation <span style="color:#000;font-weight:bold">+</span> <span style="color:#099">0.1</span> <span style="color:#000;font-weight:bold">*</span> elevation^2 <span style="color:#000;font-weight:bold">+</span> 
+</span></span><span style="display:flex;"><span>    <span style="color:#099">-0.1</span> <span style="color:#000;font-weight:bold">*</span> temperature <span style="color:#000;font-weight:bold">+</span> <span style="color:#099">0.003</span> <span style="color:#000;font-weight:bold">*</span> temperature^2
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Apply softmax transformation to ensure probabilities sum to 1</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># This converts unconstrained logits to valid probability simplex</span>
+</span></span><span style="display:flex;"><span>  logits <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">cbind</span>(
+</span></span><span style="display:flex;"><span>    grass_logit, 
+</span></span><span style="display:flex;"><span>    forb_logit, 
+</span></span><span style="display:flex;"><span>    shrub_logit, 
+</span></span><span style="display:flex;"><span>    tree_logit, 
+</span></span><span style="display:flex;"><span>    lichen_logit
+</span></span><span style="display:flex;"><span>  )
+</span></span><span style="display:flex;"><span>  exp_logits <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">exp</span>(logits)
+</span></span><span style="display:flex;"><span>  probs <span style="color:#000;font-weight:bold">&lt;-</span> exp_logits <span style="color:#000;font-weight:bold">/</span> <span style="color:#900;font-weight:bold">rowSums</span>(exp_logits)
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Set constant precision parameter for all sites</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># This keeps the focus on mean compositional responses</span>
+</span></span><span style="display:flex;"><span>  precision <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">exp</span>(<span style="color:#099">3</span>)
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Generate Dirichlet-distributed compositions</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Each site gets alpha parameters = expected proportions * precision</span>
+</span></span><span style="display:flex;"><span>  compositions <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">matrix</span>(<span style="color:#000;font-weight:bold">NA</span>, nrow <span style="color:#000;font-weight:bold">=</span> n_sites, ncol <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">5</span>)
+</span></span><span style="display:flex;"><span>  <span style="color:#000;font-weight:bold">for</span> (i <span style="color:#000;font-weight:bold">in</span> <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span>n_sites) {
+</span></span><span style="display:flex;"><span>    alpha_params <span style="color:#000;font-weight:bold">&lt;-</span> probs[i, ] <span style="color:#000;font-weight:bold">*</span> precision
+</span></span><span style="display:flex;"><span>    compositions[i, ] <span style="color:#000;font-weight:bold">&lt;-</span> brms<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">rdirichlet</span>(<span style="color:#099">1</span>, alpha_params)
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Add small offset and renormalize to ensure no exact zeros</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Dirichlet distribution requires all components &gt; 0</span>
+</span></span><span style="display:flex;"><span>  offset <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">0.001</span>
+</span></span><span style="display:flex;"><span>  compositions <span style="color:#000;font-weight:bold">&lt;-</span> compositions <span style="color:#000;font-weight:bold">+</span> offset
+</span></span><span style="display:flex;"><span>  compositions <span style="color:#000;font-weight:bold">&lt;-</span> compositions <span style="color:#000;font-weight:bold">/</span> <span style="color:#900;font-weight:bold">rowSums</span>(compositions)
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Return structured data frame with environmental predictors and compositions</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">data.frame</span>(
+</span></span><span style="display:flex;"><span>    site_id <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span>n_sites,
+</span></span><span style="display:flex;"><span>    elevation <span style="color:#000;font-weight:bold">=</span> elevation,
+</span></span><span style="display:flex;"><span>    temperature <span style="color:#000;font-weight:bold">=</span> temperature, 
+</span></span><span style="display:flex;"><span>    grass <span style="color:#000;font-weight:bold">=</span> compositions[, <span style="color:#099">1</span>],
+</span></span><span style="display:flex;"><span>    forb <span style="color:#000;font-weight:bold">=</span> compositions[, <span style="color:#099">2</span>],
+</span></span><span style="display:flex;"><span>    shrub <span style="color:#000;font-weight:bold">=</span> compositions[, <span style="color:#099">3</span>], 
+</span></span><span style="display:flex;"><span>    tree <span style="color:#000;font-weight:bold">=</span> compositions[, <span style="color:#099">4</span>],
+</span></span><span style="display:flex;"><span>    lichen <span style="color:#000;font-weight:bold">=</span> compositions[, <span style="color:#099">5</span>]
+</span></span><span style="display:flex;"><span>  )
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>plant_data <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">simulate_plant_community</span>()
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Define functional groups for consistent use across analysis</span>
+</span></span><span style="display:flex;"><span>functional_groups <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;forb&#34;</span>, <span style="color:#d14">&#34;grass&#34;</span>, <span style="color:#d14">&#34;lichen&#34;</span>, <span style="color:#d14">&#34;shrub&#34;</span>, <span style="color:#d14">&#34;tree&#34;</span>)
+</span></span></code></pre></div><p>Let&rsquo;s verify our simulated compositions respect the fundamental constraint that proportions must sum to unity:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Verify compositions sum to 1 (within numerical precision)</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">rowSums</span>(plant_data[, functional_groups]) <span style="color:#000;font-weight:bold">|&gt;</span> 
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">summary</span>()
+</span></span></code></pre></div><pre tabindex="0"><code>##    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+##       1       1       1       1       1       1
+</code></pre>
+
+
+
+<h2 id="exploratory-visualization">Exploratory visualization
+  <a href="#exploratory-visualization"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>These exploratory plots serve a crucial purpose before diving into modeling. The top panel shows how elevation and temperature covary in our simulated landscape—this realistic temperature lapse rate will affect how we interpret subsequent model results. The bottom panels reveal the raw compositional patterns that our Dirichlet regression will attempt to capture with smooth functions.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Visualize the environmental relationship between elevation and temperature</span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># This shows the realistic temperature-elevation gradient we simulated</span>
+</span></span><span style="display:flex;"><span>p1 <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">ggplot</span>(
+</span></span><span style="display:flex;"><span>  plant_data, 
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">aes</span>(elevation, temperature)
+</span></span><span style="display:flex;"><span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_point</span>(
+</span></span><span style="display:flex;"><span>    alpha <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.6</span>, 
+</span></span><span style="display:flex;"><span>    size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>
+</span></span><span style="display:flex;"><span>  ) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_smooth</span>(
+</span></span><span style="display:flex;"><span>    method <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;loess&#34;</span>, 
+</span></span><span style="display:flex;"><span>    se <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>, 
+</span></span><span style="display:flex;"><span>    color <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;darkred&#34;</span>, 
+</span></span><span style="display:flex;"><span>    fill <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;darkred&#34;</span>
+</span></span><span style="display:flex;"><span>  ) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">labs</span>(
+</span></span><span style="display:flex;"><span>    x <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Elevation (km)&#34;</span>, 
+</span></span><span style="display:flex;"><span>    y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Temperature (°C)&#34;</span>
+</span></span><span style="display:flex;"><span>  )
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Reshape data to long format for plotting all functional groups together</span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># This transformation allows us to visualize compositional changes efficiently</span>
+</span></span><span style="display:flex;"><span>plant_long <span style="color:#000;font-weight:bold">&lt;-</span> plant_data <span style="color:#000;font-weight:bold">|&gt;</span>
+</span></span><span style="display:flex;"><span>  dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">select</span>(
+</span></span><span style="display:flex;"><span>    elevation, 
+</span></span><span style="display:flex;"><span>    temperature, 
+</span></span><span style="display:flex;"><span>    grass<span style="color:#000;font-weight:bold">:</span>lichen
+</span></span><span style="display:flex;"><span>  ) <span style="color:#000;font-weight:bold">|&gt;</span>
+</span></span><span style="display:flex;"><span>  tidyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">pivot_longer</span>(
+</span></span><span style="display:flex;"><span>    grass<span style="color:#000;font-weight:bold">:</span>lichen, 
+</span></span><span style="display:flex;"><span>    names_to <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;functional_group&#34;</span>, 
+</span></span><span style="display:flex;"><span>    values_to <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;proportion&#34;</span>
+</span></span><span style="display:flex;"><span>  )
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Visualize how community composition changes along elevation gradient</span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Each functional group shows distinct elevational preferences</span>
+</span></span><span style="display:flex;"><span>p2 <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">ggplot</span>(
+</span></span><span style="display:flex;"><span>  plant_long, 
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">aes</span>(
+</span></span><span style="display:flex;"><span>    elevation, 
+</span></span><span style="display:flex;"><span>    proportion, 
+</span></span><span style="display:flex;"><span>    color <span style="color:#000;font-weight:bold">=</span> functional_group
+</span></span><span style="display:flex;"><span>  )
+</span></span><span style="display:flex;"><span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_point</span>(alpha <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.4</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_smooth</span>(
+</span></span><span style="display:flex;"><span>    method <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;loess&#34;</span>, 
+</span></span><span style="display:flex;"><span>    se <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">FALSE</span>, 
+</span></span><span style="display:flex;"><span>    linewidth <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>
+</span></span><span style="display:flex;"><span>  ) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">scale_color_viridis_d</span>(name <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Functional\nGroup&#34;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">lims</span>(y <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">0</span>, <span style="color:#099">1</span>)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">labs</span>(
+</span></span><span style="display:flex;"><span>    x <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Elevation (km)&#34;</span>, 
+</span></span><span style="display:flex;"><span>    y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Relative abundance&#34;</span>
+</span></span><span style="display:flex;"><span>  )
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Visualize how community composition changes along temperature gradient</span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Temperature effects complement elevation patterns in shaping communities</span>
+</span></span><span style="display:flex;"><span>p3 <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">ggplot</span>(
+</span></span><span style="display:flex;"><span>  plant_long, 
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">aes</span>(
+</span></span><span style="display:flex;"><span>    temperature, 
+</span></span><span style="display:flex;"><span>    proportion, 
+</span></span><span style="display:flex;"><span>    color <span style="color:#000;font-weight:bold">=</span> functional_group
+</span></span><span style="display:flex;"><span>  )
+</span></span><span style="display:flex;"><span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_point</span>(alpha <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.4</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_smooth</span>(
+</span></span><span style="display:flex;"><span>    method <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;loess&#34;</span>, 
+</span></span><span style="display:flex;"><span>    se <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">FALSE</span>, 
+</span></span><span style="display:flex;"><span>    linewidth <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>
+</span></span><span style="display:flex;"><span>  ) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">scale_color_viridis_d</span>(name <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Functional\nGroup&#34;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">lims</span>(y <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">0</span>, <span style="color:#099">1</span>)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">labs</span>(
+</span></span><span style="display:flex;"><span>    x <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Temperature (°C)&#34;</span>, 
+</span></span><span style="display:flex;"><span>    y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;&#34;</span>
+</span></span><span style="display:flex;"><span>  )
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Create a more compact legend with smaller text and tighter spacing</span>
+</span></span><span style="display:flex;"><span>p2_compact_legend <span style="color:#000;font-weight:bold">&lt;-</span> p2 <span style="color:#000;font-weight:bold">+</span> 
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">theme</span>(
+</span></span><span style="display:flex;"><span>    legend.title <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">element_text</span>(size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">9</span>),
+</span></span><span style="display:flex;"><span>    legend.text <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">element_text</span>(size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">8</span>),
+</span></span><span style="display:flex;"><span>    legend.key.size <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">unit</span>(<span style="color:#099">0.8</span>, <span style="color:#d14">&#34;lines&#34;</span>),
+</span></span><span style="display:flex;"><span>    legend.margin <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">margin</span>(<span style="color:#099">0</span>, <span style="color:#099">0</span>, <span style="color:#099">0</span>, <span style="color:#099">0</span>),
+</span></span><span style="display:flex;"><span>    legend.box.margin <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">margin</span>(<span style="color:#099">0</span>, <span style="color:#099">0</span>, <span style="color:#099">0</span>, <span style="color:#099">5</span>)
+</span></span><span style="display:flex;"><span>  )
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Extract the compact legend</span>
+</span></span><span style="display:flex;"><span>legend <span style="color:#000;font-weight:bold">&lt;-</span> cowplot<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">get_legend</span>(p2_compact_legend)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Remove legends from both composition plots</span>
+</span></span><span style="display:flex;"><span>p2_no_legend <span style="color:#000;font-weight:bold">&lt;-</span> p2 <span style="color:#000;font-weight:bold">+</span> <span style="color:#900;font-weight:bold">theme</span>(legend.position <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;none&#34;</span>)
+</span></span><span style="display:flex;"><span>p3_no_legend <span style="color:#000;font-weight:bold">&lt;-</span> p3 <span style="color:#000;font-weight:bold">+</span> <span style="color:#900;font-weight:bold">theme</span>(legend.position <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;none&#34;</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Combine bottom plots first, then add legend</span>
+</span></span><span style="display:flex;"><span>bottom_row <span style="color:#000;font-weight:bold">&lt;-</span> (p2_no_legend <span style="color:#000;font-weight:bold">|</span> p3_no_legend <span style="color:#000;font-weight:bold">|</span> legend) <span style="color:#000;font-weight:bold">+</span> 
+</span></span><span style="display:flex;"><span>  patchwork<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">plot_layout</span>(widths <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">9</span>, <span style="color:#099">9</span>, <span style="color:#099">2</span>))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Combine top and bottom</span>
+</span></span><span style="display:flex;"><span>p1 <span style="color:#000;font-weight:bold">/</span> bottom_row
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/plant-community-dirichlet/index_files/figure-html/unnamed-chunk-6-1.png" width="60%" style="display: block; margin: auto;" />
+
+
+
+
+<h2 id="dirichlet-regression-with-gaussian-processes">Dirichlet regression with Gaussian processes
+  <a href="#dirichlet-regression-with-gaussian-processes"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>Now comes the core modeling step: fitting Dirichlet regression with bivariate Gaussian process smooths. But first, let me explain why Gaussian processes are particularly well-suited for this ecological problem.</p>
+<p>Why choose Gaussian processes over other smoothing methods? Standard approaches like polynomial regression or splines make strong assumptions about functional form. Polynomials assume global relationships, while splines assume local smoothness within predefined knots. Gaussian processes, by contrast, are non-parametric: they let the data determine the appropriate level of smoothness at each point in covariate space. This flexibility is crucial for ecological data where relationships might be smooth in some regions (gradual transitions between communities) but abrupt in others (sharp ecotones at treelines).</p>
+<p>Traditional GPs face a computational challenge: they scale as O(n³) with sample size, making them impractical for datasets with more than 500 observations. The approximate Hilbert space Gaussian processes implemented in <code>brms</code> use basis function expansions that reduce this to O(n), enabling GP flexibility on realistic ecological datasets. This isn&rsquo;t just a computational nicety, it opens up sophisticated nonparametric modeling for the sample sizes we actually encounter in field studies.</p>
+<p>The compositional modeling advantage here is that we can model each functional group&rsquo;s response surface simultaneously while respecting compositional constraints. Unlike separate GAMs for each species that might predict impossible total abundances, Dirichlet regression with GPs ensures all predictions lie on the probability simplex.</p>
+<p>For the GP kernel, I use the exponential covariance function rather than the more common squared exponential (RBF) kernel. The exponential kernel is computationally more efficient in the Hilbert space approximation while still capturing smooth nonlinear relationships. This makes the difference between a model that fits in minutes versus hours for ecological datasets.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Prepare response matrix for Dirichlet regression</span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Each row represents a site&#39;s complete community composition</span>
+</span></span><span style="display:flex;"><span>Y <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">with</span>(
+</span></span><span style="display:flex;"><span>  plant_data, 
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">cbind</span>(
+</span></span><span style="display:flex;"><span>    grass, 
+</span></span><span style="display:flex;"><span>    forb, 
+</span></span><span style="display:flex;"><span>    shrub, 
+</span></span><span style="display:flex;"><span>    tree, 
+</span></span><span style="display:flex;"><span>    lichen
+</span></span><span style="display:flex;"><span>  )
+</span></span><span style="display:flex;"><span>)
+</span></span><span style="display:flex;"><span>plant_data<span style="color:#000;font-weight:bold">$</span>Y <span style="color:#000;font-weight:bold">&lt;-</span> Y
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Verify no zeros exist (Dirichlet distribution requires positive values)</span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Our simulation ensures this, but it&#39;s good practice to check</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">min</span>(Y)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Specify model formula with bivariate Gaussian process smooth</span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># k=10 basis functions provide good balance between flexibility and efficiency</span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># c=5/4 sets the boundary factor for the approximation</span>
+</span></span><span style="display:flex;"><span>model_formula <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">bf</span>(
+</span></span><span style="display:flex;"><span>  Y <span style="color:#000;font-weight:bold">~</span> <span style="color:#900;font-weight:bold">gp</span>(
+</span></span><span style="display:flex;"><span>    elevation, 
+</span></span><span style="display:flex;"><span>    temperature, 
+</span></span><span style="display:flex;"><span>    k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">10</span>, 
+</span></span><span style="display:flex;"><span>    c <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">5</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">4</span>, 
+</span></span><span style="display:flex;"><span>    cov <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;exponential&#34;</span>
+</span></span><span style="display:flex;"><span>  )
+</span></span><span style="display:flex;"><span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Fit Dirichlet regression model using Stan via brms</span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># This estimates separate GP surfaces for each functional group</span>
+</span></span><span style="display:flex;"><span>plant_model <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">brm</span>(
+</span></span><span style="display:flex;"><span>  model_formula,
+</span></span><span style="display:flex;"><span>  data <span style="color:#000;font-weight:bold">=</span> plant_data,
+</span></span><span style="display:flex;"><span>  family <span style="color:#000;font-weight:bold">=</span> brms<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">dirichlet</span>(),
+</span></span><span style="display:flex;"><span>  chains <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">4</span>,
+</span></span><span style="display:flex;"><span>  iter <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2000</span>,
+</span></span><span style="display:flex;"><span>  warmup <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1000</span>,
+</span></span><span style="display:flex;"><span>  cores <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">4</span>,
+</span></span><span style="display:flex;"><span>  seed <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">42</span>,
+</span></span><span style="display:flex;"><span>  backend <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;cmdstanr&#34;</span>,
+</span></span><span style="display:flex;"><span>  silent <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>
+</span></span><span style="display:flex;"><span>)
+</span></span></code></pre></div>
+
+
+
+<h2 id="model-predictions-and-effects">Model predictions and effects
+  <a href="#model-predictions-and-effects"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>With our fitted model, we can now extract predictions across environmental gradients to understand precisely how community composition responds to elevation and temperature. This is where we transition from model fitting to interpretation, and where understanding different types of posterior predictions becomes crucial.</p>
+<p>I use <code>posterior_epred()</code> rather than <code>posterior_predict()</code> because I want the expected values of the posterior predictive distribution, not new random draws from it. Andrew Heiss has an 
+<a href="https://www.andrewheiss.com/blog/2022/09/26/guide-visualizing-types-posteriors/" target="_blank" rel="noopener">excellent guide to visualizing different types of posteriors</a> that explains these distinctions clearly. For compositional data, <code>posterior_epred()</code> gives us the model&rsquo;s best estimate of expected proportions at each environmental combination, while <code>posterior_predict()</code> would add additional Dirichlet sampling variation on top. Since we want to understand the underlying functional relationships rather than prediction intervals for new observations, <code>posterior_epred()</code> is the right choice.</p>
+<p>I&rsquo;ll create three complementary prediction scenarios: univariate effects along each environmental axis (holding the other at its mean), plus bivariate surfaces showing interactive effects. The prediction strategy here is key to interpretation. I create three different prediction grids that answer different ecological questions:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Create elevation gradient with temperature held at mean for marginal effects</span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># This asks: &#34;How does composition change with elevation at average temperature?&#34;</span>
+</span></span><span style="display:flex;"><span>elev_grid <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">data.frame</span>(
+</span></span><span style="display:flex;"><span>  elevation <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">seq</span>(
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">min</span>(plant_data<span style="color:#000;font-weight:bold">$</span>elevation), 
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">max</span>(plant_data<span style="color:#000;font-weight:bold">$</span>elevation), 
+</span></span><span style="display:flex;"><span>    length.out <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">100</span>
+</span></span><span style="display:flex;"><span>  ),
+</span></span><span style="display:flex;"><span>  temperature <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">mean</span>(plant_data<span style="color:#000;font-weight:bold">$</span>temperature)
+</span></span><span style="display:flex;"><span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Create temperature gradient with elevation held at mean for marginal effects</span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># This asks: &#34;How does composition change with temperature at average elevation?&#34;</span>
+</span></span><span style="display:flex;"><span>temp_grid <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">data.frame</span>(
+</span></span><span style="display:flex;"><span>  elevation <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">mean</span>(plant_data<span style="color:#000;font-weight:bold">$</span>elevation),
+</span></span><span style="display:flex;"><span>  temperature <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">seq</span>(
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">min</span>(plant_data<span style="color:#000;font-weight:bold">$</span>temperature), 
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">max</span>(plant_data<span style="color:#000;font-weight:bold">$</span>temperature), 
+</span></span><span style="display:flex;"><span>    length.out <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">100</span>
+</span></span><span style="display:flex;"><span>  )
+</span></span><span style="display:flex;"><span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Create bivariate prediction grid for interactive response surfaces</span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># This asks: &#34;How does composition vary across the full elevation-temperature space?&#34;</span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Coarser 20x20 grid (400 points) balances detail with computational efficiency</span>
+</span></span><span style="display:flex;"><span>elev_seq <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">seq</span>(
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">min</span>(plant_data<span style="color:#000;font-weight:bold">$</span>elevation), 
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">max</span>(plant_data<span style="color:#000;font-weight:bold">$</span>elevation), 
+</span></span><span style="display:flex;"><span>  length.out <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">20</span>
+</span></span><span style="display:flex;"><span>)
+</span></span><span style="display:flex;"><span>temp_seq <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">seq</span>(
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">min</span>(plant_data<span style="color:#000;font-weight:bold">$</span>temperature), 
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">max</span>(plant_data<span style="color:#000;font-weight:bold">$</span>temperature), 
+</span></span><span style="display:flex;"><span>  length.out <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">20</span>
+</span></span><span style="display:flex;"><span>)
+</span></span><span style="display:flex;"><span>bivariate_grid <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">expand.grid</span>(
+</span></span><span style="display:flex;"><span>  elevation <span style="color:#000;font-weight:bold">=</span> elev_seq, 
+</span></span><span style="display:flex;"><span>  temperature <span style="color:#000;font-weight:bold">=</span> temp_seq
+</span></span><span style="display:flex;"><span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Extract posterior predictions from fitted Dirichlet model</span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># posterior_epred gives expected values (means) of predictive distribution</span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># rather than new random samples, perfect for understanding relationships</span>
+</span></span><span style="display:flex;"><span>elev_post_pred <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">posterior_epred</span>(
+</span></span><span style="display:flex;"><span>  plant_model, 
+</span></span><span style="display:flex;"><span>  newdata <span style="color:#000;font-weight:bold">=</span> elev_grid, 
+</span></span><span style="display:flex;"><span>  ndraws <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">500</span>
+</span></span><span style="display:flex;"><span>)
+</span></span><span style="display:flex;"><span>temp_post_pred <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">posterior_epred</span>(
+</span></span><span style="display:flex;"><span>  plant_model, 
+</span></span><span style="display:flex;"><span>  newdata <span style="color:#000;font-weight:bold">=</span> temp_grid, 
+</span></span><span style="display:flex;"><span>  ndraws <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">500</span>
+</span></span><span style="display:flex;"><span>)
+</span></span><span style="display:flex;"><span>bivar_post_pred <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">posterior_epred</span>(
+</span></span><span style="display:flex;"><span>  plant_model, 
+</span></span><span style="display:flex;"><span>  newdata <span style="color:#000;font-weight:bold">=</span> bivariate_grid, 
+</span></span><span style="display:flex;"><span>  ndraws <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">500</span>
+</span></span><span style="display:flex;"><span>)
+</span></span></code></pre></div><p>Now I need to convert these posterior prediction arrays into something we can actually plot. The <code>posterior_epred</code> function returns a three-dimensional array: 500 posterior draws × 100 prediction points × 5 functional groups. This represents our uncertainty about expected proportions at each environmental combination.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Function to calculate summary statistics from posterior prediction draws</span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># This converts arrays of posterior samples into plottable summaries</span>
+</span></span><span style="display:flex;"><span>calc_pred_summary <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#000;font-weight:bold">function</span>(post_draws, grid_data) {
+</span></span><span style="display:flex;"><span>  n_cats <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">dim</span>(post_draws)[3]
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Validate dimensions match expected functional groups</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># This catches potential mismatches between model and data</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#000;font-weight:bold">if</span> (n_cats <span style="color:#000;font-weight:bold">!=</span> <span style="color:#900;font-weight:bold">length</span>(functional_groups)) {
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">stop</span>(
+</span></span><span style="display:flex;"><span>      <span style="color:#d14">&#34;Number of categories in posterior draws (&#34;</span>, n_cats, 
+</span></span><span style="display:flex;"><span>      <span style="color:#d14">&#34;) doesn&#39;t match functional groups (&#34;</span>, <span style="color:#900;font-weight:bold">length</span>(functional_groups), <span style="color:#d14">&#34;)&#34;</span>
+</span></span><span style="display:flex;"><span>    )
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  result <span style="color:#000;font-weight:bold">&lt;-</span> grid_data
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Calculate summary statistics for each functional group</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Mean captures central tendency, quantiles provide uncertainty</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#000;font-weight:bold">for</span> (i <span style="color:#000;font-weight:bold">in</span> <span style="color:#900;font-weight:bold">seq_along</span>(functional_groups)) {
+</span></span><span style="display:flex;"><span>    cat_name <span style="color:#000;font-weight:bold">&lt;-</span> functional_groups[i]
+</span></span><span style="display:flex;"><span>    cat_draws <span style="color:#000;font-weight:bold">&lt;-</span> post_draws[, , i]
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># Calculate posterior mean and 95% credible intervals efficiently</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># This summarizes 500 posterior draws into point estimates + uncertainty</span>
+</span></span><span style="display:flex;"><span>    stats <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">apply</span>(
+</span></span><span style="display:flex;"><span>      cat_draws, 
+</span></span><span style="display:flex;"><span>      <span style="color:#099">2</span>, 
+</span></span><span style="display:flex;"><span>      <span style="color:#000;font-weight:bold">function</span>(x) {
+</span></span><span style="display:flex;"><span>        <span style="color:#900;font-weight:bold">c</span>(
+</span></span><span style="display:flex;"><span>          mean <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">mean</span>(x), 
+</span></span><span style="display:flex;"><span>          lower <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">quantile</span>(x, <span style="color:#099">0.025</span>, names <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">FALSE</span>),
+</span></span><span style="display:flex;"><span>          upper <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">quantile</span>(x, <span style="color:#099">0.975</span>, names <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">FALSE</span>)
+</span></span><span style="display:flex;"><span>        )
+</span></span><span style="display:flex;"><span>      }
+</span></span><span style="display:flex;"><span>    )
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># Assign summary statistics to result dataframe with clear naming</span>
+</span></span><span style="display:flex;"><span>    result[<span style="color:#900;font-weight:bold">[paste0</span>(cat_name, <span style="color:#d14">&#34;_mean&#34;</span>)]] <span style="color:#000;font-weight:bold">&lt;-</span> stats[<span style="color:#d14">&#34;mean&#34;</span>, ]
+</span></span><span style="display:flex;"><span>    result[<span style="color:#900;font-weight:bold">[paste0</span>(cat_name, <span style="color:#d14">&#34;_lower&#34;</span>)]] <span style="color:#000;font-weight:bold">&lt;-</span> stats[<span style="color:#d14">&#34;lower&#34;</span>, ]
+</span></span><span style="display:flex;"><span>    result[<span style="color:#900;font-weight:bold">[paste0</span>(cat_name, <span style="color:#d14">&#34;_upper&#34;</span>)]] <span style="color:#000;font-weight:bold">&lt;-</span> stats[<span style="color:#d14">&#34;upper&#34;</span>, ]
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#000;font-weight:bold">return</span>(result)
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Apply summary function to convert posterior arrays to dataframes</span>
+</span></span><span style="display:flex;"><span>elev_summary <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">calc_pred_summary</span>(elev_post_pred, elev_grid)
+</span></span><span style="display:flex;"><span>temp_summary <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">calc_pred_summary</span>(temp_post_pred, temp_grid)
+</span></span><span style="display:flex;"><span>bivar_summary <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">calc_pred_summary</span>(bivar_post_pred, bivariate_grid)
+</span></span></code></pre></div>
+
+
+
+<h2 id="marginal-effects-univariate-environmental-responses">Marginal effects: univariate environmental responses
+  <a href="#marginal-effects-univariate-environmental-responses"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>Marginal effects plots reveal how each functional group responds to single environmental gradients while holding other variables constant. These plots answer questions like &ldquo;How does community composition change as I walk up an elevation transect at average temperature?&rdquo; The ribbons around each line represent our uncertainty about these relationships. Wider ribbons indicate less confidence, typically where we have fewer data points or the GP is interpolating across larger gaps.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Function to create marginal effects plots for any environmental variable</span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># This unified approach ensures consistent styling across all visualizations</span>
+</span></span><span style="display:flex;"><span>create_marginal_plot <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#000;font-weight:bold">function</span>(pred_data, x_var, x_label) {
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Reshape prediction data from wide to long format for ggplot</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Extract only the focal variable and all functional group statistics</span>
+</span></span><span style="display:flex;"><span>  plot_data <span style="color:#000;font-weight:bold">&lt;-</span> pred_data <span style="color:#000;font-weight:bold">|&gt;</span>
+</span></span><span style="display:flex;"><span>    dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">select</span>(
+</span></span><span style="display:flex;"><span>      dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">all_of</span>(x_var), 
+</span></span><span style="display:flex;"><span>      dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">matches</span>(
+</span></span><span style="display:flex;"><span>        <span style="color:#900;font-weight:bold">paste0</span>(
+</span></span><span style="display:flex;"><span>          <span style="color:#d14">&#34;(&#34;</span>, 
+</span></span><span style="display:flex;"><span>          <span style="color:#900;font-weight:bold">paste</span>(functional_groups, collapse <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;|&#34;</span>), 
+</span></span><span style="display:flex;"><span>          <span style="color:#d14">&#34;)_(mean|lower|upper)$&#34;</span>
+</span></span><span style="display:flex;"><span>        )
+</span></span><span style="display:flex;"><span>      )
+</span></span><span style="display:flex;"><span>    ) <span style="color:#000;font-weight:bold">|&gt;</span>
+</span></span><span style="display:flex;"><span>    tidyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">pivot_longer</span>(
+</span></span><span style="display:flex;"><span>      cols <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">-</span>dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">all_of</span>(x_var),
+</span></span><span style="display:flex;"><span>      names_to <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;functional_group&#34;</span>, <span style="color:#d14">&#34;stat&#34;</span>),
+</span></span><span style="display:flex;"><span>      names_pattern <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;(.+)_(mean|lower|upper)$&#34;</span>,
+</span></span><span style="display:flex;"><span>      values_to <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;value&#34;</span>
+</span></span><span style="display:flex;"><span>    ) <span style="color:#000;font-weight:bold">|&gt;</span>
+</span></span><span style="display:flex;"><span>    tidyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">pivot_wider</span>(
+</span></span><span style="display:flex;"><span>      names_from <span style="color:#000;font-weight:bold">=</span> stat, 
+</span></span><span style="display:flex;"><span>      values_from <span style="color:#000;font-weight:bold">=</span> value
+</span></span><span style="display:flex;"><span>    )
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Create ggplot with ribbon for uncertainty and line for mean response</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Consistent styling across all marginal effects plots</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">ggplot</span>(
+</span></span><span style="display:flex;"><span>    plot_data, 
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">aes</span>(
+</span></span><span style="display:flex;"><span>      x <span style="color:#000;font-weight:bold">=</span> .data[[x_var]], 
+</span></span><span style="display:flex;"><span>      y <span style="color:#000;font-weight:bold">=</span> mean, 
+</span></span><span style="display:flex;"><span>      color <span style="color:#000;font-weight:bold">=</span> functional_group, 
+</span></span><span style="display:flex;"><span>      fill <span style="color:#000;font-weight:bold">=</span> functional_group
+</span></span><span style="display:flex;"><span>    )
+</span></span><span style="display:flex;"><span>  ) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">geom_ribbon</span>(
+</span></span><span style="display:flex;"><span>      <span style="color:#900;font-weight:bold">aes</span>(
+</span></span><span style="display:flex;"><span>        ymin <span style="color:#000;font-weight:bold">=</span> lower, 
+</span></span><span style="display:flex;"><span>        ymax <span style="color:#000;font-weight:bold">=</span> upper
+</span></span><span style="display:flex;"><span>      ), 
+</span></span><span style="display:flex;"><span>      alpha <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.2</span>, 
+</span></span><span style="display:flex;"><span>      color <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">NA</span>
+</span></span><span style="display:flex;"><span>    ) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">geom_line</span>(linewidth <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1.2</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">scale_color_viridis_d</span>(
+</span></span><span style="display:flex;"><span>      name <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Functional\nGroup&#34;</span>, 
+</span></span><span style="display:flex;"><span>      option <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;D&#34;</span>
+</span></span><span style="display:flex;"><span>    ) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">scale_fill_viridis_d</span>(
+</span></span><span style="display:flex;"><span>      name <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Functional\nGroup&#34;</span>, 
+</span></span><span style="display:flex;"><span>      option <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;D&#34;</span>
+</span></span><span style="display:flex;"><span>    ) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">labs</span>(
+</span></span><span style="display:flex;"><span>      x <span style="color:#000;font-weight:bold">=</span> x_label, 
+</span></span><span style="display:flex;"><span>      y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Predicted Proportion&#34;</span>
+</span></span><span style="display:flex;"><span>    ) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">theme</span>(legend.position <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;right&#34;</span>)
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Generate marginal effects plots</span>
+</span></span><span style="display:flex;"><span>p_elevation <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">create_marginal_plot</span>(
+</span></span><span style="display:flex;"><span>  elev_summary, 
+</span></span><span style="display:flex;"><span>  <span style="color:#d14">&#34;elevation&#34;</span>, 
+</span></span><span style="display:flex;"><span>  <span style="color:#d14">&#34;Elevation (km)&#34;</span>
+</span></span><span style="display:flex;"><span>)
+</span></span><span style="display:flex;"><span>p_temperature <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">create_marginal_plot</span>(
+</span></span><span style="display:flex;"><span>  temp_summary, 
+</span></span><span style="display:flex;"><span>  <span style="color:#d14">&#34;temperature&#34;</span>, 
+</span></span><span style="display:flex;"><span>  <span style="color:#d14">&#34;Temperature (°C)&#34;</span>
+</span></span><span style="display:flex;"><span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Display elevation effects</span>
+</span></span><span style="display:flex;"><span>p_elevation
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/plant-community-dirichlet/index_files/figure-html/unnamed-chunk-10-1.png" width="60%" style="display: block; margin: auto;" />
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Display temperature effects</span>
+</span></span><span style="display:flex;"><span>p_temperature
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/plant-community-dirichlet/index_files/figure-html/unnamed-chunk-11-1.png" width="60%" style="display: block; margin: auto;" />
+<p>These marginal effects reveal clear ecological zonation patterns. The elevation responses show grasses peaking around 1.5km elevation, consistent with montane grassland ecology. Trees decline steadily with elevation from maximum abundance at low elevations, capturing realistic treeline dynamics. Lichens show the opposite pattern, with minimal presence below 2km but increasing dramatically at high elevations where harsh conditions exclude other functional groups.</p>
+<p>The temperature responses show equally complex patterns. Lichens dominate at the coldest temperatures (~8°C), decline at moderate temperatures, then increase again toward warmer conditions, creating a bimodal response. Grasses show a complex multimodal temperature response with peaks around 11°C and 20°C. Trees exhibit a strong positive response to warming, reaching maximum abundance around 25°C. Forbs and shrubs remain relatively stable across temperature gradients.</p>
+
+
+
+
+<h2 id="visualizing-predicted-communities-with-waffle-plots">Visualizing predicted communities with waffle plots
+  <a href="#visualizing-predicted-communities-with-waffle-plots"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>Before diving into complex bivariate surfaces, let&rsquo;s visualize what these predicted communities actually look like at specific elevations. Waffle plots provide an intuitive representation where each square represents an individual plant, making abstract proportions concrete and interpretable.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Prepare data for multiple elevations</span>
+</span></span><span style="display:flex;"><span>elev_values <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">1.2</span>, <span style="color:#099">1.6</span>, <span style="color:#099">2.0</span>, <span style="color:#099">2.4</span>, <span style="color:#099">2.8</span>, <span style="color:#099">3.2</span>)
+</span></span><span style="display:flex;"><span>total_plants <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">50</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Build waffle data for all elevations</span>
+</span></span><span style="display:flex;"><span>all_waffle_data <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#000;font-weight:bold">NULL</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">for</span> (elev <span style="color:#000;font-weight:bold">in</span> elev_values) {
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Prepare prediction point at mean temperature</span>
+</span></span><span style="display:flex;"><span>  pred_point <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">data.frame</span>(
+</span></span><span style="display:flex;"><span>    elevation <span style="color:#000;font-weight:bold">=</span> elev,
+</span></span><span style="display:flex;"><span>    temperature <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">mean</span>(plant_data<span style="color:#000;font-weight:bold">$</span>temperature)
+</span></span><span style="display:flex;"><span>  )
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Get predictions</span>
+</span></span><span style="display:flex;"><span>  pred <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">posterior_epred</span>(
+</span></span><span style="display:flex;"><span>    plant_model, 
+</span></span><span style="display:flex;"><span>    newdata <span style="color:#000;font-weight:bold">=</span> pred_point, 
+</span></span><span style="display:flex;"><span>    ndraws <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">100</span>
+</span></span><span style="display:flex;"><span>  )
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Calculate mean proportions</span>
+</span></span><span style="display:flex;"><span>  mean_props <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">apply</span>(pred[, <span style="color:#099">1</span>, ], <span style="color:#099">2</span>, mean)
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Convert to counts ensuring sum equals total_plants</span>
+</span></span><span style="display:flex;"><span>  counts <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">round</span>(mean_props <span style="color:#000;font-weight:bold">*</span> total_plants)
+</span></span><span style="display:flex;"><span>  <span style="color:#000;font-weight:bold">if</span> (<span style="color:#900;font-weight:bold">sum</span>(counts) <span style="color:#000;font-weight:bold">!=</span> total_plants) {
+</span></span><span style="display:flex;"><span>    diff <span style="color:#000;font-weight:bold">&lt;-</span> total_plants <span style="color:#000;font-weight:bold">-</span> <span style="color:#900;font-weight:bold">sum</span>(counts)
+</span></span><span style="display:flex;"><span>    max_idx <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">which.max</span>(counts)
+</span></span><span style="display:flex;"><span>    counts[max_idx] <span style="color:#000;font-weight:bold">&lt;-</span> counts[max_idx] <span style="color:#000;font-weight:bold">+</span> diff
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Create expanded data for this elevation (one row per plant)</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#000;font-weight:bold">for</span> (i <span style="color:#000;font-weight:bold">in</span> <span style="color:#900;font-weight:bold">seq_along</span>(functional_groups)) {
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">if</span> (counts[i] <span style="color:#000;font-weight:bold">&gt;</span> <span style="color:#099">0</span>) {
+</span></span><span style="display:flex;"><span>      elev_data <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">data.frame</span>(
+</span></span><span style="display:flex;"><span>        elevation <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">factor</span>(
+</span></span><span style="display:flex;"><span>          <span style="color:#900;font-weight:bold">paste0</span>(elev, <span style="color:#d14">&#34;km&#34;</span>), 
+</span></span><span style="display:flex;"><span>          levels <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">paste0</span>(elev_values, <span style="color:#d14">&#34;km&#34;</span>)
+</span></span><span style="display:flex;"><span>        ),
+</span></span><span style="display:flex;"><span>        functional_group <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">factor</span>(
+</span></span><span style="display:flex;"><span>          functional_groups[i], 
+</span></span><span style="display:flex;"><span>          levels <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;forb&#34;</span>, <span style="color:#d14">&#34;grass&#34;</span>, <span style="color:#d14">&#34;lichen&#34;</span>, <span style="color:#d14">&#34;shrub&#34;</span>, <span style="color:#d14">&#34;tree&#34;</span>)
+</span></span><span style="display:flex;"><span>        ),
+</span></span><span style="display:flex;"><span>        count <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">rep</span>(<span style="color:#099">1</span>, counts[i])
+</span></span><span style="display:flex;"><span>      )
+</span></span><span style="display:flex;"><span>      all_waffle_data <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">rbind</span>(all_waffle_data, elev_data)
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Create faceted waffle plot</span>
+</span></span><span style="display:flex;"><span>all_waffle_data <span style="color:#000;font-weight:bold">|&gt;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">ggplot</span>(
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">aes</span>(
+</span></span><span style="display:flex;"><span>      fill <span style="color:#000;font-weight:bold">=</span> functional_group, 
+</span></span><span style="display:flex;"><span>      values <span style="color:#000;font-weight:bold">=</span> count
+</span></span><span style="display:flex;"><span>    )
+</span></span><span style="display:flex;"><span>  ) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  waffle<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">geom_waffle</span>(
+</span></span><span style="display:flex;"><span>    n_rows <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">10</span>,
+</span></span><span style="display:flex;"><span>    size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.3</span>,
+</span></span><span style="display:flex;"><span>    colour <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;white&#34;</span>,
+</span></span><span style="display:flex;"><span>    flip <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>,
+</span></span><span style="display:flex;"><span>    make_proportional <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">FALSE</span>
+</span></span><span style="display:flex;"><span>  ) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">facet_wrap</span>(
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">~</span> elevation, 
+</span></span><span style="display:flex;"><span>    nrow <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>
+</span></span><span style="display:flex;"><span>  ) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">scale_fill_viridis_d</span>(
+</span></span><span style="display:flex;"><span>    name <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Functional Group&#34;</span>,
+</span></span><span style="display:flex;"><span>    option <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;D&#34;</span>
+</span></span><span style="display:flex;"><span>  ) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">coord_equal</span>() <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">theme_minimal</span>(base_size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">15</span>, base_family <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;serif&#39;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">theme</span>(
+</span></span><span style="display:flex;"><span>    legend.position <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;bottom&#34;</span>,
+</span></span><span style="display:flex;"><span>    legend.direction <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;horizontal&#34;</span>,
+</span></span><span style="display:flex;"><span>    strip.background <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">element_blank</span>(),
+</span></span><span style="display:flex;"><span>    panel.grid <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">element_blank</span>(),
+</span></span><span style="display:flex;"><span>    panel.background <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">element_blank</span>(),
+</span></span><span style="display:flex;"><span>    axis.text <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">element_blank</span>(),
+</span></span><span style="display:flex;"><span>    axis.title <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">element_blank</span>(),
+</span></span><span style="display:flex;"><span>    axis.ticks <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">element_blank</span>()
+</span></span><span style="display:flex;"><span>  ) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">guides</span>(
+</span></span><span style="display:flex;"><span>    fill <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">guide_legend</span>(
+</span></span><span style="display:flex;"><span>      nrow <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>,
+</span></span><span style="display:flex;"><span>      title.position <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;top&#34;</span>,
+</span></span><span style="display:flex;"><span>      title.hjust <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.5</span>
+</span></span><span style="display:flex;"><span>    )
+</span></span><span style="display:flex;"><span>  )
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/plant-community-dirichlet/index_files/figure-html/unnamed-chunk-12-1.png" width="60%" style="display: block; margin: auto;" />
+<p>These waffle plots make the compositional changes tangible. At low elevations (1.2km), grasses (blue squares) dominate with trees (yellow) as codominants and small amounts of forbs (purple). Moving upslope to 1.6km, grasses remain dominant but trees and shrubs (green) become more prominent. At 2.0km, we see the beginning of the major transition as lichens (teal) start appearing significantly alongside the still-dominant grasses. By 2.4km, lichens become the dominant functional group with grasses remaining substantial. At the highest elevation (3.2km), lichens overwhelmingly dominate the alpine community. Each square represents an individual plant out of 50 total, so readers can literally count how community composition shifts from grass-tree lowlands to lichen-dominated alpine zones, much more intuitive than abstract proportions.</p>
+
+
+
+
+<h2 id="bivariate-surfaces-capturing-environmental-interactions">Bivariate surfaces: capturing environmental interactions
+  <a href="#bivariate-surfaces-capturing-environmental-interactions"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>While marginal effects are useful, they miss a crucial aspect of ecological reality: environmental variables interact. Temperature and elevation don&rsquo;t operate independently. Their combined effects often differ from what we&rsquo;d predict by simply adding their separate influences. Bivariate response surfaces reveal these interactions by showing how functional groups respond across the full environmental space.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Function to create bivariate response surface for focal functional group</span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Shows how group abundance varies across both environmental dimensions</span>
+</span></span><span style="display:flex;"><span>create_bivariate_plot <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#000;font-weight:bold">function</span>(pred_data, focal_group <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;grass&#34;</span>) {
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Validate that focal group is one of the modeled functional groups</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#000;font-weight:bold">if</span> (<span style="color:#000;font-weight:bold">!</span>focal_group <span style="color:#000;font-weight:bold">%in%</span> functional_groups) {
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">stop</span>(
+</span></span><span style="display:flex;"><span>      <span style="color:#d14">&#34;focal_group must be one of: &#34;</span>, 
+</span></span><span style="display:flex;"><span>      <span style="color:#900;font-weight:bold">paste</span>(functional_groups, collapse <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;, &#34;</span>)
+</span></span><span style="display:flex;"><span>    )
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Construct column name and legend title for focal group</span>
+</span></span><span style="display:flex;"><span>  col_name <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">paste0</span>(focal_group, <span style="color:#d14">&#34;_mean&#34;</span>)
+</span></span><span style="display:flex;"><span>  legend_title <span style="color:#000;font-weight:bold">&lt;-</span> stringr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">str_to_title</span>(
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">paste</span>(focal_group, <span style="color:#d14">&#34;\nProportion&#34;</span>)
+</span></span><span style="display:flex;"><span>  )
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Create response surface plot with raster and contour overlay</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">ggplot</span>(
+</span></span><span style="display:flex;"><span>    pred_data, 
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">aes</span>(
+</span></span><span style="display:flex;"><span>      x <span style="color:#000;font-weight:bold">=</span> elevation, 
+</span></span><span style="display:flex;"><span>      y <span style="color:#000;font-weight:bold">=</span> temperature
+</span></span><span style="display:flex;"><span>    )
+</span></span><span style="display:flex;"><span>  ) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">geom_raster</span>(
+</span></span><span style="display:flex;"><span>      <span style="color:#900;font-weight:bold">aes</span>(fill <span style="color:#000;font-weight:bold">=</span> .data[[col_name]]), 
+</span></span><span style="display:flex;"><span>      interpolate <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>
+</span></span><span style="display:flex;"><span>    ) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">geom_contour</span>(
+</span></span><span style="display:flex;"><span>      <span style="color:#900;font-weight:bold">aes</span>(z <span style="color:#000;font-weight:bold">=</span> .data[[col_name]]), 
+</span></span><span style="display:flex;"><span>      color <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;white&#34;</span>, 
+</span></span><span style="display:flex;"><span>      alpha <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.6</span>, 
+</span></span><span style="display:flex;"><span>      size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.3</span>
+</span></span><span style="display:flex;"><span>    ) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">scale_fill_viridis_c</span>(
+</span></span><span style="display:flex;"><span>      name <span style="color:#000;font-weight:bold">=</span> legend_title, 
+</span></span><span style="display:flex;"><span>      option <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;plasma&#34;</span>
+</span></span><span style="display:flex;"><span>    ) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">labs</span>(
+</span></span><span style="display:flex;"><span>      x <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Elevation (km)&#34;</span>, 
+</span></span><span style="display:flex;"><span>      y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Temperature (°C)&#34;</span>
+</span></span><span style="display:flex;"><span>    )
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Generate bivariate surface plots for key functional groups</span>
+</span></span><span style="display:flex;"><span>p_bivariate_grass <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">create_bivariate_plot</span>(
+</span></span><span style="display:flex;"><span>  bivar_summary, 
+</span></span><span style="display:flex;"><span>  <span style="color:#d14">&#34;grass&#34;</span>
+</span></span><span style="display:flex;"><span>)
+</span></span><span style="display:flex;"><span>p_bivariate_tree <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">create_bivariate_plot</span>(
+</span></span><span style="display:flex;"><span>  bivar_summary, 
+</span></span><span style="display:flex;"><span>  <span style="color:#d14">&#34;tree&#34;</span>
+</span></span><span style="display:flex;"><span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Display grass response surface</span>
+</span></span><span style="display:flex;"><span>p_bivariate_grass
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/plant-community-dirichlet/index_files/figure-html/unnamed-chunk-13-1.png" width="60%" style="display: block; margin: auto;" />
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Display tree response surface</span>
+</span></span><span style="display:flex;"><span>p_bivariate_tree
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/plant-community-dirichlet/index_files/figure-html/unnamed-chunk-14-1.png" width="60%" style="display: block; margin: auto;" />
+<p>These bivariate surfaces reveal interactions that marginal plots miss entirely. The grass surface shows a clear &ldquo;sweet spot&rdquo; around 1.2-1.4km elevation and 12-15°C temperature, not just peak abundance at mid-elevation, but specifically at this elevation-temperature combination. The tree surface demonstrates highest abundances at the lowest elevations (1.0km) combined with the warmest temperatures (25°C), with tree proportions declining steeply as both elevation increases and temperatures cool, perfectly capturing treeline ecology.</p>
+
+
+
+
+<h2 id="model-validation-checking-our-compositional-residuals">Model validation: checking our compositional residuals
+  <a href="#model-validation-checking-our-compositional-residuals"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>Before diving into ecological interpretation, let&rsquo;s validate that our Dirichlet regression actually captures the patterns in our data. This step is crucial but often skipped in compositional analyses. I&rsquo;ll show you how to compute proper residuals for compositional data and why traditional approaches fail.</p>
+<p>Computing residuals for compositional data isn&rsquo;t straightforward. You can&rsquo;t just subtract predicted from observed proportions because this ignores the constraint that components sum to unity and the unique variance structure of the Dirichlet distribution. Following 
+<a href="https://github.com/maiermarco/DirichletReg" target="_blank" rel="noopener">Maier&rsquo;s approach in the DirichletReg package</a>, we need to account for both the mean-variance relationship and the precision parameter.</p>
+<p>The key insight is that for Dirichlet regression, the variance of each component depends on both its expected proportion μ and the overall precision φ:</p>
+<p><code>$$\text{Var}(Y_k) = \frac{\mu_k(1-\mu_k)}{1+\phi}$$</code></p>
+<p>This formula captures two important features: components with intermediate proportions (μ ≈ 0.5) have higher variance than those near 0 or 1, and higher precision φ reduces variance across all components. Traditional Pearson residuals ignore this structure entirely.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Extract fitted values from our Dirichlet model</span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># brms returns a 3D array: [sites, statistics, components]</span>
+</span></span><span style="display:flex;"><span>fitted_values <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">fitted</span>(plant_model)
+</span></span><span style="display:flex;"><span>mu <span style="color:#000;font-weight:bold">&lt;-</span> fitted_values[, <span style="color:#d14">&#34;Estimate&#34;</span>, ]  <span style="color:#998;font-style:italic"># Extract just the expected proportions</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Extract precision parameter from posterior samples</span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># In brms, phi controls the Dirichlet precision</span>
+</span></span><span style="display:flex;"><span>phi_samples <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">as_draws_df</span>(plant_model) <span style="color:#000;font-weight:bold">|&gt;</span>
+</span></span><span style="display:flex;"><span>  dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">select</span>(dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">contains</span>(<span style="color:#d14">&#34;phi&#34;</span>))
+</span></span><span style="display:flex;"><span>phi_mean <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">mean</span>(phi_samples[[1]])
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Observed compositions as matrix</span>
+</span></span><span style="display:flex;"><span>Y <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">as.matrix</span>(plant_data[, functional_groups])
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Calculate proper Dirichlet variance structure</span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># This accounts for both mean-variance relationship AND precision</span>
+</span></span><span style="display:flex;"><span>V <span style="color:#000;font-weight:bold">&lt;-</span> mu <span style="color:#000;font-weight:bold">*</span> (<span style="color:#099">1</span> <span style="color:#000;font-weight:bold">-</span> mu) <span style="color:#000;font-weight:bold">/</span> (<span style="color:#099">1</span> <span style="color:#000;font-weight:bold">+</span> phi_mean)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Standardized residuals: (observed - expected) / sqrt(variance)</span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># These should be approximately normal if our model fits well</span>
+</span></span><span style="display:flex;"><span>pearson_residuals <span style="color:#000;font-weight:bold">&lt;-</span> (Y <span style="color:#000;font-weight:bold">-</span> mu) <span style="color:#000;font-weight:bold">/</span> <span style="color:#900;font-weight:bold">sqrt</span>(V)
+</span></span></code></pre></div><p>Now let&rsquo;s examine whether our residuals show problematic patterns. Well-behaved residuals should be roughly normal and show no systematic trends across environmental gradients. If we see strong patterns, it suggests our model is missing important relationships.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Create Q-Q plots to check if standardized residuals are approximately normal</span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Reshape residuals to long format for easy plotting</span>
+</span></span><span style="display:flex;"><span>residual_long <span style="color:#000;font-weight:bold">&lt;-</span> pearson_residuals <span style="color:#000;font-weight:bold">|&gt;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">as.data.frame</span>() <span style="color:#000;font-weight:bold">|&gt;</span>
+</span></span><span style="display:flex;"><span>  dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">mutate</span>(site_id <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#900;font-weight:bold">nrow</span>(pearson_residuals)) <span style="color:#000;font-weight:bold">|&gt;</span>
+</span></span><span style="display:flex;"><span>  tidyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">pivot_longer</span>(
+</span></span><span style="display:flex;"><span>    cols <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">-</span>site_id,
+</span></span><span style="display:flex;"><span>    names_to <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;functional_group&#34;</span>,
+</span></span><span style="display:flex;"><span>    values_to <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;residual&#34;</span>
+</span></span><span style="display:flex;"><span>  )
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Q-Q plot comparing residuals to theoretical normal distribution</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">ggplot</span>(
+</span></span><span style="display:flex;"><span>  residual_long,
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">aes</span>(sample <span style="color:#000;font-weight:bold">=</span> residual, color <span style="color:#000;font-weight:bold">=</span> functional_group)
+</span></span><span style="display:flex;"><span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">stat_qq</span>(alpha <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.6</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">stat_qq_line</span>() <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">facet_wrap</span>(<span style="color:#000;font-weight:bold">~</span> functional_group, scales <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;free&#34;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">scale_color_viridis_d</span>(name <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Functional\nGroup&#34;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">labs</span>(
+</span></span><span style="display:flex;"><span>    x <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Theoretical quantiles&#34;</span>,
+</span></span><span style="display:flex;"><span>    y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Sample quantiles&#34;</span>
+</span></span><span style="display:flex;"><span>  ) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">theme</span>(legend.position <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;none&#34;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/plant-community-dirichlet/index_files/figure-html/unnamed-chunk-16-1.png" width="60%" style="display: block; margin: auto;" />
+<p>These Q-Q plots reveal how well our model captures the data structure for each functional group. Points should roughly follow the diagonal line if residuals are normally distributed. What we see here is largely reassuring: most functional groups show reasonably normal residual behavior, though some groups like forbs and lichens exhibit moderate deviations from normality in the tails.</p>
+<p>These moderate deviations aren&rsquo;t necessarily problematic. They likely reflect the ecological reality that some sites have genuinely unusual community compositions that any model would struggle to predict perfectly. The Gaussian process smooths are doing well at capturing the main compositional patterns while the Dirichlet structure ensures all predictions respect compositional constraints.</p>
+<p>Compare this to what happens with naive approaches that ignore compositional constraints. If we fit separate binomial models for each functional group, we often get predicted total abundances that exceed 100%—a mathematical impossibility that reveals fundamental model misspecification. Our Dirichlet approach automatically prevents such nonsensical predictions while providing flexible nonlinear responses through Gaussian processes.</p>
+
+
+
+
+<h2 id="model-interpretation-and-ecological-insights">Model interpretation and ecological insights
+  <a href="#model-interpretation-and-ecological-insights"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>The Dirichlet regression successfully captures the complex, nonlinear relationships between environmental gradients and plant community composition. What makes this particularly satisfying is how the model recovers the ecological patterns we built into our simulation while respecting compositional constraints.</p>
+<p>What&rsquo;s particularly elegant about this approach is how the compositional constraint enforcement works seamlessly. Unlike separate binomial models that could predict impossible total abundances exceeding 100%, our Dirichlet regression automatically ensures all predictions sum to unity. This isn&rsquo;t just a statistical nicety, it reflects the biological reality that plant communities partition available space and resources.</p>
+<p>The approximate Hilbert space Gaussian processes deserve special mention here. Traditional GP methods would be computationally prohibitive for this dataset size, but the Hilbert space approximation maintains the flexibility to capture nonlinear responses while scaling to realistic sample sizes.</p>
+
+
+
+
+<h2 id="take-home-messages">Take-home messages
+  <a href="#take-home-messages"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>Dirichlet regression with Gaussian process smooths offers a principled framework for compositional data that:</p>
+<ul>
+<li>Respects the mathematical constraints of compositional data</li>
+<li>Models dependencies between components naturally</li>
+<li>Provides flexible, nonlinear relationships via Gaussian processes</li>
+<li>Scales computationally via approximate Hilbert space methods</li>
+<li>Generates predictions that automatically satisfy compositional constraints</li>
+</ul>
+<p>For data scientists working with compositional data, whether ecological communities, market shares, time allocation, or survey responses, this framework offers a principled alternative to problematic approaches. The combination of Dirichlet regression with approximate Gaussian processes provides both statistical rigor and computational tractability. Most importantly, it generates predictions that respect the mathematical structure of your data, avoiding the impossible predictions that plague naive approaches.</p>
+<p>I&rsquo;d encourage you to try this approach on your own compositional datasets. The <code>brms</code> package makes implementation remarkably straightforward, and the computational efficiency of approximate GPs means you can fit these models on realistic dataset sizes without specialized hardware. The investment in learning this framework pays dividends in more reliable predictions and deeper insights into how your compositions respond to predictors.  Plus, you&rsquo;ll never again have to explain to a collaborator why your separate logistic regressions predict that 130% of survey respondents chose option A. If you&rsquo;re new to Bayesian modeling in ecology, I cover 
+<a href="https://ecogambler.netlify.app/talk/" target="_blank" rel="noopener">getting started with mvgam and brms for ecological data</a> in many of my talks.</p>
+
+
+
+
+<h2 id="further-reading">Further reading
+  <a href="#further-reading"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>The following papers and resources offer useful material for working with compositional data analysis and Gaussian processes</p>
+<p>Aitchison, J. (1986). 
+<a href="https://books.google.com/books/about/The_Statistical_Analysis_of_Compositiona.html?id=b_2YQgAACAAJ" target="_blank" rel="noopener">The Statistical Analysis of Compositional Data</a>. <em>Chapman and Hall</em>, London.</p>
+<p>van den Boogaart, K. G., &amp; Tolosana-Delgado, R. (2013). 
+<a href="https://doi.org/10.1007/978-3-642-36809-7" target="_blank" rel="noopener">Analyzing compositional data with R</a>. <em>Springer</em>.</p>
+<p>Bürkner, P. C. (2017). 
+<a href="https://doi.org/10.18637/jss.v080.i01" target="_blank" rel="noopener">brms: An R package for Bayesian multilevel models using Stan</a>. <em>Journal of Statistical Software</em>, 80(1), 1-28.</p>
+<p>Bürkner, P. C. (2018). 
+<a href="https://doi.org/10.32614/RJ-2018-017" target="_blank" rel="noopener">Advanced Bayesian multilevel modeling with the R package brms</a>. <em>The R Journal</em>, 10(1), 395-411.</p>
+<p>Hijazi, R. H., &amp; Jernigan, R. W. (2009). 
+<a href="https://www.researchgate.net/publication/228576713_Modelling_compositional_data_using_Dirichlet_regression_models" target="_blank" rel="noopener">Modelling compositional data using Dirichlet regression models</a>. <em>Journal of Applied Probability &amp; Statistics</em>, 4(1), 77-91.</p>
+<p>Maier, M. J. (2014). 
+<a href="https://epub.wu.ac.at/4077/" target="_blank" rel="noopener">DirichletReg: Dirichlet regression for compositional data in R</a>. <em>Research Report Series</em>, Department of Statistics and Mathematics, 125.</p>
+<p>Rasmussen, C. E., &amp; Williams, C. K. I. (2006). 
+<a href="http://gaussianprocess.org/gpml/" target="_blank" rel="noopener">Gaussian processes for machine learning</a>. <em>MIT Press</em>.</p>
+<p>Riutort-Mayol, G., Bürkner, P. C., Andersen, M. R., Solin, A., &amp; Vehtari, A. (2023). 
+<a href="https://doi.org/10.1007/s11222-022-10167-2" target="_blank" rel="noopener">Practical Hilbert space approximate Bayesian Gaussian processes for probabilistic programming</a>. <em>Statistics and Computing</em>, 33(1), 17.</p>
+<p>Thorson, J. T., Ianelli, J. N., Larsen, E. A., Ries, L., Scheuerell, M. D., Szuwalski, C., &amp; Zipkin, E. F. (2016). 
+<a href="https://doi.org/10.1111/geb.12464" target="_blank" rel="noopener">Joint dynamic species distribution models: a tool for community ordination and spatio-temporal monitoring</a>. <em>Global Ecology and Biogeography</em>, 25(9), 1144-1158.</p>
+<p>Warton, D. I., Blanchet, F. G., O&rsquo;Hara, R. B., Ovaskainen, O., Taskinen, S., Walker, S. C., &amp; Hui, F. K. (2015). 
+<a href="https://doi.org/10.1016/j.tree.2015.09.007" target="_blank" rel="noopener">So many variables: joint modeling in community ecology</a>. <em>Trends in Ecology &amp; Evolution</em>, 30(12), 766-779.</p>
+
+      </section>
+      <footer class="post-footer">
+        <div class="post-pagination dt w-100 mt4 mb2">
+  
+  
+    <a class="prev dtc pr2 tl v-top fw6"
+    href="https://ecogambler.netlify.app/blog/emergency-department-shiny/">&larr; Building an Interactive Emergency Department Dashboard with Shiny</a>
+  
+  
+  
+    <a class="next dtc pl2 tr v-top fw6"
+    href="https://ecogambler.netlify.app/blog/clv-prediction/">GAMs for Customer Lifetime Value (CLV) prediction &rarr;</a>
+  
+</div>
+
+      </footer>
+    </article>
+    
+      
+<div class="post-comments pa0 pa4-l mt4">
+  
+  <script src="https://utteranc.es/client.js"
+          repo="apreshill/apero"
+          issue-term="pathname"
+          theme="boxy-light"
+          label="comments :crystal_ball:"
+          crossorigin="anonymous"
+          async
+          type="text/javascript">
+  </script>
+  
+</div>
+
+    
+  </section>
+</main>
+<aside class="page-sidebar" role="complementary">
+                         
+ 
+
+
+                       
+ 
+
+
+
+
+
+
+
+
+
+
+
+  <img src="/blog/sidebar-listing.jpg" class="db ma0">
+
+
+<div class="blog-info ph4 pt4 pb4 pb0-l">
+  
+
+  <h1 class="f3">GAMbler</h1>
+  <p class="f6 lh-copy measure">A blog on (somewhat) interesting and (hopefully) useful tips for ecological modeling, with (perhaps too much) emphasis on Generalized Additive Models.</p>
+  <p class="f7 measure lh-copy i mh0-l">Written by Nicholas Clark (n.clark&rsquo;at&rsquo;uq.edu.au)</p>
+
+
+  
+  <div class="dib bt bw1 b--black-10">
+    
+      <small class="db f7 pt3"><a href="/blog/" class="dib fw7 ttu">View recent posts</a></small>
+    
+    
+    
+    
+  </div>
+
+
+</div>
+
+
+  
+  <details open class="f6 fw7 input-reset">
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Posted on:</dt>
+    <dd class="fw5 ml0">October 20, 2025</dd>
+  </dl>
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Length:</dt>
+    <dd class="fw5 ml0">26 minute read, 5368 words</dd>
+  </dl>
+  
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Categories:</dt>
+    <dd class="fw5 ml0"> <a href="https://ecogambler.netlify.app/categories/rstats">rstats</a>  <a href="https://ecogambler.netlify.app/categories/brms">brms</a>  <a href="https://ecogambler.netlify.app/categories/ecology">ecology</a> </dd>
+  </dl>
+  
+  
+  
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Tags:</dt>
+    <dd class="fw5 ml0"> <a href="https://ecogambler.netlify.app/tags/rstats">rstats</a>  <a href="https://ecogambler.netlify.app/tags/brms">brms</a>  <a href="https://ecogambler.netlify.app/tags/compositional">compositional</a>  <a href="https://ecogambler.netlify.app/tags/ecology">ecology</a>  <a href="https://ecogambler.netlify.app/tags/tutorial">tutorial</a> </dd>
+  </dl>
+  
+  <dl class="f6 lh-copy">
+    <dt class="fw7">See Also:</dt>
+    
+    <dd class="fw5 ml0"><a href="/blog/emergency-department-shiny/">Building an Interactive Emergency Department Dashboard with Shiny</a></dd>
+    
+    <dd class="fw5 ml0"><a href="/blog/clv-prediction/">GAMs for Customer Lifetime Value (CLV) prediction</a></dd>
+    
+    <dd class="fw5 ml0"><a href="/blog/vector-autoregressions/">State-Space Vector Autoregressions in mvgam</a></dd>
+    
+  </dl>
+</details>
+
+                           
+  
+  
+  
+ <nav id="TableOfContents" class="sticky ph4 pb4 pt6" role="navigation"> 
+   <h2 class="mv0 f5 fw7 ttu tracked dib">On this page</h2> 
+     <nav id="TableOfContents">
+  <ul>
+    <li><a href="#overview-of-this-post">Overview of this post</a></li>
+    <li><a href="#the-dirichlet-distribution-and-compositional-constraints">The Dirichlet distribution and compositional constraints</a></li>
+    <li><a href="#environment-setup">Environment setup</a></li>
+    <li><a href="#simulating-plant-community-data">Simulating plant community data</a></li>
+    <li><a href="#exploratory-visualization">Exploratory visualization</a></li>
+    <li><a href="#dirichlet-regression-with-gaussian-processes">Dirichlet regression with Gaussian processes</a></li>
+    <li><a href="#model-predictions-and-effects">Model predictions and effects</a></li>
+    <li><a href="#marginal-effects-univariate-environmental-responses">Marginal effects: univariate environmental responses</a></li>
+    <li><a href="#visualizing-predicted-communities-with-waffle-plots">Visualizing predicted communities with waffle plots</a></li>
+    <li><a href="#bivariate-surfaces-capturing-environmental-interactions">Bivariate surfaces: capturing environmental interactions</a></li>
+    <li><a href="#model-validation-checking-our-compositional-residuals">Model validation: checking our compositional residuals</a></li>
+    <li><a href="#model-interpretation-and-ecological-insights">Model interpretation and ecological insights</a></li>
+    <li><a href="#take-home-messages">Take-home messages</a></li>
+    <li><a href="#further-reading">Further reading</a></li>
+  </ul>
+</nav> 
+ </nav> 
+  
+
+</aside>
+<footer class="site-footer pv4 bt b--transparent ph5" role="contentinfo">
+  <nav class="db dt-l w-100">
+    <p class="site-copyright f7 db dtc-l v-mid w-100 w-33-l tc tl-l pv2 pv0-l mv0 lh-copy">
+      © Nicholas J Clark (2024)
+      <span class="middot-divider"></span>
+      Made with <span xmlns:dct="http://purl.org/dc/terms/" property="dct:title"><a xmlns:dct="http://purl.org/dc/terms/" href="https://github.com/hugo-apero/" rel="dct:source">Hugo Apéro</a></span>.
+      <br />
+      
+Based on <span xmlns:dct="http://purl.org/dc/terms/" property="dct:title"><a xmlns:dct="http://purl.org/dc/terms/" href="https://github.com/formspree/blogophonic-hugo" rel="dct:source">Blogophonic</a></span> by <a xmlns:cc="http://creativecommons.org/ns#" href="https://formspree.io" property="cc:attributionName" rel="cc:attributionURL">Formspree</a>.
+    </p>
+    
+    <div class="site-social-links db dtc-l v-mid w-100 w-33-l tc pv2 pv0-l mv0">
+      <div class="social-icon-links" aria-hidden="true">
+  
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://github.com/nicholasjclark" title="github" target="_blank" rel="me noopener">
+      <i class="fab fa-github fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://www.youtube.com/@NJ_Clark" title="youtube" target="_blank" rel="me noopener">
+      <i class="fab fa-youtube fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://bsky.app/profile/njclark.bsky.social" title="mixcloud" target="_blank" rel="me noopener">
+      <i class="fab fa-mixcloud fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://orcid.org/0000-0001-7131-3301" title="orcid" target="_blank" rel="me noopener">
+      <i class="ai ai-orcid fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://scholar.google.com.au/citations?user=5bO9uxEAAAAJ&amp;hl=en" title="google-scholar" target="_blank" rel="me noopener">
+      <i class="ai ai-google-scholar fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="/blog/index.xml" title="rss" >
+      <i class="fas fa-rss fa-lg fa-fw"></i>
+    </a>
+  
+</div>
+
+    </div>
+    
+    <div class="site-links f6 db dtc-l v-mid w-100 w-67-l tc tr-l pv2 pv0-l mv0">
+      
+      <a class="dib pv1 ph2 link" href="/license/" title="License">License</a>
+      
+      <a class="dib pv1 ph2 link" href="/contributors/" title="Contributors">Collaborators</a>
+      
+    </div>
+  </nav>
+  
+    <script>
+
+    var i, text, code, codes = document.getElementsByTagName('code');
+    for (let i = 0; i < codes.length;) {
+      code = codes[i];
+      if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+        text = code.textContent;
+        if (/^\$[^$]/.test(text) && /[^$]\$$/.test(text)) {
+          text = text.replace(/^\$/, '\\(').replace(/\$$/, '\\)');
+          code.textContent = text;
+        }
+        if (/^\\\((.|\s)+\\\)$/.test(text) ||
+            /^\\\[(.|\s)+\\\]$/.test(text) ||
+            /^\$(.|\s)+\$$/.test(text) ||
+            /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+          code.outerHTML = code.innerHTML;  
+          continue;
+        }
+      }
+      i++;
+    }
+</script>
+
+  
+    
+    
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/katex.min.css" integrity="sha384-RZU/ijkSsFbcmivfdRBQDtwuwVqK7GMOw6IMvKyeWL2K5UAlyp6WonmB8m7Jd0Hn" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/katex.min.js" integrity="sha384-pK1WpvzWVBQiP0/GjnvRxV4mOb0oxFuyRxJlk6vVw146n3egcN5C925NCP7a7BY8" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/contrib/auto-render.min.js" integrity="sha384-vZTG03m+2yp6N6BNi5iM4rW4oIwk5DfcNdFfxkk9ZWpDriOkXX8voJBFrAO7MpVl" crossorigin="anonymous" onload="renderMathInElement(document.body);"></script>
+
+
+
+    
+  
+  
+</footer>
+
+      </div>
+    </body>
+</html>

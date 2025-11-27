@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr"><head>
+  
+                           
+     
+
+
+<meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="generator" content="Hugo 0.123.8">
+<title>Temporal autocorrelation in GAMs and the mvgam package | GAMbler</title>
+
+
+<meta property="twitter:site" content="@twitter = &#34;nj_clark&#34;">
+<meta property="twitter:creator" content="@twitter = &#34;nj_clark&#34;">
+
+
+
+
+
+
+
+  
+    
+  
+<meta name="description" content="Temporal autocorrelation is a dominant feature of time series. We often want to use Generalized Additive Models (GAMs) to fit smoothing splines to time series data, but incorporating autocorrelation in these models can be difficult. Enter the mvgam package">
+
+
+<meta property="og:site_name" content="GAMbler">
+<meta property="og:title" content="Temporal autocorrelation in GAMs and the mvgam package | GAMbler">
+<meta property="og:description" content="Temporal autocorrelation is a dominant feature of time series. We often want to use Generalized Additive Models (GAMs) to fit smoothing splines to time series data, but incorporating autocorrelation in these models can be difficult. Enter the mvgam package" />
+<meta property="og:type" content="page" />
+<meta property="og:url" content="https://ecogambler.netlify.app/blog/autocorrelated-gams/" />
+<meta property="og:locale" content="en">
+
+
+
+
+    
+        <meta property="og:image" content="https://ecogambler.netlify.app/blog/autocorrelated-gams/featured.png" >
+        <meta property="twitter:card" content="summary_large_image">
+        <meta name="twitter:image" content="https://ecogambler.netlify.app/blog/autocorrelated-gams/featured.png" >
+    
+    
+  <meta itemprop="name" content="Temporal autocorrelation in GAMs and the mvgam package">
+<meta itemprop="description" content="Generalized Additive Models (GAMs) are flexible tools that have found particular application in the analysis of time series data. In ecology, a host of recent papers and workshops have drawn attention to the power of GAMs for addressing complex ecological analyses. For example, Gavin Simpson regularly hosts workshops on GAMs in R, and it is common to see GAMs on the workshop list for large international conferences in ecology and statistics."><meta itemprop="datePublished" content="2023-07-16T00:00:00+00:00" />
+<meta itemprop="dateModified" content="2023-07-16T00:00:00+00:00" />
+<meta itemprop="wordCount" content="3931"><meta itemprop="image" content="https://ecogambler.netlify.app/blog/autocorrelated-gams/featured.png" />
+<meta itemprop="keywords" content="rstats,mgcv,tutorial,autocorrelation,mvgam,time-series," />
+  
+  <!--[if IE]><script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script><![endif]-->
+  <link rel="shortcut icon" href="/img/header_logo.ico" type="image/x-icon">
+  <link rel="icon" href="/img/header_logo.ico" type="image/x-icon">
+  
+  
+  <link rel="stylesheet" href="/style.main.min.13ba2c07d7acc52c13dbb9003240e2adf360a5d73e1392ede873916180ee1701.css" integrity="sha256-E7osB9esxSwT27kAMkDirfNgpdc&#43;E5Lt6HORYYDuFwE=" media="screen">
+  
+  
+  <script src="/panelset.min.ed1ac24b6e16f4e2481e3d1d098ae66f5bc77438aef619e6e266d8ac5b00dc72.js" type="text/javascript"></script>
+  
+  
+  <script src="/main.min.7c7401b27b903bdc8736f72a2f739f7602bf606c451e8cb5e7fab2bf6b4af582.js" type="text/javascript"></script>
+</head>
+<body>
+      <div class="grid-container single-sidebar">
+<header class="site-header pt4 pb2 mb4 bb b--transparent ph5 headroom z-max" role="banner">
+  <nav class="site-nav db dt-l w-100" role="navigation">
+    <a class="site-brand db dtc-l v-mid link no-underline w-100 w-33-l tc tl-l" href="https://ecogambler.netlify.app/" title="Home">
+      <img src="/img/header_logo.png" class="dib db-l h2 w-auto" alt="GAMbler">
+    </a>
+    <div class="site-links db dtc-l v-mid w-100 w-47-l tc tr-l mt3 mt0-l ttu tracked">
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 active" href="/blog/" title="Blog">Blog</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/project/" title="Project Portfolio">Software</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/talk/" title="Talks">Talks &amp; Workshops</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/opportunities/" title="Opportunities">Opportunities</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/archives/" title="Archive">Archive</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/blogroll/" title="Blogroll">Blogroll</a>
+      
+      
+    </div>
+  </nav>
+</header>
+
+<main class="page-main pa4" role="main">
+  <section class="page-content mw7 center">
+    <article class="post-content pa0 pr3-l">
+      <header class="post-header">
+        <h1 class="f1 lh-solid measure-narrow mb3 fw4">Temporal autocorrelation in GAMs and the mvgam package</h1>
+        
+        <p class="f6 measure lh-copy mv1">By Nicholas Clark in <a href="https://ecogambler.netlify.app/categories/rstats">rstats</a>  <a href="https://ecogambler.netlify.app/categories/mgcv">mgcv</a>  <a href="https://ecogambler.netlify.app/categories/mvgam">mvgam</a> </p>
+        <p class="f7 db mv0 ttu">July 16, 2023</p>
+      </header>
+      <section class="post-body pt5 pb4">
+        <style type="text/css">
+details > summary {
+  padding: 4px;
+  background-color: #8F2727;
+  color: white;
+  border: none;
+  box-shadow: 1px 1px 2px #bbbbbb;
+  cursor: pointer;
+}
+
+details > summary:hover {
+  background-color: #DCBCBC;
+  color: #8F2727;
+}
+</style>
+<p>Generalized Additive Models (GAMs) are flexible tools that have found particular application in the analysis of time series data. In ecology, a host of recent papers and workshops have drawn attention to the power of GAMs for addressing complex ecological analyses. For example, 
+<a href="https://fromthebottomoftheheap.net/about/" target="_blank" rel="noopener">Gavin Simpson regularly hosts workshops on GAMs in R</a>, and 
+<a href="https://github.com/eric-pedersen/mgcv-esa-workshop" target="_blank" rel="noopener">it is common to see GAMs on the workshop list for large international conferences in ecology and statistics</a>.</p>
+
+
+
+
+<h3 id="why-are-gams-useful-for-time-series-analysis">Why are GAMs useful for time series analysis?
+  <a href="#why-are-gams-useful-for-time-series-analysis"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h3>
+<p>There are several reasons we&rsquo;d want to use a GAM, particularly one fitted in 
+<a href="https://cran.r-project.org/web/packages/mgcv/index.html" target="_blank" rel="noopener">the {<code>mgcv</code>} R package</a>, to analyse time series:</p>
+<ul>
+<li>GAMs can be used to model non-linear trends in time series data</li>
+<li>GAMs can easily decompose time series into trend, seasonality and other components</li>
+<li>Smoothing splines can be used to identify periods of rapid historical change</li>
+<li>GAMs can incorporate complex random effects that are common in real time series</li>
+</ul>
+<p>Given the many ways that GAMs can model temporal data, it is tempting to extrapolate from their smooth functions to produce out of sample forecasts. Here I inspect how smoothing splines behave when extrapolating outside the training data to examine whether this can be useful in practice. I also discuss some of the pitfalls that tend to arise when trying to fit smoothing splines to temporally autocorrelated data. I then give a few solutions, most notably by making use of Bayesian Dynamic GAMs in the {<code>mvgam</code>} R package.</p>
+
+
+
+
+<h2 id="environment-setup">Environment setup
+  <a href="#environment-setup"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>This tutorial relies on the following packages:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(mvgam)           <span style="color:#998;font-style:italic"># Fit, interrogate and forecast DGAMs</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(dplyr)           <span style="color:#998;font-style:italic"># Tidy and flexible data manipulation</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(marginaleffects) <span style="color:#998;font-style:italic"># Compute conditional and marginal effects</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(ggplot2)         <span style="color:#998;font-style:italic"># Flexible plotting</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(patchwork)       <span style="color:#998;font-style:italic"># Combining ggplot objects</span>
+</span></span></code></pre></div><p>First I design a custom <code>ggplot2</code> theme; feel free to ignore if you have your own plot preferences</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">theme_set</span>(<span style="color:#900;font-weight:bold">theme_classic</span>(base_size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">12</span>, base_family <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;serif&#39;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#900;font-weight:bold">theme</span>(axis.line.x.bottom <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">element_line</span>(colour <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;black&#34;</span>,
+</span></span><span style="display:flex;"><span>                                                    size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>),
+</span></span><span style="display:flex;"><span>                  axis.line.y.left <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">element_line</span>(colour <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;black&#34;</span>,
+</span></span><span style="display:flex;"><span>                                                  size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>)))
+</span></span></code></pre></div>
+
+
+
+<h2 id="what-are-generalized-additive-models-gams">What are Generalized Additive Models (GAMs)?
+  <a href="#what-are-generalized-additive-models-gams"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>The content of this post relates to some concepts I introduced in a recent webinar for the 
+<a href="https://ecoforecast.org/workshops/statistical-methods-seminar-series/" target="_blank" rel="noopener">Ecological Forecasting Initiative&rsquo;s and Ecological Society of America&rsquo;s Statistical Methods Seminar Series</a>. If you are completely unfamiliar with GAMs, it would be worth a watch to help you catch up on basic concepts.</p>
+<center>
+<iframe width="560" height="315" src="https://www.youtube.com/embed/0zZopLlomsQ?si=E93rOr7326dLCIyq?start=1" data-external = "1" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+</center>
+
+
+
+
+<h2 id="wiggliness-and-autocorrelation">Wiggliness and autocorrelation
+  <a href="#wiggliness-and-autocorrelation"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>A smoothing spline is composed of basis expansions whose coefficients, which must be estimated, control the functional relationship between a predictor variable and a conditional response. The size of the basis expansion limits the smooth’s potential complexity, with a larger set of basis functions allowing greater flexibility.</p>
+<p><img src="basis_weights.gif" alt="How basis functions can be used to build a smoothing spline in a GAM"></p>
+<p>All we need to do once we&rsquo;ve constructed the basis expansion is estimate the weights. This allows us to fit arbitrarily-shaped functions that can <em>learn</em> nonlinear relationships from data</p>
+<p><img src="smooth_to_data.gif" alt="Fitting a Generalized Additive Model to data in R"></p>
+<p>The smoothness of the spline is controlled by a 
+<a href="https://m-clark.github.io/generalized-additive-models/technical.html" target="_blank" rel="noopener">smoothing penalty</a>, which penalizes functions that are excessively wiggly. The animation below illustrates this process, where the penalty <code>\(\rho\)</code> is chosen to maximise some penalized log(likelihood):</p>
+<p><img src="penalty_spline.gif" alt="How a smoothing penalty leads to nonlinear effects in GAMs"></p>
+<p>Here I use an exaggerated example to show how a smooth tries to wiggle excessively, leading to overfitting. This can be done by fixing the smoothing penalty <code>\(λ\)</code> in a GAM fit with {<code>mgcv</code>}&rsquo;s <code>gam()</code> function in R. By fitting models with increasingly relaxed smooths, with <code>\(λ\)</code> values approaching zero, we produce increasingly wiggly fits that tend toward fully unpenalized functions.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">par</span>(mfrow <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">2</span>, <span style="color:#099">2</span>),
+</span></span><span style="display:flex;"><span>    mgp <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">2.5</span>, <span style="color:#099">1</span>, <span style="color:#099">0</span>),
+</span></span><span style="display:flex;"><span>    mai<span style="color:#000;font-weight:bold">=</span><span style="color:#900;font-weight:bold">c</span>(<span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">0.4</span>, <span style="color:#099">0.7</span>, <span style="color:#099">0.2</span>, <span style="color:#099">0.2</span>)))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">data</span>(mcycle, package <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;MASS&#39;</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>m1 <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">gam</span>(accel <span style="color:#000;font-weight:bold">~</span> <span style="color:#900;font-weight:bold">s</span>(times, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">50</span>), 
+</span></span><span style="display:flex;"><span>          data <span style="color:#000;font-weight:bold">=</span> mcycle, method <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;REML&#39;</span>, sp <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">5</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot</span>(m1, scheme <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>, residuals <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>, pch <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">16</span>,
+</span></span><span style="display:flex;"><span>     bty <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;L&#39;</span>,
+</span></span><span style="display:flex;"><span>     ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">expression</span>(lambda <span style="color:#000;font-weight:bold">==</span> <span style="color:#099">5</span>), xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>,
+</span></span><span style="display:flex;"><span>     shade.col <span style="color:#000;font-weight:bold">=</span> scales<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">alpha</span>(<span style="color:#d14">&#34;#B97C7C&#34;</span>, <span style="color:#099">0.6</span>))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>m2 <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">gam</span>(accel <span style="color:#000;font-weight:bold">~</span> <span style="color:#900;font-weight:bold">s</span>(times, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">50</span>), 
+</span></span><span style="display:flex;"><span>          data <span style="color:#000;font-weight:bold">=</span> mcycle, method <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;REML&#39;</span>, sp <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot</span>(m2, scheme <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>, residuals <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>, pch <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">16</span>,
+</span></span><span style="display:flex;"><span>     bty <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;L&#39;</span>,
+</span></span><span style="display:flex;"><span>     ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">expression</span>(lambda <span style="color:#000;font-weight:bold">==</span> <span style="color:#099">1</span>), xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>,
+</span></span><span style="display:flex;"><span>     shade.col <span style="color:#000;font-weight:bold">=</span> scales<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">alpha</span>(<span style="color:#d14">&#34;#B97C7C&#34;</span>, <span style="color:#099">0.6</span>))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>m3 <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">gam</span>(accel <span style="color:#000;font-weight:bold">~</span> <span style="color:#900;font-weight:bold">s</span>(times, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">50</span>), 
+</span></span><span style="display:flex;"><span>          data <span style="color:#000;font-weight:bold">=</span> mcycle, method <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;REML&#39;</span>, sp <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.01</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot</span>(m3, scheme <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>, residuals <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>, pch <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">16</span>,
+</span></span><span style="display:flex;"><span>     bty <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;L&#39;</span>,
+</span></span><span style="display:flex;"><span>     ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">expression</span>(lambda <span style="color:#000;font-weight:bold">==</span> <span style="color:#099">0.01</span>), xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>,
+</span></span><span style="display:flex;"><span>     shade.col <span style="color:#000;font-weight:bold">=</span> scales<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">alpha</span>(<span style="color:#d14">&#34;#B97C7C&#34;</span>, <span style="color:#099">0.6</span>))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>m4 <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">gam</span>(accel <span style="color:#000;font-weight:bold">~</span> <span style="color:#900;font-weight:bold">s</span>(times, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">50</span>), 
+</span></span><span style="display:flex;"><span>          data <span style="color:#000;font-weight:bold">=</span> mcycle, method <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;REML&#39;</span>, sp <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.0000001</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot</span>(m4, scheme <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>, residuals <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>, pch <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">16</span>,
+</span></span><span style="display:flex;"><span>     bty <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;L&#39;</span>,
+</span></span><span style="display:flex;"><span>     ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">expression</span>(lambda <span style="color:#000;font-weight:bold">==</span> <span style="color:#099">0.0000001</span>), xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>,
+</span></span><span style="display:flex;"><span>     shade.col <span style="color:#000;font-weight:bold">=</span> scales<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">alpha</span>(<span style="color:#d14">&#34;#B97C7C&#34;</span>, <span style="color:#099">0.6</span>))
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/autocorrelated-gams/index_files/figure-html/unnamed-chunk-5-1.png" alt="Wiggliness and penalized smooths in mgcv" width="60%" style="display: block; margin: auto;" />
+<p>Notice how wiggly the function becomes in the last plot when <code>\(λ\)</code> is very small, indicating that the function is overfitting to the in-sample training data. Incidentally, this behaviour mirrors what often happens when we try to model an autocorrelated time series with a smooth function of <code>time</code>. Unfortunately, 
+<a href="https://fromthebottomoftheheap.net/2011/07/21/smoothing-temporally-correlated-data/" target="_blank" rel="noopener">smoothing splines often try to wiggle excessively to capture autocorrelation in a time series</a>. This makes fitting GAMs to time series challenging in some ways. It also leads to poor predictions and forecasts.</p>
+<p>To demonstrate how challenging it can be to work with temporally autocorrelated data in GAMs, I&rsquo;ll load some time series of counts. The data are from the {<code>tscount</code>} package and represent the umber of campylobacterosis cases (reported every 28 days) in the North of Québec in Canada from January 1990 to the end of October 2000.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Download the campy data from the tscount package</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">load</span>(<span style="color:#900;font-weight:bold">url</span>(<span style="color:#d14">&#39;https://github.com/cran/tscount/raw/master/data/campy.RData&#39;</span>))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Put data into a data.frame and visualize</span>
+</span></span><span style="display:flex;"><span>dat <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">data.frame</span>(count <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">as.vector</span>(campy)) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">mutate</span>(time <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span>dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">n</span>())
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">ggplot</span>(dat, <span style="color:#900;font-weight:bold">aes</span>(time, count)) <span style="color:#000;font-weight:bold">+</span> 
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_point</span>() <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_line</span>()
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/autocorrelated-gams/index_files/figure-html/unnamed-chunk-6-1.png" width="60%" style="display: block; margin: auto;" />
+<p>Next I supply a few small convenience functions for inspecting model outputs.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Replicating mgcv::gam.check() but without the plots</span>
+</span></span><span style="display:flex;"><span>small_check <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">function</span>(model){
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">cat</span>(<span style="color:#d14">&#34;Basis dimension (k) checking results. Low p-value (k-index &lt; 1) may\n&#34;</span>) 
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">cat</span>(<span style="color:#d14">&#34;indicate that k is too low, especially if edf is close to k\&#39;.\n\n&#34;</span>)
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">printCoefmat</span>(mgcv<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">k.check</span>(model), digits <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>)
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Call marginaleffects::plot_predictions to inspect model fits</span>
+</span></span><span style="display:flex;"><span>plot_fcs <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">function</span>(model, n_ahead <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0</span>){
+</span></span><span style="display:flex;"><span>  p <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">plot_predictions</span>(model, 
+</span></span><span style="display:flex;"><span>                   condition <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">list</span>(time <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span>(<span style="color:#900;font-weight:bold">max</span>(dat<span style="color:#000;font-weight:bold">$</span>time) <span style="color:#000;font-weight:bold">+</span> n_ahead)),
+</span></span><span style="display:flex;"><span>                   type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;response&#39;</span>,
+</span></span><span style="display:flex;"><span>                   points <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.5</span>)
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#000;font-weight:bold">if</span>(n_ahead <span style="color:#000;font-weight:bold">&gt;</span> <span style="color:#099">0</span>){
+</span></span><span style="display:flex;"><span>    p <span style="color:#000;font-weight:bold">&lt;-</span> p <span style="color:#000;font-weight:bold">+</span> 
+</span></span><span style="display:flex;"><span>      <span style="color:#900;font-weight:bold">geom_vline</span>(xintercept <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">max</span>(dat<span style="color:#000;font-weight:bold">$</span>time), 
+</span></span><span style="display:flex;"><span>                 linetype <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;dashed&#39;</span>)
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>  p
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>plot_links <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">function</span>(model, n_ahead <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0</span>){
+</span></span><span style="display:flex;"><span>  p <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">plot_predictions</span>(model, 
+</span></span><span style="display:flex;"><span>                   condition <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">list</span>(time <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span>(<span style="color:#900;font-weight:bold">max</span>(dat<span style="color:#000;font-weight:bold">$</span>time) <span style="color:#000;font-weight:bold">+</span> n_ahead)),
+</span></span><span style="display:flex;"><span>                   type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;link&#39;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">ylab</span>(<span style="color:#d14">&#39;linear predictor&#39;</span>)
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">if</span>(n_ahead <span style="color:#000;font-weight:bold">&gt;</span> <span style="color:#099">0</span>){
+</span></span><span style="display:flex;"><span>    p <span style="color:#000;font-weight:bold">&lt;-</span> p <span style="color:#000;font-weight:bold">+</span> 
+</span></span><span style="display:flex;"><span>      <span style="color:#900;font-weight:bold">geom_vline</span>(xintercept <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">max</span>(dat<span style="color:#000;font-weight:bold">$</span>time), 
+</span></span><span style="display:flex;"><span>                 linetype <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;dashed&#39;</span>)
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>  p
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Now onto some GAMs. My goal is to smooth over the temporal trend in the data and inspect the behaviour of the <code>gam.check()</code> function from {<code>mgcv</code>}. First I impose a restricted smooth of <code>time</code> with a very small number of possible basis functions (using the default thin plate basis). For this and all subsequent models, I stick with a <code>poisson()</code> observation model as this will make it easier to illustrate how the estimated smooth changes as we increase <code>k</code>. After fitting the model, I then check basis dimension and plot the response-scaled predictions</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>mod1 <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">gam</span>(count <span style="color:#000;font-weight:bold">~</span> <span style="color:#900;font-weight:bold">s</span>(time, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">6</span>),
+</span></span><span style="display:flex;"><span>            data <span style="color:#000;font-weight:bold">=</span> dat,
+</span></span><span style="display:flex;"><span>            family <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">poisson</span>(),
+</span></span><span style="display:flex;"><span>            method <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;REML&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">small_check</span>(mod1)
+</span></span></code></pre></div><pre tabindex="0"><code>## Basis dimension (k) checking results. Low p-value (k-index &lt; 1) may
+## indicate that k is too low, especially if edf is close to k&#39;.
+## 
+##           k&#39;  edf k-index p-value    
+## s(time) 5.00 4.81    0.61  &lt;2e-16 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+</code></pre><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot_fcs</span>(mod1)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/autocorrelated-gams/index_files/figure-html/unnamed-chunk-8-1.png" alt="Autocorrelated time series and GAMs in mgcv" width="60%" style="display: block; margin: auto;" />
+<p>These results strongly indicate that <code>k</code> was set too low (i.e. the <code>k-index</code> is well below <code>1</code> and the estimated degrees of freedom is nearly as large as the maximum allowed degrees of freedom). The plot also suggests that the function is not flexible enough to capture the long-term (or short-term) variation in the observed counts. Now for a second model that allows for more possible complexity</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>mod2 <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">gam</span>(count <span style="color:#000;font-weight:bold">~</span> <span style="color:#900;font-weight:bold">s</span>(time, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">23</span>),
+</span></span><span style="display:flex;"><span>            data <span style="color:#000;font-weight:bold">=</span> dat,
+</span></span><span style="display:flex;"><span>            family <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">poisson</span>(),
+</span></span><span style="display:flex;"><span>            method <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;REML&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">small_check</span>(mod2)
+</span></span></code></pre></div><pre tabindex="0"><code>## Basis dimension (k) checking results. Low p-value (k-index &lt; 1) may
+## indicate that k is too low, especially if edf is close to k&#39;.
+## 
+##           k&#39;  edf k-index p-value    
+## s(time) 22.0 10.2    0.67  &lt;2e-16 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+</code></pre><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot_fcs</span>(mod2)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/autocorrelated-gams/index_files/figure-html/unnamed-chunk-9-1.png" alt="Autocorrelated time series and GAMs in mgcv" width="60%" style="display: block; margin: auto;" />
+<p>A similar result, with the checking function suggesting that we need to increase <code>k</code> further if we want to capture the patterns that are left in the model residuals. Now for the whole hog, increasing <code>k</code> to the maximum allowed basis dimension</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>mod3 <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">gam</span>(count <span style="color:#000;font-weight:bold">~</span> <span style="color:#900;font-weight:bold">s</span>(time, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">140</span>),
+</span></span><span style="display:flex;"><span>            data <span style="color:#000;font-weight:bold">=</span> dat,
+</span></span><span style="display:flex;"><span>            family <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">poisson</span>(),
+</span></span><span style="display:flex;"><span>            method <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;REML&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">small_check</span>(mod3)
+</span></span></code></pre></div><pre tabindex="0"><code>## Basis dimension (k) checking results. Low p-value (k-index &lt; 1) may
+## indicate that k is too low, especially if edf is close to k&#39;.
+## 
+##          k&#39; edf k-index p-value
+## s(time) 139  31    1.14    0.95
+</code></pre><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot_fcs</span>(mod3)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/autocorrelated-gams/index_files/figure-html/unnamed-chunk-10-1.png" alt="Autocorrelated time series and GAMs in mgcv" width="60%" style="display: block; margin: auto;" />
+<p>Finally the check suggests the smooth was wiggly enough. But how does this wiggly smooth function behave if we want to extrapolate ahead? Here I predict ahead for <code>10</code> timesteps from each of the above models to visualize extrapolation behaviours.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot_fcs</span>(mod1, <span style="color:#099">10</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/autocorrelated-gams/index_files/figure-html/unnamed-chunk-11-1.png" width="60%" style="display: block; margin: auto;" />
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot_fcs</span>(mod2, <span style="color:#099">10</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/autocorrelated-gams/index_files/figure-html/unnamed-chunk-11-2.png" width="60%" style="display: block; margin: auto;" />
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot_fcs</span>(mod3, <span style="color:#099">10</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/autocorrelated-gams/index_files/figure-html/unnamed-chunk-11-3.png" width="60%" style="display: block; margin: auto;" />
+<p>The functions give fairly different forecasts for each model because these penalized splines extrapolate linearly into the future (i.e. if the function wiggled downward toward the end of the training data, the forecast will continue linearly downward forever). This is easier visualized on the link scale</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot_links</span>(mod1, <span style="color:#099">10</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/autocorrelated-gams/index_files/figure-html/unnamed-chunk-12-1.png" width="60%" style="display: block; margin: auto;" />
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot_links</span>(mod2, <span style="color:#099">10</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/autocorrelated-gams/index_files/figure-html/unnamed-chunk-12-2.png" width="60%" style="display: block; margin: auto;" />
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot_links</span>(mod3, <span style="color:#099">10</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/autocorrelated-gams/index_files/figure-html/unnamed-chunk-12-3.png" width="60%" style="display: block; margin: auto;" />
+
+
+
+
+<h2 id="autoregressive-residuals-in-mgcv">Autoregressive residuals in <code>mgcv</code>
+  <a href="#autoregressive-residuals-in-mgcv"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>This behaviour is unwanted, for several reasons. First is the very obvious and unwanted extrapolation behaviour. Not only are these extrapolations typically unrealistic and ignorant of the types of behaviours that occurred within the training data, they are also extremely volatile. Simply by changing <code>k</code> to respect the warnings from <code>gam.check()</code>, we end up with very different ideas about plausible futures. The second reason we don&rsquo;t want this is that, even if we are not interested in forecasting, chasing autocorrelation with increasingly wiggly smooths increases computational complexity and leads to identifiability issues. Plus there will no doubt be situations in which we cannot capture all of this autocorrelation no matter how wiggly we allow our smooths of <code>time</code> to be.</p>
+<p>An obvious solution then is to try and include some sort of residual autocorrelation process in the model. For Gaussian responses, this is fairly straightfoward using the <code>gamm()</code> function, which allows us to supply a correlation argument like those provided by <code>nlme::lme()</code>. We can specify several different forms of stochastic ARMA models that will be used to model the residuals. But we are not using a Gaussian observation model here because our data are non-negative integers. There are other options we can use within <code>gamm()</code> that make use of <code>MASS::glmmPQL()</code> to fit the model, but this can be temperamental and give unsatisfactory results. Finally though, we have the option to use <code>bam()</code> and supply a fixed AR1 coefficient, which will be applied to the working residuals. I&rsquo;ll illustrate here by fixing the coefficient to <code>0.6</code> as a simple example</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>mod4 <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">bam</span>(count <span style="color:#000;font-weight:bold">~</span> <span style="color:#900;font-weight:bold">s</span>(time, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">140</span>),
+</span></span><span style="display:flex;"><span>            data <span style="color:#000;font-weight:bold">=</span> dat,
+</span></span><span style="display:flex;"><span>            family <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">poisson</span>(),
+</span></span><span style="display:flex;"><span>            rho <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.6</span>,
+</span></span><span style="display:flex;"><span>            method <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;fREML&#39;</span>,
+</span></span><span style="display:flex;"><span>            discrete <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">small_check</span>(mod4)
+</span></span></code></pre></div><pre tabindex="0"><code>## Basis dimension (k) checking results. Low p-value (k-index &lt; 1) may
+## indicate that k is too low, especially if edf is close to k&#39;.
+## 
+##             k&#39;    edf k-index p-value    
+## s(time) 139.00   5.95    0.63  &lt;2e-16 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+</code></pre><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot_fcs</span>(mod4)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/autocorrelated-gams/index_files/figure-html/unnamed-chunk-13-1.png" alt="Autocorrelated time series and GAMs in mgcv with bam()" width="60%" style="display: block; margin: auto;" />
+<p>This leads to a much smoother estimate of the smooth, which is good news. We still have the warnings from <code>gam.check()</code> unfortunately, but that is preferable to fitting a smooth that bends all over the place to try and capture the autocorrelation. The extrapolation behaviours are more sensible as well:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot_fcs</span>(mod4, <span style="color:#099">10</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/autocorrelated-gams/index_files/figure-html/unnamed-chunk-14-1.png" width="60%" style="display: block; margin: auto;" />
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot_links</span>(mod4, <span style="color:#099">10</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/autocorrelated-gams/index_files/figure-html/unnamed-chunk-14-2.png" width="60%" style="display: block; margin: auto;" />
+<p>There are still several major downsides to this approach. We have to specify the AR1 coefficient, and if we are modeling several time series in a single joint model (which we very often want to do) we have to use the same AR1 dynamics for each series. We also have no way of incorporating more complex dynamics, such as AR2 or multivariate (VAR) processes. Missing values can cause small or very big problems (the residual AR1 model assumes there is a residual for every timepoint, but if you have missing observations these will be thrown out prior to model fitting). And finally, it is difficult to produce accurate forecasts from this model because our extrapolations do not incorporate the residual autoregressive process. To do so, we&rsquo;d have to:</p>
+<ol>
+<li>Extract working residuals from the fitted model</li>
+<li>Fit an AR1 model to these residuals using the <code>fixed</code> argument in <code>arima()</code> to ensure the coefficient is as we specified. This is necessary because we do not know what the variance parameter should be for the residual AR process (it is not returned anywhere in the <code>gam</code> object</li>
+<li>Generate mean expectations (link scale) for the GAM model to cover the out-of-sample validation times</li>
+<li>Predict ahead for the residual AR model to cover the out-of-sample validation times</li>
+<li>Add the two together to generate the linear predictor values, take the inverse link function (using <code>exp()</code> in this case for the log link) and then use them as the mean values for taking appropriate stochastic draws (using <code>rpois()</code> in this case)</li>
+</ol>
+<p>This process is tedious and error-prone. I won&rsquo;t work through it here because there is a better way.</p>
+
+
+
+
+<h2 id="dynamic-gams-using-mvgam">Dynamic GAMs using <code>mvgam</code>
+  <a href="#dynamic-gams-using-mvgam"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>The <code>mvgam</code> package was designed to solve these and many other problems we encounter when trying to model realistic time series, produce reliable inferences and generate accurate forecasts. There are many useful vignettes and case studies available (see 
+<a href="https://nicholasjclark.github.io/mvgam/" target="_blank" rel="noopener">documentation on the package website</a>). But I&rsquo;ll quickly show how we can estimate nonlinear trends <em>and</em> temporal autocorrelation in GAMs. This should allow us to do all the things we want with these models (i.e. calculate rates of change from the trend, interpolate over periods with missing data, produce accurate forecasts). This model uses quite a few of the advanced features of {<code>mvgam</code>}, including:</p>
+<ol>
+<li>A State-Space representation for a more efficient treatment of process and observation error</li>
+<li>A low-rank Gaussian Process (with squared exponential kernel) to capture the nonlinear long-term trend (which will forecast <em>much</em> better than penalized smooths will)</li>
+<li>A latent AR1 model to capture unmodelled autocorrelation in the process (with fully estimated AR1 and variance parameters)</li>
+<li>An informed prior on the length scale parameter <code>\((\rho)\)</code> of the Gaussian Process, which encodes our belief that the trend should be smooth</li>
+<li>Full Bayesian inference using 
+<a href="https://mc-stan.org/docs/reference-manual/mcmc.html" target="_blank" rel="noopener">Hamiltonian Monte Carlo in <code>Stan</code></a></li>
+</ol>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>mod5 <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">mvgam</span>(count <span style="color:#000;font-weight:bold">~</span> <span style="color:#099">1</span>,
+</span></span><span style="display:flex;"><span>              trend_formula <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">~</span> <span style="color:#900;font-weight:bold">gp</span>(time, c <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">5</span><span style="color:#000;font-weight:bold">/</span><span style="color:#099">4</span>, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">10</span>,
+</span></span><span style="display:flex;"><span>                                   scale <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">FALSE</span>),
+</span></span><span style="display:flex;"><span>              trend_model <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">AR</span>(),
+</span></span><span style="display:flex;"><span>              priors <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">prior_string</span>(prior <span style="color:#000;font-weight:bold">=</span><span style="color:#d14">&#39;normal(16, 4)&#39;</span>, 
+</span></span><span style="display:flex;"><span>                                    class <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;rho_gp_trend(time)&#39;</span>),
+</span></span><span style="display:flex;"><span>            data <span style="color:#000;font-weight:bold">=</span> dat,
+</span></span><span style="display:flex;"><span>            family <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">poisson</span>())
+</span></span></code></pre></div><p>The model fits quickly and encounters few issues. The GP has done an excellent job capturing the nonlinear trend&hellip;</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot_links</span>(mod5)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/autocorrelated-gams/index_files/figure-html/unnamed-chunk-17-1.png" alt="Latent Gaussian Processes to capture autocorrelated time series in GAMs" width="60%" style="display: block; margin: auto;" />
+<p>&hellip;while also producing sensible extrapolation behaviour:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot_links</span>(mod5, n_ahead <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">10</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/autocorrelated-gams/index_files/figure-html/unnamed-chunk-18-1.png" alt="Latent Gaussian Processes to capture autocorrelated time series in GAMs" width="60%" style="display: block; margin: auto;" />
+
+
+
+
+<h3 id="why-use-gaussian-processes-instead-of-splines">Why use Gaussian Processes instead of splines?
+  <a href="#why-use-gaussian-processes-instead-of-splines"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h3>
+<p>&ldquo;<em>A Gaussian process defines a probability distribution over functions; in other words every sample from a Gaussian Process is an entire function from the covariate space X to the real-valued output space.</em>&rdquo; (Betancourt; 
+<a href="https://betanalpha.github.io/assets/case_studies/gaussian_processes.html" target="_blank" rel="noopener">Robust Gaussian Process Modeling</a>)</p>
+<p>In many time series analyses, we believe the power of past observations to explain current data is a function of <em>how long ago</em> we observed those past observations. Gaussian Processes use covariance functions (often called &lsquo;kernels&rsquo;) that allow this to happen by specifying how correlations depend on the difference, in time, between observations. For our purposes we will rely on the squared exponential kernel, which depends on <code>\(\rho\)</code> (often called the length scale parameter) to control how quickly correlations decay as a function of time. The functions also depend on a parameter <code>\(\alpha\)</code>, which controls how much the term contributes to the linear predictor. Below we simulate from such a Gaussian Processes to get an idea of the kinds of functional shapes that can be produced as you vary the length scale  <code>\(\rho\)</code>:</p>
+<details>
+  <summary>Click here if you would like to see the `R` code used to produce Gaussian Process simulations </summary>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#998;font-style:italic"># set a seed for reproducibility</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">set.seed</span>(<span style="color:#099">2222</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># simulate from a fairly large length-scale parameter</span>
+</span></span><span style="display:flex;"><span>rho <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">10</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># set the alpha parameter to 1 for all simulations</span>
+</span></span><span style="display:flex;"><span>alpha <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">1</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># simulate functions that span 50 time points</span>
+</span></span><span style="display:flex;"><span>times <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">50</span>
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># generate a sequence of prediction values</span>
+</span></span><span style="display:flex;"><span>draw_seq <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">seq</span>(<span style="color:#900;font-weight:bold">min</span>(times), <span style="color:#900;font-weight:bold">max</span>(times), length.out <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">100</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># construct the temporal covariance matrix</span>
+</span></span><span style="display:flex;"><span>Sigma <span style="color:#000;font-weight:bold">&lt;-</span> alpha^2 <span style="color:#000;font-weight:bold">*</span> 
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">exp</span>(<span style="color:#099">-0.5</span> <span style="color:#000;font-weight:bold">*</span> ((<span style="color:#900;font-weight:bold">outer</span>(draw_seq, draw_seq, <span style="color:#d14">&#34;-&#34;</span>) <span style="color:#000;font-weight:bold">/</span> rho) ^ <span style="color:#099">2</span>)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">diag</span>(<span style="color:#099">1e-12</span>, <span style="color:#900;font-weight:bold">length</span>(draw_seq))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># draw a single realization from the GP distribution</span>
+</span></span><span style="display:flex;"><span>gp_vals <span style="color:#000;font-weight:bold">&lt;-</span> MASS<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">mvrnorm</span>(n <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>, 
+</span></span><span style="display:flex;"><span>                         mu <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">rep</span>(<span style="color:#099">0</span>, <span style="color:#900;font-weight:bold">length</span>(draw_seq)),
+</span></span><span style="display:flex;"><span>                         Sigma <span style="color:#000;font-weight:bold">=</span> Sigma)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># plot the single GP draw</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot</span>(x <span style="color:#000;font-weight:bold">=</span> draw_seq, y <span style="color:#000;font-weight:bold">=</span> gp_vals, type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;l&#39;</span>,
+</span></span><span style="display:flex;"><span>     lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;darkred&#39;</span>,
+</span></span><span style="display:flex;"><span>     ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">expression</span>(<span style="color:#900;font-weight:bold">f</span>(Time)),
+</span></span><span style="display:flex;"><span>     xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Time&#39;</span>, bty <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;l&#39;</span>,
+</span></span><span style="display:flex;"><span>     ylim <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">-3.2</span>,<span style="color:#099">3.2</span>),
+</span></span><span style="display:flex;"><span>     main <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">expression</span>(alpha<span style="color:#000;font-weight:bold">~</span><span style="color:#d14">&#39;=&#39;</span><span style="color:#000;font-weight:bold">~</span><span style="color:#099">1</span><span style="color:#000;font-weight:bold">*</span><span style="color:#d14">&#39;; &#39;</span><span style="color:#000;font-weight:bold">~</span>rho<span style="color:#000;font-weight:bold">~</span><span style="color:#d14">&#39;=&#39;</span><span style="color:#000;font-weight:bold">~</span><span style="color:#099">10</span>))
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># overlay an additional 10 possible functions using different colours</span>
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">for</span>(i <span style="color:#000;font-weight:bold">in</span> <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">10</span>){
+</span></span><span style="display:flex;"><span>  draw <span style="color:#000;font-weight:bold">&lt;-</span> MASS<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">mvrnorm</span>(n <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>, mu <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">rep</span>(<span style="color:#099">0</span>, <span style="color:#900;font-weight:bold">length</span>(draw_seq)),
+</span></span><span style="display:flex;"><span>                        Sigma <span style="color:#000;font-weight:bold">=</span> Sigma)
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">lines</span>(x <span style="color:#000;font-weight:bold">=</span> draw_seq, y <span style="color:#000;font-weight:bold">=</span> draw, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3.5</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>)
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">lines</span>(x <span style="color:#000;font-weight:bold">=</span> draw_seq, y <span style="color:#000;font-weight:bold">=</span> draw,
+</span></span><span style="display:flex;"><span>        col <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">sample</span>(<span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;#DCBCBC&#34;</span>,
+</span></span><span style="display:flex;"><span>                       <span style="color:#d14">&#34;#C79999&#34;</span>,
+</span></span><span style="display:flex;"><span>                       <span style="color:#d14">&#34;#B97C7C&#34;</span>,
+</span></span><span style="display:flex;"><span>                       <span style="color:#d14">&#34;#A25050&#34;</span>,
+</span></span><span style="display:flex;"><span>                       <span style="color:#d14">&#34;#7C0000&#34;</span>), <span style="color:#099">1</span>),
+</span></span><span style="display:flex;"><span>        lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2.5</span>)
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">box</span>(bty <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;l&#39;</span>, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/autocorrelated-gams/index_files/figure-html/unnamed-chunk-19-1.png" width="60%" style="display: block; margin: auto;" />
+</details>
+<br>
+<img src="https://ecogambler.netlify.app/blog/autocorrelated-gams/index_files/figure-html/unnamed-chunk-20-1.png" width="60%" style="display: block; margin: auto;" />
+<p>This plot shows that the temporal autocorrelations have a long &lsquo;memory&rsquo;, i.e. they tend to change slowly over time. In contrast, let&rsquo;s see what happens when we simulate from a GP with a shorter length scale parameter (the same code as above was used, except the length scale was changed to 4)
+<img src="https://ecogambler.netlify.app/blog/autocorrelated-gams/index_files/figure-html/unnamed-chunk-21-1.png" width="60%" style="display: block; margin: auto;" /></p>
+<p>These functions are much &lsquo;wigglier&rsquo; and can be useful for capturing temporal dynamics with short-term &lsquo;memory&rsquo;. A <strong>big advantage</strong> of Gaussian Processes is that they can easily handle data that are irregularly sampled, much like splines can (and in contrast to autoregressive processes like we&rsquo;ve been using so far). But although Gaussian Processes may look similar to splines in the functions they return, they are fundamentally different. In particular, a spline has local knowledge, meaning it has no principled way of understanding how the function itself is evolving across time. But a GP directly models how the function changes over time, which means it is better able to generate out-of-sample predictions.</p>
+<p>Another big advantage of Gaussian Processes is that their parameters are more directly interpretable than are spline parameters. For instance, the length scale parameter <code>\(\rho\)</code> is related to the stationarity (or stability) of the system. By supplying a prior that pulled this parameter towards <em>larger</em> values, our Bayesian model directly captured our belief that the trend should change smoothly over time (i.e. a long &ldquo;memory&rdquo;) and that any unmodelled short-term autocorrelation should be captured by the AR1 process. 
+<a href="https://stats.stackexchange.com/questions/515873/how-to-account-for-temporal-autocorrelation-in-a-hierarchical-generalized-additi" target="_blank" rel="noopener">By contrast, encoding this sort of information when using splines is incredibly difficult</a>.</p>
+
+
+
+
+<h3 id="back-to-interrogating-our-dynamic-model">Back to interrogating our dynamic model
+  <a href="#back-to-interrogating-our-dynamic-model"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h3>
+<p>We can plot how covariance is expected to change over increasing distances in time to understand the long-range &ldquo;memory&rdquo; of the Gaussian Process. Those of you that have worked with variograms or semi-variograms before when analysing spatial data will be used to visualizing how semivariance decays over distance. Here we will visualize how covariance decays over time distances (i.e. how far apart in time to we need to be before our estimate from the GP no longer depends on another?). We can define a few helper functions to generate these plots, which will accept posterior estimates of GP parameters from a fitted <code>mvgam</code> object, compute the estimted temporal covariance kernels, calculate posterior quantiles and then plot them:</p>
+<details>
+  <summary>Click here if you would like to see the `R` function `plot_kernels`, used to plot GP kernels </summary>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Compute the covariance kernel for a given draw</span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># of GP alpha and rho parameters</span>
+</span></span><span style="display:flex;"><span>quad_kernel <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">function</span>(rho, alpha, times){
+</span></span><span style="display:flex;"><span>  covs <span style="color:#000;font-weight:bold">&lt;-</span> alpha ^ <span style="color:#099">2</span> <span style="color:#000;font-weight:bold">*</span> 
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">exp</span>(<span style="color:#099">-0.5</span> <span style="color:#000;font-weight:bold">*</span> ((times <span style="color:#000;font-weight:bold">/</span> rho) ^ <span style="color:#099">2</span>))
+</span></span><span style="display:flex;"><span>  <span style="color:#000;font-weight:bold">return</span>(covs)
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Compute kernels for each posterior draw</span>
+</span></span><span style="display:flex;"><span>plot_kernels <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">function</span>(gp_ests, max_time <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">50</span>){
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># set up an empty matrix to store the kernel estimates </span>
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># for each posterior draw</span>
+</span></span><span style="display:flex;"><span>  draw_seq <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">seq</span>(<span style="color:#099">0</span>, max_time, length.out <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">100</span>)
+</span></span><span style="display:flex;"><span>  kernels <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">matrix</span>(<span style="color:#000;font-weight:bold">NA</span>, nrow <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">NROW</span>(gp_ests), ncol <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">100</span>)
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># use a for-loop to estimate the kernel for each draw using</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># our custom quad_kernel() function</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#000;font-weight:bold">for</span>(i <span style="color:#000;font-weight:bold">in</span> <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#900;font-weight:bold">NROW</span>(gp_ests)){
+</span></span><span style="display:flex;"><span>    kernels[i,] <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">quad_kernel</span>(rho <span style="color:#000;font-weight:bold">=</span> gp_ests<span style="color:#000;font-weight:bold">$</span>`rho_gp_trend_time_`[i],
+</span></span><span style="display:flex;"><span>                               alpha <span style="color:#000;font-weight:bold">=</span> gp_ests<span style="color:#000;font-weight:bold">$</span>`alpha_gp_trend_time_`[i],
+</span></span><span style="display:flex;"><span>                               times <span style="color:#000;font-weight:bold">=</span> draw_seq)
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Calculate posterior empirical quantiles of the kernels</span>
+</span></span><span style="display:flex;"><span>  probs <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">0.05</span>, <span style="color:#099">0.2</span>, <span style="color:#099">0.5</span>, <span style="color:#099">0.8</span>, <span style="color:#099">0.95</span>)
+</span></span><span style="display:flex;"><span>  cred <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">sapply</span>(<span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#900;font-weight:bold">NCOL</span>(kernels),
+</span></span><span style="display:flex;"><span>                 <span style="color:#000;font-weight:bold">function</span>(n) <span style="color:#900;font-weight:bold">quantile</span>(kernels[,n],
+</span></span><span style="display:flex;"><span>                                      probs <span style="color:#000;font-weight:bold">=</span> probs))
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Plot the kernel uncertainty estimates</span>
+</span></span><span style="display:flex;"><span>  pred_vals <span style="color:#000;font-weight:bold">&lt;-</span> draw_seq
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">plot</span>(<span style="color:#099">1</span>, xlim <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">0</span>, max_time), ylim <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">0</span>, <span style="color:#900;font-weight:bold">max</span>(cred)), type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;n&#39;</span>,
+</span></span><span style="display:flex;"><span>       xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Time difference&#39;</span>, ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Covariance&#39;</span>,
+</span></span><span style="display:flex;"><span>       bty <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;L&#39;</span>)
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">box</span>(bty <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;L&#39;</span>, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>)
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">polygon</span>(<span style="color:#900;font-weight:bold">c</span>(pred_vals, <span style="color:#900;font-weight:bold">rev</span>(pred_vals)), <span style="color:#900;font-weight:bold">c</span>(cred[1,], <span style="color:#900;font-weight:bold">rev</span>(cred[5,])),
+</span></span><span style="display:flex;"><span>          col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;#DCBCBC&#34;</span>, border <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">NA</span>)
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">polygon</span>(<span style="color:#900;font-weight:bold">c</span>(pred_vals, <span style="color:#900;font-weight:bold">rev</span>(pred_vals)), <span style="color:#900;font-weight:bold">c</span>(cred[2,], <span style="color:#900;font-weight:bold">rev</span>(cred[4,])),
+</span></span><span style="display:flex;"><span>          col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;#B97C7C&#34;</span>, border <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">NA</span>)
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">lines</span>(pred_vals, cred[3,], col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;#7C0000&#34;</span>, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2.5</span>)
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div></details>
+<br>
+<p>Extract posterior estimates of the GP parameters using the <code>as.data.frame</code> function that we&rsquo;ve been using previously. You can then plot the posterior kernel estimates for model 5 to visualize how temporal error covariance is estimated to change as two time points are further apart. To do this, all we need to supply is the posterior estimates for the GP parameters in the form of a <code>data.frame</code>:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>gp_ests <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">as.data.frame</span>(mod5, variable <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#39;rho_gp&#39;</span>,
+</span></span><span style="display:flex;"><span>                                            <span style="color:#d14">&#39;alpha_gp&#39;</span>),
+</span></span><span style="display:flex;"><span>                         regex <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot_kernels</span>(gp_ests <span style="color:#000;font-weight:bold">=</span> gp_ests, max_time <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">30</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/autocorrelated-gams/index_files/figure-html/Plot mvgam GP covariance kernels-1.png" width="60%" style="display: block; margin: auto;" />
+Here we can see how correlations between timepoints decay smoothly as we move further apart in time.
+<p>This smooth function is not that complex but works well because we have adequately captured temporal autocorrelation using the latent AR1 process. Estimates of the AR1 parameters come with full uncertainties:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">mcmc_plot</span>(mod5, variable <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#39;ar1&#39;</span>, <span style="color:#d14">&#39;sigma&#39;</span>), regex <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>, type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;areas&#39;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/autocorrelated-gams/index_files/figure-html/unnamed-chunk-22-1.png" width="60%" style="display: block; margin: auto;" />
+<p>Plotting the hindcasts and forecasts won&rsquo;t work directly with {<code>marginaleffects</code>} as we want to also include the AR1 process. But this is easy to do with {<code>mvgam</code>} functionality</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>hc <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">hindcast</span>(mod5)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot</span>(hc)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/autocorrelated-gams/index_files/figure-html/unnamed-chunk-23-1.png" width="60%" style="display: block; margin: auto;" />
+<pre tabindex="0"><code>## No non-missing values in test_observations; cannot calculate forecast score
+</code></pre><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>fc <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">forecast</span>(mod5, newdata <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">data.frame</span>(time <span style="color:#000;font-weight:bold">=</span> (<span style="color:#900;font-weight:bold">max</span>(dat<span style="color:#000;font-weight:bold">$</span>time) <span style="color:#000;font-weight:bold">+</span> <span style="color:#099">1</span>)<span style="color:#000;font-weight:bold">:</span>(<span style="color:#900;font-weight:bold">max</span>(dat<span style="color:#000;font-weight:bold">$</span>time) <span style="color:#000;font-weight:bold">+</span> <span style="color:#099">10</span>)))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot</span>(fc)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/autocorrelated-gams/index_files/figure-html/unnamed-chunk-24-1.png" width="60%" style="display: block; margin: auto;" />
+<pre tabindex="0"><code>## No non-missing values in test_observations; cannot calculate forecast score
+</code></pre><p>If we wanted to ask targeted questions about the nonlinear trend, we could do this readily. For example, here is the 1st derivative (i.e. the marginal effect) of time, which we can use to ask when the trend was changing most rapidly (i.e. at which time points was the derivative <em>furthest</em> from zero?)</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot_slopes</span>(mod5, variables <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;time&#39;</span>, condition <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;time&#39;</span>,
+</span></span><span style="display:flex;"><span>            type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;link&#39;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">labs</span>(y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;First derivative (slope) of linear predictor&#39;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_hline</span>(yintercept <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0</span>, linetype <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;dashed&#39;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/autocorrelated-gams/index_files/figure-html/unnamed-chunk-25-1.png" alt="Calculating rates of change from Dynamic GAMs fit to time series in mgcv and mvgam" width="60%" style="display: block; margin: auto;" />
+<p>There are many more options to capture temporal dynamics and nonlinear effects using dynamic GAMs. For example, my blog post on 
+<a href="https://ecogambler.netlify.app/blog/distributed-lags-mgcv/" target="_blank" rel="noopener">distributed lag nonlinear models using mgcv and mvgam</a> gives some tips on how to fit lagged covariate effects in GAMs. 
+<a href="https://ecogambler.netlify.app/talk/" target="_blank" rel="noopener">My research seminar and webinar page</a> also has some good resources and modeling ideas for time series analyses. But we&rsquo;ll leave those for later posts</p>
+
+
+
+
+<h2 id="further-reading">Further reading
+  <a href="#further-reading"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>The following papers and resources offer useful material about modeling time series with Generalized Additive Models</p>
+<p>Clark, N. J., Ernest, S. K. M., Senyondo, H., Simonis, J. L., White, E. P., Yennis, G. M., &amp; Karunarathna, K. A. N. K. (2023). 
+<a href="https://ecoevorxiv.org/repository/view/5143/" target="_blank" rel="noopener">Multi-species dependencies improve forecasts of population dynamics in a long-term monitoring study</a>. <em>Biorxiv</em>, doi: 
+<a href="https://doi.org/10.32942/X2TS34" target="_blank" rel="noopener">https://doi.org/10.32942/X2TS34</a>.</p>
+<p>Gasparrini, A. (2014). 
+<a href="https://onlinelibrary.wiley.com/doi/full/10.1002/sim.5963" target="_blank" rel="noopener">Modeling exposure–lag–response associations with distributed lag non‐linear models</a>. <em>Statistics in Medicine</em>, 33(5), 881-899.</p>
+<p>Pedersen, E. J., Miller, D. L., Simpson, G. L., &amp; Ross, N. (2019). 
+<a href="https://peerj.com/articles/6876/" target="_blank" rel="noopener">Hierarchical generalized additive models in ecology: an introduction with mgcv</a>. <em>PeerJ</em>, 7, e6876.</p>
+<p>Simpson, G. L. (2018). 
+<a href="https://www.frontiersin.org/articles/10.3389/fevo.2018.00149/full" target="_blank" rel="noopener">Modelling palaeoecological time series using generalised additive models</a>. <em>Frontiers in Ecology and Evolution</em>, 6, 149.</p>
+
+      </section>
+      <footer class="post-footer">
+        <div class="post-pagination dt w-100 mt4 mb2">
+  
+  
+    <a class="prev dtc pr2 tl v-top fw6"
+    href="https://ecogambler.netlify.app/blog/distributed-lags-mgcv/">&larr; Distributed lags (and hierarchical distributed lags) using mgcv and mvgam</a>
+  
+  
+  
+</div>
+
+      </footer>
+    </article>
+    
+      
+<div class="post-comments pa0 pa4-l mt4">
+  
+  <script src="https://utteranc.es/client.js"
+          repo="apreshill/apero"
+          issue-term="pathname"
+          theme="boxy-light"
+          label="comments :crystal_ball:"
+          crossorigin="anonymous"
+          async
+          type="text/javascript">
+  </script>
+  
+</div>
+
+    
+  </section>
+</main>
+<aside class="page-sidebar" role="complementary">
+                         
+ 
+
+
+                       
+ 
+
+
+
+
+
+
+
+
+
+
+
+  <img src="/blog/sidebar-listing.jpg" class="db ma0">
+
+
+<div class="blog-info ph4 pt4 pb4 pb0-l">
+  
+
+  <h1 class="f3">GAMbler</h1>
+  <p class="f6 lh-copy measure">A blog on (somewhat) interesting and (hopefully) useful tips for ecological modeling, with (perhaps too much) emphasis on Generalized Additive Models.</p>
+  <p class="f7 measure lh-copy i mh0-l">Written by Nicholas Clark (n.clark&rsquo;at&rsquo;uq.edu.au)</p>
+
+
+  
+  <div class="dib bt bw1 b--black-10">
+    
+      <small class="db f7 pt3"><a href="/blog/" class="dib fw7 ttu">View recent posts</a></small>
+    
+    
+    
+    
+  </div>
+
+
+</div>
+
+
+  
+  <details open class="f6 fw7 input-reset">
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Posted on:</dt>
+    <dd class="fw5 ml0">July 16, 2023</dd>
+  </dl>
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Length:</dt>
+    <dd class="fw5 ml0">19 minute read, 3931 words</dd>
+  </dl>
+  
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Categories:</dt>
+    <dd class="fw5 ml0"> <a href="https://ecogambler.netlify.app/categories/rstats">rstats</a>  <a href="https://ecogambler.netlify.app/categories/mgcv">mgcv</a>  <a href="https://ecogambler.netlify.app/categories/mvgam">mvgam</a> </dd>
+  </dl>
+  
+  
+  
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Tags:</dt>
+    <dd class="fw5 ml0"> <a href="https://ecogambler.netlify.app/tags/rstats">rstats</a>  <a href="https://ecogambler.netlify.app/tags/mgcv">mgcv</a>  <a href="https://ecogambler.netlify.app/tags/tutorial">tutorial</a>  <a href="https://ecogambler.netlify.app/tags/autocorrelation">autocorrelation</a>  <a href="https://ecogambler.netlify.app/tags/mvgam">mvgam</a>  <a href="https://ecogambler.netlify.app/tags/time-series">time-series</a> </dd>
+  </dl>
+  
+  <dl class="f6 lh-copy">
+    <dt class="fw7">See Also:</dt>
+    
+    <dd class="fw5 ml0"><a href="/blog/emergency-department-shiny/">Building an Interactive Emergency Department Dashboard with Shiny</a></dd>
+    
+    <dd class="fw5 ml0"><a href="/blog/plant-community-dirichlet/">Compositional modeling of plant communities with Dirichlet regression</a></dd>
+    
+    <dd class="fw5 ml0"><a href="/blog/clv-prediction/">GAMs for Customer Lifetime Value (CLV) prediction</a></dd>
+    
+  </dl>
+</details>
+
+                           
+  
+  
+  
+ <nav id="TableOfContents" class="sticky ph4 pb4 pt6" role="navigation"> 
+   <h2 class="mv0 f5 fw7 ttu tracked dib">On this page</h2> 
+     <nav id="TableOfContents">
+  <ul>
+    <li></li>
+    <li><a href="#environment-setup">Environment setup</a></li>
+    <li><a href="#what-are-generalized-additive-models-gams">What are Generalized Additive Models (GAMs)?</a></li>
+    <li><a href="#wiggliness-and-autocorrelation">Wiggliness and autocorrelation</a></li>
+    <li><a href="#autoregressive-residuals-in-mgcv">Autoregressive residuals in <code>mgcv</code></a></li>
+    <li><a href="#dynamic-gams-using-mvgam">Dynamic GAMs using <code>mvgam</code></a></li>
+    <li><a href="#further-reading">Further reading</a></li>
+  </ul>
+</nav> 
+ </nav> 
+  
+
+</aside>
+<footer class="site-footer pv4 bt b--transparent ph5" role="contentinfo">
+  <nav class="db dt-l w-100">
+    <p class="site-copyright f7 db dtc-l v-mid w-100 w-33-l tc tl-l pv2 pv0-l mv0 lh-copy">
+      © Nicholas J Clark (2024)
+      <span class="middot-divider"></span>
+      Made with <span xmlns:dct="http://purl.org/dc/terms/" property="dct:title"><a xmlns:dct="http://purl.org/dc/terms/" href="https://github.com/hugo-apero/" rel="dct:source">Hugo Apéro</a></span>.
+      <br />
+      
+Based on <span xmlns:dct="http://purl.org/dc/terms/" property="dct:title"><a xmlns:dct="http://purl.org/dc/terms/" href="https://github.com/formspree/blogophonic-hugo" rel="dct:source">Blogophonic</a></span> by <a xmlns:cc="http://creativecommons.org/ns#" href="https://formspree.io" property="cc:attributionName" rel="cc:attributionURL">Formspree</a>.
+    </p>
+    
+    <div class="site-social-links db dtc-l v-mid w-100 w-33-l tc pv2 pv0-l mv0">
+      <div class="social-icon-links" aria-hidden="true">
+  
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://github.com/nicholasjclark" title="github" target="_blank" rel="me noopener">
+      <i class="fab fa-github fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://www.youtube.com/@NJ_Clark" title="youtube" target="_blank" rel="me noopener">
+      <i class="fab fa-youtube fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://bsky.app/profile/njclark.bsky.social" title="mixcloud" target="_blank" rel="me noopener">
+      <i class="fab fa-mixcloud fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://orcid.org/0000-0001-7131-3301" title="orcid" target="_blank" rel="me noopener">
+      <i class="ai ai-orcid fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://scholar.google.com.au/citations?user=5bO9uxEAAAAJ&amp;hl=en" title="google-scholar" target="_blank" rel="me noopener">
+      <i class="ai ai-google-scholar fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="/blog/index.xml" title="rss" >
+      <i class="fas fa-rss fa-lg fa-fw"></i>
+    </a>
+  
+</div>
+
+    </div>
+    
+    <div class="site-links f6 db dtc-l v-mid w-100 w-67-l tc tr-l pv2 pv0-l mv0">
+      
+      <a class="dib pv1 ph2 link" href="/license/" title="License">License</a>
+      
+      <a class="dib pv1 ph2 link" href="/contributors/" title="Contributors">Collaborators</a>
+      
+    </div>
+  </nav>
+  
+    <script>
+
+    var i, text, code, codes = document.getElementsByTagName('code');
+    for (let i = 0; i < codes.length;) {
+      code = codes[i];
+      if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+        text = code.textContent;
+        if (/^\$[^$]/.test(text) && /[^$]\$$/.test(text)) {
+          text = text.replace(/^\$/, '\\(').replace(/\$$/, '\\)');
+          code.textContent = text;
+        }
+        if (/^\\\((.|\s)+\\\)$/.test(text) ||
+            /^\\\[(.|\s)+\\\]$/.test(text) ||
+            /^\$(.|\s)+\$$/.test(text) ||
+            /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+          code.outerHTML = code.innerHTML;  
+          continue;
+        }
+      }
+      i++;
+    }
+</script>
+
+  
+    
+    
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/katex.min.css" integrity="sha384-RZU/ijkSsFbcmivfdRBQDtwuwVqK7GMOw6IMvKyeWL2K5UAlyp6WonmB8m7Jd0Hn" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/katex.min.js" integrity="sha384-pK1WpvzWVBQiP0/GjnvRxV4mOb0oxFuyRxJlk6vVw146n3egcN5C925NCP7a7BY8" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/contrib/auto-render.min.js" integrity="sha384-vZTG03m+2yp6N6BNi5iM4rW4oIwk5DfcNdFfxkk9ZWpDriOkXX8voJBFrAO7MpVl" crossorigin="anonymous" onload="renderMathInElement(document.body);"></script>
+
+
+
+    
+  
+  
+</footer>
+
+      </div>
+    </body>
+</html>

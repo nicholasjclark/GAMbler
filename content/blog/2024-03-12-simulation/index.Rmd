@@ -1,0 +1,720 @@
+---
+title: "Simulating data for model exploration in R"
+author: "Nicholas Clark"
+subtitle: ""
+excerpt: "Some simple examples to illustrate the power and utility of simulating fake data for guiding analyes and understanding confounding in R"
+slug: simulating-data-r
+date: 2024-03-12
+draft: false
+images:
+series:
+tags:
+  - rstats
+  - mgcv
+  - simulation
+  - tutorial
+  - confounding
+categories:
+  - rstats
+  - simulation
+layout: single-sidebar
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Purpose
+The following passage is quoted directly from *Regression and other stories* (Gelman, Hill and Vehtari 2022). "Simulation of random variables is important in applied statistics for several reasons. First, we use probability models to mimic variation in the world, and the tools of simulation can help us better understand how this variation plays out. Patterns of randomness are notoriously contrary to normal human thinking—our brains don’t seem to be able to do a good job understanding that random swings will be present in the short term but average out in the long run—and in many cases simulation is a big help in training our intuitions about averages and variation. Second, we can use simulation to approximate the sampling distribution of data and propagate this to the sampling distribution of statistical estimates and procedures. Third, regression models are not deterministic; they produce probabilistic predictions. Simulation is the most convenient and general way to represent uncertainties in forecasts"
+
+This script walks through some potential uses of simulation, but it is by no means exhaustive. First, generate some nice plotting colours
+```{r}
+c_light <- c("#DCBCBC")
+c_light_highlight <- c("#C79999")
+c_mid <- c("#B97C7C")
+c_mid_highlight <- c("#A25050")
+c_dark <- c("#8F2727")
+c_dark_highlight <- c("#7C0000")
+```
+
+Next we define a few helper functions for making nice plots
+```{r}
+myhist = function(x, 
+                  xlim,
+                  xlab = '',
+                  main = ''){
+  if(missing(xlim)){
+    xlim <- range(x)
+  }
+  
+  hist(x, 
+       xlim = xlim,
+       yaxt = 'n',
+       xlab = xlab,
+       ylab = '',
+       col = c_mid_highlight,
+       border = 'white',
+       lwd = 2,
+       breaks = 20,
+       main = main)
+}
+
+myscatter = function(x, 
+                     y, 
+                     xlab = '', 
+                     ylab = ''){
+  plot(x = x, 
+       y = y, 
+       pch = 16,
+       col = 'white',
+       cex = 1.25,
+       bty = 'l',
+       xlab = xlab,
+       ylab = ylab)
+  points(x = x, y = y, pch = 16,
+         col = c_dark,
+         cex = 1)
+  box(bty = 'l', lwd = 2)
+}
+
+mypred_plot = function(predictions, pred_values,
+                       ylim,
+                       ylab = 'Predictions', xlab = 'Covariate'){
+  probs <- c(0.05, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.95)
+  cred <- sapply(1:NROW(predictions),
+                 function(n) quantile(predictions[n,],
+                                      probs = probs, na.rm = TRUE))
+  
+  if(missing(ylim)){
+    ylim <- range(cred)
+  }
+  
+  plot(1, type = "n", bty = 'L',
+       xlab = xlab,
+       ylab = ylab,
+       xlim = range(pred_values),
+       ylim = ylim)
+
+  polygon(c(pred_values, rev(pred_values)), c(cred[1,], rev(cred[9,])),
+          col = c_light, border = NA)
+  polygon(c(pred_values, rev(pred_values)), c(cred[2,], rev(cred[8,])),
+          col = c_light_highlight, border = NA)
+  polygon(c(pred_values, rev(pred_values)), c(cred[3,], rev(cred[7,])),
+          col = c_mid, border = NA)
+  polygon(c(pred_values, rev(pred_values)), c(cred[4,], rev(cred[6,])),
+          col = c_mid_highlight, border = NA)
+  lines(pred_values, cred[5,], col = c_dark, lwd = 2.5)
+  
+  box(bty = 'l', lwd = 2)
+}
+```
+
+## Simulating a simple linear regression
+A linear regression generally assumes additive, linear effects of predictors on the mean of a response variable. It also assumes the errors (unexplained variation) are independent and identically distributed (i.e. the same variance / sd) applies to  the full distribution of errors. We will simulate a vegetation cover outcome variable under the following model:
+
+$$\boldsymbol{vegetation}\sim \text{Normal}(\mu,\sigma)$$
+A linear predictor is modeled on the $identity$ scale to capture effects of covariates on $\mu$:
+
+$$\mu=\alpha+{\beta_{temp}}*\boldsymbol{temperature}$$
+
+We simulate data with a single predictor, $temperature$, and with varying sample sizes to inspect the influence of sample size on our inferences. Start with a sample size of `300`. 
+```{r}
+N <- 300
+```
+
+First we will simulate the predictor variable, $temperature$. Our first decision is to think about what distribution the predictor might have. For many modelling approaches, it is often useful to transform continuous predictors so they are standard normal in distribution (i.e. $\boldsymbol{temperature}\sim \text{Normal}(0,1)$). This might be the case if we were to measure temperature and then standardise it to unit variance
+```{r, fig.width = 6, fig.height = 4, fig.align='center'}
+set.seed(1971)
+temperature_raw <- rnorm(n = N, mean = 14, sd = 5)
+myhist(temperature_raw, xlab = 'Raw temperature')
+```
+
+It is often useful to standardize variables to unit variance before modelling; this helps us to compare effects from different predictors but also helps to specify useful prior distributions when fitting Bayesian models. This is most commonly done by shifting the mean to `0` and dividing by `1sd`
+```{r, fig.width = 6, fig.height = 4, fig.align='center'}
+temperature_scaled <- (temperature_raw - mean(temperature_raw)) / 
+  sd(temperature_raw)
+myhist(temperature_scaled, xlab = 'Scaled temperature')
+```
+
+This shifts the distribution but it does not change the properties of the variable
+```{r, fig.width = 6, fig.height = 4, fig.align='center'}
+myscatter(x = temperature_raw,
+          y = temperature_scaled,
+          xlab = 'Raw temperature',
+          ylab = 'Scaled temperature')
+```
+
+Now simulate the actual linear effect of $temperature$ on the mean of our outcome, $vegetation$. This is captured by the coefficient ${\beta_{temp}}$
+```{r}
+beta_temp <- 0.25
+```
+
+Next we need to simulate the intercept $\alpha$. This parameter represents the average vegetation when temperature is at `0`
+```{r}
+alpha <- 1
+```
+
+The other parameter we need to simulate is the standard deviation of the errors $\sigma$; we don't expect that temperature is the only mechanism influencing vegetation, so we need to include unexplained variation
+```{r}
+sigma <- 2
+```
+
+Finally, we have the components to simulate our outcome variable, $vegetation$. Simulate the linear predictor, which is $\mu=\alpha+{\beta_{temp}}*\boldsymbol{temperature}$
+```{r, fig.width = 6, fig.height = 4, fig.align='center'}
+mu <- alpha + beta_temp * temperature_raw
+myhist(mu, xlab = expression(mu))
+```
+
+Next, complete the probabilistic data generation by simulating the observations. Here we assume vegetation is normally distributed, so we use the random number generator `rnorm()`. Use `?rnorm` to learn more about normal distribution functions in `R`
+```{r, fig.width = 6, fig.height = 4, fig.align='center'}
+vegetation <- rnorm(n = N, mean = mu, sd = sigma)
+myhist(vegetation, xlab = 'Vegetation')
+```
+
+There should be an obvious positive relationship between raw $temperature$ and $vegetation$; but it also shouldn't be a perfect 1:1 relationship
+```{r, fig.width = 6, fig.height = 4, fig.align='center'}
+myscatter(x = temperature_raw, 
+          y = vegetation, 
+          xlab = 'Raw temperature', 
+          ylab = 'Vegetation')
+```
+
+We can now estimate the effect of temperature on the mean of vegetation using the `lm()` function in `R`. This function uses iteratively reweighted least squares to estimate model parameters in a maximum likelihood framework. But we will use the scaled version of temperature to showcase how this gives us coefficients that we can still interpret
+```{r}
+veg_mod <- lm(vegetation ~ temperature_scaled)
+summary(veg_mod)
+```
+
+The coefficients are harder to interpret now because we scaled the predictor
+```{r}
+coef(veg_mod) 
+```
+
+Compare these estimates to the true values
+```{r}
+cbind(alpha, beta_temp)[1,]
+```
+
+Both of these coefficients need to be interpreted by taking into account the standard deviation of the predictor variable, $vegetation$. Once we back-transform, we can see the point estimates are very close to the true simulated values. This is a useful first check to ensure the model is able to recover simulated parameters. It is always surprising how often a model is not able to recover these when we simulate, especially for more complex models / simulations
+```{r}
+coef(veg_mod) / sd(temperature_raw)
+```
+
+We can also calculate uncertainties of these coefficients, again on the appropriate scale
+```{r}
+confint(veg_mod) / sd(temperature_raw)
+```
+
+Finally, for most maximum likelihood models in `R` (`lm`, `glm`, `gam` etc....) we can draw samples of regression coefficients from the implied posterior distribution. Maximum likelihood finds the posterior mode and then uses gradients around the mode to approximate the posterior with a Gaussian (Normal) distribution. So the posterior of coefficients is always multivariate normal. All we need to generate samples from this posterior is the variance-covariance matrix and the mean coefficients
+```{r}
+mean_coefs <- coef(veg_mod)
+coef_vcv <- vcov(veg_mod)
+```
+
+Generate 2,000 regression coefficient samples from the implied multivariate normal posterior distribution. We can use the `mvrnorm()` function from the `MASS` package to make this simple
+```{r}
+if(!require(MASS)){
+  install.packages('MASS')
+}
+
+coef_posterior <- MASS::mvrnorm(n = 2000, 
+                                mu = mean_coefs, 
+                                Sigma = coef_vcv)
+head(coef_posterior)
+```
+
+Instead of simply looking at confidence intervals of coefficients, we can now inspect the full distribution and overlay the true simulated value. Remember to adjust for the  scaling of the variable
+```{r, fig.width = 6, fig.height = 4, fig.align='center'}
+myhist(x = coef_posterior[,2] / sd(temperature_raw), 
+       xlab = 'Posterior temp coefficient (unscaled)')
+abline(v = beta_temp, lwd = 3, col = 'white')
+abline(v = beta_temp, lwd = 2.5, col = 'black')
+```
+
+Prediction intervals can also be obtained once we have the posterior estimates. Predicting from models is a crucial step to understand them and interrogate their weaknesses. To make predictions, we usually must supply `newdata` for predicting against. This would mean a new set of  temperature measurements, in our case. The best way to do this, depending  on model complexity, is to create a sequence of measurements for the variable of interest that we'd like predictions for. See `?predict.lm` for more details
+```{r}
+newtemps <- seq(from = min(temperature_scaled),
+                to = max(temperature_scaled),
+                length.out = 1000)
+summary(newtemps)
+```
+
+Create an empty `matrix` to store the predictions. We want to predict at these new $temperature$ values for each combination of posterior coefficients so we can visualise uncertainty in those predictions
+```{r}
+predictions <- matrix(NA, ncol = NROW(coef_posterior),
+                      nrow = length(newtemps))
+dim(predictions)
+```
+
+Now fill the matrix with the predicted mean for each of the new $temperature$ measurements, using each posterior draw of regression coefficients
+```{r}
+for(i in 1:NCOL(predictions)){
+  predictions[,i] <- coef_posterior[i,1] + (coef_posterior[i,2] * newtemps)
+}
+```
+
+Plot empirical quantile ribbons of the predictions to visualise them, and overlay the simulated values as points
+```{r, fig.width = 6, fig.height = 4, fig.align='center'}
+mypred_plot(predictions = predictions,
+            xlab = 'Temperature (scaled)',
+            ylab = 'Vegetation (expectation only)',
+            pred_values = newtemps,
+            ylim = range(c(vegetation,
+                           quantile(predictions, probs = c(0.025, 0.975)))))
+points(pch = 16, x = temperature_scaled, y = vegetation, 
+       col = 'white',
+       cex = 1)
+points(pch = 16, x = temperature_scaled, y = vegetation,
+       cex = 0.8)
+```
+
+The uncertainty about this line seems far too narrow, and that's because it is! We have ignored the stochastic component, which is the normally distributed errors. This means we have only predicted the mean, otherwise known as the expectation. But we can easily compute full probabilistic predictions and re-plot. All we need is the sd estimate for $\sigma$, which is stored as `sigma` in the model. This estimate is extremely close to our true simulated value
+```{r}
+sigma_estimate <- summary(veg_mod)$sigma
+sigma_estimate; sigma
+```
+
+Now compute predictions using normal random draws with appropriate probabilistic uncertainty
+```{r}
+predictions <- matrix(NA, ncol = NROW(coef_posterior),
+                      nrow = length(newtemps))
+for(i in 1:NCOL(predictions)){
+  predictions[,i] <- rnorm(n = NROW(predictions),
+                           mean = coef_posterior[i,1] + (coef_posterior[i,2] * newtemps),
+                           sd = sigma_estimate)
+}
+```
+
+Plot the full prediction distribution
+```{r, fig.width = 6, fig.height = 4, fig.align='center'}
+mypred_plot(predictions = predictions,
+            xlab = 'Temperature (scaled)',
+            ylab = 'Vegetation (full uncertainty)',
+            pred_values = newtemps,
+            ylim = range(c(vegetation,
+                           quantile(predictions, probs = c(0.025, 0.975)))))
+points(pch = 16, x = temperature_scaled, y = vegetation, 
+       col = 'white',
+       cex = 1)
+points(pch = 16, x = temperature_scaled, y = vegetation,
+       cex = 0.8)
+```
+
+This model fits the data very well, with good coverage properties of the prediction uncertainties. But what happens if we decrease the sample size to `10` and run the process again?
+```{r}
+N <- 10
+temperature_raw <- rnorm(n = N, mean = 14, sd = 5)
+temperature_scaled <- (temperature_raw - mean(temperature_raw)) / 
+  sd(temperature_raw)
+mu <- alpha + beta_temp * temperature_raw
+vegetation <- rnorm(n = N, mean = mu, sd = sigma)
+veg_mod <- lm(vegetation ~ temperature_scaled)
+mean_coefs <- coef(veg_mod); coef_vcv <- vcov(veg_mod)
+coef_posterior_new <- MASS::mvrnorm(n = 2000, 
+                                mu = mean_coefs, 
+                                Sigma = coef_vcv)
+```
+
+Plot posterior estimates from both simulations, but use the same `x-axis` limits so the distributions can be compared
+```{r, fig.width = 6, fig.height = 6.25, fig.align='center'}
+layout(matrix(1:2, nrow = 2))
+myhist(x = coef_posterior[,2] / sd(temperature_raw), 
+       xlim = range(c(coef_posterior[,2] / sd(temperature_raw),
+                    coef_posterior_new[,2] / sd(temperature_raw))),
+       xlab = '', main = 'N = 300')
+abline(v = beta_temp, lwd = 3, col = 'white')
+abline(v = beta_temp, lwd = 2.5, col = 'black')
+
+myhist(x = coef_posterior_new[,2] / sd(temperature_raw),
+       xlim = range(c(coef_posterior[,2] / sd(temperature_raw),
+                      coef_posterior_new[,2] / sd(temperature_raw))),
+       xlab = 'Posterior temp coefficient (unscaled)',
+       main = 'N = 30')
+abline(v = beta_temp, lwd = 3, col = 'white')
+abline(v = beta_temp, lwd = 2.5, col = 'black')
+layout(1)
+```
+
+How does this wider uncertainty translate into the predictions?
+```{r, fig.width = 6, fig.height = 4, fig.align='center'}
+sigma_estimate <- summary(veg_mod)$sigma
+predictions <- matrix(NA, ncol = NROW(coef_posterior_new),
+                      nrow = length(newtemps))
+for(i in 1:NCOL(predictions)){
+  predictions[,i] <- rnorm(n = NROW(predictions),
+                           mean = coef_posterior_new[i,1] + (coef_posterior_new[i,2] * newtemps),
+                           sd = sigma_estimate)
+}
+mypred_plot(predictions = predictions,
+            xlab = 'Temperature (scaled)',
+            ylab = 'Vegetation (full uncertainty)',
+            pred_values = newtemps,
+            ylim = range(c(vegetation,
+                           quantile(predictions, probs = c(0.025, 0.975)))))
+points(pch = 16, x = temperature_scaled, y = vegetation, 
+       col = 'white',
+       cex = 1)
+points(pch = 16, x = temperature_scaled, y = vegetation,
+       cex = 0.8)
+```
+
+Changing sample size is just one way to get a feel for how challenging some modelling problems can be to tackle. You can also change $\sigma$, the ${\beta_{temp}}$ coefficient, and / or the $\alpha$ coefficient to understand what those changes might mean
+
+## Inspecting confounding and its influence on causal inferences
+In this next example, we will simulate a data-generating process that has a strong confounder (in the form of a collider). This will illustrate how wrong our conclusions can be if we simply throw all variables into a regression and interpret them as real risk factors / causal effects. We will use a similar approach as above, where the goal is to model $vegetation$ density
+```{r}
+set.seed(11155)
+N <- 100
+```
+
+$temperature$ again is our main predictor of interest. This time we'll ignore the scaling and just run with the scaled version for simplicity
+```{r}
+temperature <- rnorm(N, 
+                     mean = 0, 
+                     sd = 1)
+```
+
+$temperature$ again has a strong positive, linear effect on $vegetation$
+```{r, fig.width = 6, fig.height = 4, fig.align='center'}
+beta_temp <- 0.75
+vegetation <- rnorm(N, 
+                    mean = beta_temp * temperature, 
+                    sd = 1)
+myscatter(x = temperature,
+          y = vegetation,
+          xlab = 'Temperature',
+          ylab = 'Vegetation')
+```
+
+But this time, $temperature$ also influences $pollinator density$
+```{r}
+beta_temp_pollinators <- 0.75
+```
+
+And $vegetation$, our outcome of interest, equally influences $pollinator density$
+```{r}
+beta_veg_pollinators <- 0.75
+```
+
+The problem here is that pollinators now exists as a collider variable; both our outcome of interest and one of our predictors influences this variable. This is an all-too-common issue we are faced with in regressin modelling
+```{r}
+pollinators <- rnorm(N, 
+                     mean = beta_temp_pollinators * temperature + 
+                       beta_veg_pollinators * vegetation,
+                     sd = 1)
+```
+
+There are now strong apparent relationships all around
+```{r, fig.width = 6, fig.height = 6.25, fig.align='center'}
+layout(matrix(1:2, nrow = 2))
+myscatter(x = temperature,
+          y = pollinators,
+          xlab = 'Temperature',
+          ylab = 'Pollinators')
+myscatter(x = vegetation,
+          y = pollinators,
+          xlab = 'Vegetation',
+          ylab = 'Pollinators')
+layout(1)
+```
+
+If we thought that pollinator density could be a reasonable predictor of vegetation, the standard approach we would often take would be to fit univariate models for each of our predictors and then choose which ones to include in a final model based on some arbitrary significance threshold. Let's see what happens if we do this
+```{r}
+temp_only <- lm(vegetation ~ temperature)
+summary(temp_only)
+veg_only <- lm(vegetation ~ pollinators)
+summary(veg_only)
+```
+
+Both predictors are found to be significant in univariate models; the standard approach we are taught now is to include them both in a final multivariable model
+```{r}
+final_mod <- lm(vegetation ~ temperature + pollinators)
+summary(final_mod)
+```
+
+This model is supported by `AIC` over the simpler models. The lower the `AIC`, the better are the penalized in-sample predictions from the model
+```{r}
+c('full model better', 
+  'temp only better',
+  'veg only better')[which.min(c(AIC(final_mod),
+                                 AIC(temp_only),
+                                 AIC(veg_only)))]
+```
+
+A type II `ANOVA` reveals that if we wanted the most parsimonious model, we'd be justified in dropping $temperature$ (even though this is the effect we actually care about!)
+```{r}
+drop1(final_mod, test = 'F')
+```
+
+In fact, just about any model selection routine you use on these data will favour the multivariable model (stepwise selection, ridge regression, LASSO etc....). But why do these general model selection routines favour a model that discards $temperature$. How does the estimated effect of temperature on vegetation resemble what we simulated as the actual truth?
+```{r}
+confint(final_mod)[2,]
+beta_temp
+```
+
+It misses. **Badly**. This is because of the influence of collider bias. We must be very cautious when throwing all sorts of variables into models and assuming the resulting estimates can be interpreted in any meaningful way. The correct approach here would actually be to omit $pollinators$ altogether. This is better for inference, even though it doesn't fit the data as well. We've already done that in our `temp_only` model
+```{r}
+confint(temp_only)[2,]
+beta_temp
+```
+
+## Effects are often estimated with more precision when including other predictors
+
+Here we will explore why it is often important to adjust for other variables when estimating effects, even if those other variables are not "significant". Simulate a scenario where age and season show independent effects on some disease's infection probability
+```{r}
+set.seed(5555)
+N <- 200
+```
+
+Simulate $age$ as a log-normally distributed, positive continuous variable
+```{r, fig.width = 6, fig.height = 4, fig.align='center'}
+age <- rlnorm(N)
+myhist(age, xlab = 'Age')
+```
+
+Simulate a cyclic seasonal pattern to replicate what we often see with transmittable diseases, which is a fairly strong and consistent variation in risk across seasons. This type of simulation can be done with combinations of `sine` and `cosine` functions
+```{r}
+season_function <- rep((sin(0.2 * 1:12) - cos(-0.2 * 1:12) + sin(1:12)),
+                        50)[1:N] * 0.1
+plot(season_function, type = 'l', 
+     xlab = 'Time', ylab = 'Seasonal effect')
+```
+
+Convert season to a numeric indicator of month, just like we would use in a model
+```{r}
+season <- rep(1:12, ceiling(N / 12))[1:N]
+head(season, 24)
+```
+
+Calculate infection probability with an $age$ effect of `-0.4` (on the log scale) and with a minor seasonal effect. We use the `plogis` function, which uses the `inverse logit` transformation to convert real-valued continuous variables to the probability scale. This is the same link function that is used in logistic regression (where the outcomes are `1s` and `0s`) and in Beta regression (where the outcome is a proportion on `(1,0)`). We will use Beta regression here, which assumes the following:
+$$\boldsymbol{inf~prob}\sim \text{Beta}(logit^{-1}(\mu)*\phi,(1-logit^{-1}(\mu))*\phi)$$
+
+$$\mu={\alpha}+{\beta_{age}}*\boldsymbol{log(age)}+f(season)$$
+Where $\phi$ is a shape parameter that controls the spread of the distribution. We can use `plogis` to convert our simulated values from the real line to the probability scale (this is a fast and efficient version of `inverse logit`)
+```{r, fig.width = 6, fig.height = 4, fig.align='center'}
+beta_logage <- -0.4
+inf_prob <- plogis(-0.3 + season_function + beta_logage * log(age))
+myhist(inf_prob)
+```
+
+Fit a beta regression model that ignores season
+```{r}
+library(mgcv)
+mod_noseason <- gam(inf_prob ~ log(age),
+                    family = betar(),
+                    method = 'REML')
+```
+
+The estimate for $log(age)$ is fairly precise
+```{r}
+summary(mod_noseason)
+```
+
+Fit a model that includes only $season$, which finds that this predictor is not statistically significant on its own. Again, the standard practice would be to drop this predictor when we proceed with a multivariable analysis
+```{r}
+mod_seasononly <- gam(inf_prob ~ s(season, bs = 'cc'),
+                    family = betar(),
+                    method = 'REML')
+```
+
+```{r}
+summary(mod_seasononly)
+```
+
+Fit a model that includes both predictors
+```{r, warning=FALSE}
+mod_bothpredictors <- gam(inf_prob ~ log(age) + s(season, bs = 'cc'),
+                    family = betar(),
+                    method = 'REML')
+```
+
+The estimate for `log(age)` also appears precise in this model, just like in the first model
+```{r}
+summary(mod_bothpredictors)
+```
+
+But which model gives us *better* estimates for `log(age)`? Draw 5,000 posterior estimates from each model's posterior coefficient distribution. Because `gam()` uses a form of maximum likelihood for estimation, the posterior once again is an implied multivariate Gaussian. The variance-covariance matrix for the coefficients is stored in the model object in the `Vc` slot
+```{r}
+coefs_noseason <- MASS::mvrnorm(5000, mu = coef(mod_noseason), 
+                       Sigma = mod_noseason$Ve)
+coefs_bothpredictors <- MASS::mvrnorm(5000, mu = coef(mod_bothpredictors), 
+                                Sigma = mod_bothpredictors$Ve)
+```
+
+Calculate the continuous rank probability score (CRPS), a proper scoring rule for probabilistic predictions; a *lower* score is better, as it indicates the probability density is more concentrated around the true value
+```{r}
+if(!require(scoringRules)){
+  install.packages('scoringRules')
+}
+score_noseason <- scoringRules::crps_sample(y = beta_logage,
+                                            dat = t(coefs_noseason[,2]))
+score_bothpredictors <- scoringRules::crps_sample(y = beta_logage, 
+                                              dat = t(coefs_bothpredictors[,2]))
+```
+
+Plot estimates and print the CRPS for each model
+```{r, fig.width = 6, fig.height = 6.25, fig.align='center'}
+layout(matrix(1:2, nrow = 2))
+myhist(coefs_noseason[,2], 
+       xlim = range(c(coefs_noseason[,2], coefs_bothpredictors[,2])),
+       main = paste0('Without seasonal adjustment; score = ', round(score_noseason, 3)))
+abline(v = beta_logage, lwd = 3, col = 'white')
+abline(v = beta_logage, lwd = 2.5)
+
+myhist(coefs_bothpredictors[,2], xlab = 'Posterior estimates for log(age)',
+            xlim = range(c(coefs_noseason[,2], coefs_bothpredictors[,2])),
+       main = paste0('With seasonal adjustment; score = ', round(score_bothpredictors, 3)))
+abline(v = beta_logage, lwd = 3, col = 'white')
+abline(v = beta_logage, lwd = 2.5)
+layout(1)
+```
+
+Here it is clear that *adjusting for important control variables, even if they aren't "significant", gives us better estimates of risk factors*. What happens if we have binary outcomes as our dependent variable? This is often the case in disease surveillance. We can easily generate such data using another of `R`'s random number generator functions. See `?rbinom` for more details
+```{r, fig.width = 6, fig.height = 4, fig.align='center'}
+infections <- rbinom(n = N, size = 1, prob = inf_prob)
+myhist(infections, xlab = 'Infection status')
+```
+
+Fit the same models as above, but this time use a Bernoulli observation model with logit link function. The full model we will fit is:
+$$\boldsymbol{infections}\sim \text{Bernoulli}(p)$$
+$$logit(p)={\alpha}+{\beta_{age}}*\boldsymbol{log(age)}+f(season)$$
+
+```{r}
+mod_noseason <- gam(infections ~ log(age),
+                    family = binomial(),
+                    method = 'REML')
+summary(mod_noseason)
+```
+
+```{r}
+mod_seasononly <- gam(infections ~ s(season, bs = 'cc'),
+                    family = binomial(),
+                    method = 'REML')
+summary(mod_seasononly)
+```
+
+```{r, warning=FALSE}
+mod_bothpredictors <- gam(infections ~ log(age) + s(season, bs = 'cc'),
+                    family = binomial(),
+                    method = 'REML')
+summary(mod_bothpredictors)
+```
+
+```{r}
+coefs_noseason <- MASS::mvrnorm(5000, mu = coef(mod_noseason), 
+                       Sigma = mod_noseason$Ve)
+coefs_bothpredictors <- MASS::mvrnorm(5000, mu = coef(mod_bothpredictors), 
+                                Sigma = mod_bothpredictors$Ve)
+```
+
+```{r}
+score_noseason <- scoringRules::crps_sample(y = beta_logage,
+                                            dat = t(coefs_noseason[,2]))
+score_bothpredictors <- scoringRules::crps_sample(y = beta_logage, 
+                                              dat = t(coefs_bothpredictors[,2]))
+```
+
+Plot estimates and print the CRPS for each model
+```{r, fig.width = 6, fig.height = 6.25, fig.align='center'}
+layout(matrix(1:2, nrow = 2))
+myhist(coefs_noseason[,2], 
+       xlim = range(c(coefs_noseason[,2], coefs_bothpredictors[,2])),
+       main = paste0('Without seasonal adjustment; score = ', round(score_noseason, 3)))
+abline(v = beta_logage, lwd = 3, col = 'white')
+abline(v = beta_logage, lwd = 2.5)
+
+myhist(coefs_bothpredictors[,2], xlab = 'Posterior estimates for log(age)',
+            xlim = range(c(coefs_noseason[,2], coefs_bothpredictors[,2])),
+       main = paste0('With seasonal adjustment; score = ', round(score_bothpredictors, 3)))
+abline(v = beta_logage, lwd = 3, col = 'white')
+abline(v = beta_logage, lwd = 2.5)
+layout(1)
+```
+
+In this case it doesn't make much difference whether we adjust for $season$ or not when estimating effect of `log(age)`. This is because binary data has much less information than the proportional data we were using in the Beta regression. We'd need to boos our sample size to have a better chance of adequately estimating these effects with a logistic regression. This is another advantage of simulation, as it allows us to get a better sense of the limitations of our sampling designs
+
+## Failing to account for unobserved autocorrelation causes problems
+In this final example, we will simulate a time series of counts that has autocorrelation in the underlying data-generating process. It is useful to get a sense of how models perform when we fail to take this autocorrelation into account. First we simulate the underlying autocorrelated trend, which follows an AR1 model
+```{r, fig.width = 6, fig.height = 4, fig.align='center'}
+set.seed(500)
+N <- 100
+time <- 1:N
+trend <- as.vector(scale(arima.sim(model = list(ar = 0.7), n = N)))
+myscatter(x = time, y = trend, xlab = 'Time', ylab = 'Trend')
+lines(trend, col = c_dark, lwd = 2)
+```
+
+Next we simulate our covariate, $rainfall$, and it's linear additive coefficient
+```{r}
+rainfall <- rnorm(N)
+beta_rain <- 0.4
+```
+
+Finally, we can simulate the counts. In this case, counts follow a Poisson observation process. Poisson regression that assumes the underlying mean evolves on the log scale:
+$$\boldsymbol{Counts}\sim \text{Poisson}(\lambda)$$
+$$log(\lambda)={\alpha}+{\beta_{rainfall}}*\boldsymbol{rainfall}+trend$$
+
+In this example, the linear predictor, $log(\lambda)$ (referred to here as $\mu$), captures the additive effects of the intercept $\alpha$, the effect of $rainfall$ and the underlying trend on the the log of the mean for $counts$. See `?rpois` for more information about the Poisson distribution functions in `R`
+```{r}
+alpha <- 1
+mu <- alpha + beta_rain * rainfall + 0.8 * trend
+counts <- rpois(n = N, lambda = exp(mu))
+```
+
+Plot the counts over time
+```{r, fig.width = 6, fig.height = 4, fig.align='center'}
+myscatter(x = time, y = counts, xlab = 'Time', ylab = 'Counts')
+lines(counts, col = c_dark, lwd = 2)
+```
+
+When working with time series, it is always useful to understand whether there is any autocorrelation in the observations. This can be checked using the `acf()` function
+```{r, fig.width = 6, fig.height = 4, fig.align='center'}
+acf(counts)
+```
+
+This doesn't give us too much concern, and many people would use the fact that none of the lags shows too much autocorrelation as evidence that they do not need to account for this in their models. But what happens when we ignore time in our models?
+```{r, fig.width = 6, fig.height = 4, fig.align='center'}
+mod_notime <- gam(counts ~ rainfall,
+                   family = poisson())
+acf(residuals(mod_notime))
+```
+
+There is some apparent autocorrelation left in the residuals. This means our model's errors are not independent, which is a violation of the model's assumptions. This can lead to overly precise standard errors and overconfident `p-values`. But it can also lead to downright absurd estimates for our predictors. Let's compare estimates of the $rainfall$ coefficient from this model with a model that does attempt to capture the effect of time. This is done using a flexible smoothing spline for time
+```{r, fig.width = 6, fig.height = 4, fig.align='center'}
+mod_time <- gam(counts ~ rainfall + s(time, k = 30),
+                     family = poisson())
+```
+
+As before, we can compare the accuracies of our posterior estimates of the $rainfall$ coefficient using probabilistic scoring rules
+```{r, fig.width = 6, fig.height = 6.25, fig.align='center'}
+coefs_notime<- MASS::mvrnorm(5000, mu = coef(mod_notime), 
+                                Sigma = mod_notime$Ve)
+coefs_time <- MASS::mvrnorm(5000, mu = coef(mod_time), 
+                                      Sigma = mod_time$Ve)
+
+score_notime <- scoringRules::crps_sample(y = beta_rain,
+                                            dat = t(coefs_notime[,2]))
+score_time<- scoringRules::crps_sample(y = beta_rain, 
+                                                  dat = t(coefs_time[,2]))
+
+layout(matrix(1:2, nrow = 2))
+myhist(coefs_notime[,2],
+       xlim = range(c(coefs_notime[,2], coefs_time[,2])),
+       main = paste0('Without time adjustment; score = ', round(score_notime, 3)))
+abline(v = beta_rain, lwd = 3, col = 'white')
+abline(v = beta_rain, lwd = 2.5)
+myhist(coefs_time[,2],
+       xlim = range(c(coefs_notime[,2], coefs_time[,2])),
+       main = paste0('With time adjustment; score = ', round(score_time, 3)))
+abline(v = beta_rain, lwd = 3, col = 'white')
+abline(v = beta_rain, lwd = 2.5)
+layout(1)
+```
+
+The model with the temporal component does better in this case, giving us more accurate estimates of our coefficient of interest. How does the smoothing spline capture this temporal variation?
+```{r}
+plot(mod_time, shade = TRUE, shade.col = c_mid, col = c_dark_highlight,
+     bty = 'l')
+```
+
+More examples will follow, but now that you have the building blocks of simulation of random variables and random sampling, you can simulate more complex generative models directly

@@ -1,0 +1,1157 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr"><head><script src="/livereload.js?mindelay=10&amp;v=2&amp;port=4321&amp;path=livereload" data-no-instant defer></script>
+  
+                           
+     
+
+
+<meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="generator" content="Hugo 0.123.8">
+<title>Simulating data for model exploration in R | GAMbler</title>
+
+
+<meta property="twitter:site" content="@twitter = &#34;nj_clark&#34;">
+<meta property="twitter:creator" content="@twitter = &#34;nj_clark&#34;">
+
+
+
+
+
+
+
+  
+    
+  
+<meta name="description" content="Some simple examples to illustrate the power and utility of simulating fake data for guiding analyes and understanding confounding in R">
+
+
+<meta property="og:site_name" content="GAMbler">
+<meta property="og:title" content="Simulating data for model exploration in R | GAMbler">
+<meta property="og:description" content="Some simple examples to illustrate the power and utility of simulating fake data for guiding analyes and understanding confounding in R" />
+<meta property="og:type" content="page" />
+<meta property="og:url" content="http://localhost:4321/blog/2024-03-12-simulation/" />
+<meta property="og:locale" content="en">
+
+
+
+
+    
+        <meta property="og:image" content="http://localhost:4321/blog/2024-03-12-simulation/featured.png" >
+        <meta property="twitter:card" content="summary_large_image">
+        <meta name="twitter:image" content="http://localhost:4321/blog/2024-03-12-simulation/featured.png" >
+    
+    
+  <meta itemprop="name" content="Simulating data for model exploration in R">
+<meta itemprop="description" content="Purpose The following passage is quoted directly from Regression and other stories (Gelman, Hill and Vehtari 2022). &ldquo;Simulation of random variables is important in applied statistics for several reasons. First, we use probability models to mimic variation in the world, and the tools of simulation can help us better understand how this variation plays out. Patterns of randomness are notoriously contrary to normal human thinking—our brains don’t seem to be able to do a good job understanding that random swings will be present in the short term but average out in the long run—and in many cases simulation is a big help in training our intuitions about averages and variation."><meta itemprop="datePublished" content="2024-03-12T00:00:00+00:00" />
+<meta itemprop="dateModified" content="2024-03-12T00:00:00+00:00" />
+<meta itemprop="wordCount" content="5321"><meta itemprop="image" content="http://localhost:4321/blog/2024-03-12-simulation/featured.png" />
+<meta itemprop="keywords" content="rstats,mgcv,simulation,confounding," />
+  
+  <!--[if IE]><script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script><![endif]-->
+  <link rel="shortcut icon" href="/img/header_logo.ico" type="image/x-icon">
+  <link rel="icon" href="/img/header_logo.ico" type="image/x-icon">
+  
+  
+  <link rel="stylesheet" href="/style.main.min.7bd8a1360c7052c2405a0e347b8edd8fc586122463b19fa98245632c1999648c.css" integrity="sha256-e9ihNgxwUsJAWg40e47dj8WGEiRjsZ&#43;pgkVjLBmZZIw=" media="screen">
+  
+  
+  <script src="/panelset.min.ed1ac24b6e16f4e2481e3d1d098ae66f5bc77438aef619e6e266d8ac5b00dc72.js" type="text/javascript"></script>
+  
+  
+  <script src="/main.min.7c7401b27b903bdc8736f72a2f739f7602bf606c451e8cb5e7fab2bf6b4af582.js" type="text/javascript"></script>
+</head>
+<body>
+      <div class="grid-container single-sidebar">
+<header class="site-header pt4 pb2 mb4 bb b--transparent ph5 headroom z-max" role="banner">
+  <nav class="site-nav db dt-l w-100" role="navigation">
+    <a class="site-brand db dtc-l v-mid link no-underline w-100 w-33-l tc tl-l" href="http://localhost:4321/" title="Home">
+      <img src="/img/header_logo.png" class="dib db-l h2 w-auto" alt="GAMbler">
+    </a>
+    <div class="site-links db dtc-l v-mid w-100 w-47-l tc tr-l mt3 mt0-l ttu tracked">
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 active" href="/blog/" title="Blog">Blog</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/project/" title="Project Portfolio">Software</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/talk/" title="Talks">Talks</a>
+      
+      
+    </div>
+  </nav>
+</header>
+
+<main class="page-main pa4" role="main">
+  <section class="page-content mw7 center">
+    <article class="post-content pa0 pr3-l">
+      <header class="post-header">
+        <h1 class="f1 lh-solid measure-narrow mb3 fw4">Simulating data for model exploration in R</h1>
+        
+        <p class="f6 measure lh-copy mv1">By Nicholas Clark in <a href="http://localhost:4321/categories/rstats">rstats</a>  <a href="http://localhost:4321/categories/simulation">simulation</a> </p>
+        <p class="f7 db mv0 ttu">March 12, 2024</p>
+      </header>
+      <section class="post-body pt5 pb4">
+        
+
+
+
+<h2 id="purpose">Purpose
+  <a href="#purpose"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>The following passage is quoted directly from <em>Regression and other stories</em> (Gelman, Hill and Vehtari 2022). &ldquo;Simulation of random variables is important in applied statistics for several reasons. First, we use probability models to mimic variation in the world, and the tools of simulation can help us better understand how this variation plays out. Patterns of randomness are notoriously contrary to normal human thinking—our brains don’t seem to be able to do a good job understanding that random swings will be present in the short term but average out in the long run—and in many cases simulation is a big help in training our intuitions about averages and variation. Second, we can use simulation to approximate the sampling distribution of data and propagate this to the sampling distribution of statistical estimates and procedures. Third, regression models are not deterministic; they produce probabilistic predictions. Simulation is the most convenient and general way to represent uncertainties in forecasts&rdquo;</p>
+<p>This script walks through some potential uses of simulation, but it is by no means exhaustive. First, generate some nice plotting colours</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>c_light <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;#DCBCBC&#34;</span>)
+</span></span><span style="display:flex;"><span>c_light_highlight <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;#C79999&#34;</span>)
+</span></span><span style="display:flex;"><span>c_mid <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;#B97C7C&#34;</span>)
+</span></span><span style="display:flex;"><span>c_mid_highlight <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;#A25050&#34;</span>)
+</span></span><span style="display:flex;"><span>c_dark <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;#8F2727&#34;</span>)
+</span></span><span style="display:flex;"><span>c_dark_highlight <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;#7C0000&#34;</span>)
+</span></span></code></pre></div><p>Next we define a few helper functions for making nice plots</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>myhist <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">function</span>(x, 
+</span></span><span style="display:flex;"><span>                  xlim,
+</span></span><span style="display:flex;"><span>                  xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>,
+</span></span><span style="display:flex;"><span>                  main <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>){
+</span></span><span style="display:flex;"><span>  <span style="color:#000;font-weight:bold">if</span>(<span style="color:#900;font-weight:bold">missing</span>(xlim)){
+</span></span><span style="display:flex;"><span>    xlim <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">range</span>(x)
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">hist</span>(x, 
+</span></span><span style="display:flex;"><span>       xlim <span style="color:#000;font-weight:bold">=</span> xlim,
+</span></span><span style="display:flex;"><span>       yaxt <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;n&#39;</span>,
+</span></span><span style="display:flex;"><span>       xlab <span style="color:#000;font-weight:bold">=</span> xlab,
+</span></span><span style="display:flex;"><span>       ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>,
+</span></span><span style="display:flex;"><span>       col <span style="color:#000;font-weight:bold">=</span> c_mid_highlight,
+</span></span><span style="display:flex;"><span>       border <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>,
+</span></span><span style="display:flex;"><span>       lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>,
+</span></span><span style="display:flex;"><span>       breaks <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">20</span>,
+</span></span><span style="display:flex;"><span>       main <span style="color:#000;font-weight:bold">=</span> main)
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>myscatter <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">function</span>(x, 
+</span></span><span style="display:flex;"><span>                     y, 
+</span></span><span style="display:flex;"><span>                     xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>, 
+</span></span><span style="display:flex;"><span>                     ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>){
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">plot</span>(x <span style="color:#000;font-weight:bold">=</span> x, 
+</span></span><span style="display:flex;"><span>       y <span style="color:#000;font-weight:bold">=</span> y, 
+</span></span><span style="display:flex;"><span>       pch <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">16</span>,
+</span></span><span style="display:flex;"><span>       col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>,
+</span></span><span style="display:flex;"><span>       cex <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1.25</span>,
+</span></span><span style="display:flex;"><span>       bty <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;l&#39;</span>,
+</span></span><span style="display:flex;"><span>       xlab <span style="color:#000;font-weight:bold">=</span> xlab,
+</span></span><span style="display:flex;"><span>       ylab <span style="color:#000;font-weight:bold">=</span> ylab)
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">points</span>(x <span style="color:#000;font-weight:bold">=</span> x, y <span style="color:#000;font-weight:bold">=</span> y, pch <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">16</span>,
+</span></span><span style="display:flex;"><span>         col <span style="color:#000;font-weight:bold">=</span> c_dark,
+</span></span><span style="display:flex;"><span>         cex <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>)
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">box</span>(bty <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;l&#39;</span>, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>)
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>mypred_plot <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">function</span>(predictions, pred_values,
+</span></span><span style="display:flex;"><span>                       ylim,
+</span></span><span style="display:flex;"><span>                       ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Predictions&#39;</span>, xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Covariate&#39;</span>){
+</span></span><span style="display:flex;"><span>  probs <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">0.05</span>, <span style="color:#099">0.2</span>, <span style="color:#099">0.3</span>, <span style="color:#099">0.4</span>, <span style="color:#099">0.5</span>, <span style="color:#099">0.6</span>, <span style="color:#099">0.7</span>, <span style="color:#099">0.8</span>, <span style="color:#099">0.95</span>)
+</span></span><span style="display:flex;"><span>  cred <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">sapply</span>(<span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#900;font-weight:bold">NROW</span>(predictions),
+</span></span><span style="display:flex;"><span>                 <span style="color:#000;font-weight:bold">function</span>(n) <span style="color:#900;font-weight:bold">quantile</span>(predictions[n,],
+</span></span><span style="display:flex;"><span>                                      probs <span style="color:#000;font-weight:bold">=</span> probs, na.rm <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>))
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#000;font-weight:bold">if</span>(<span style="color:#900;font-weight:bold">missing</span>(ylim)){
+</span></span><span style="display:flex;"><span>    ylim <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">range</span>(cred)
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">plot</span>(<span style="color:#099">1</span>, type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;n&#34;</span>, bty <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;L&#39;</span>,
+</span></span><span style="display:flex;"><span>       xlab <span style="color:#000;font-weight:bold">=</span> xlab,
+</span></span><span style="display:flex;"><span>       ylab <span style="color:#000;font-weight:bold">=</span> ylab,
+</span></span><span style="display:flex;"><span>       xlim <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">range</span>(pred_values),
+</span></span><span style="display:flex;"><span>       ylim <span style="color:#000;font-weight:bold">=</span> ylim)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">polygon</span>(<span style="color:#900;font-weight:bold">c</span>(pred_values, <span style="color:#900;font-weight:bold">rev</span>(pred_values)), <span style="color:#900;font-weight:bold">c</span>(cred[1,], <span style="color:#900;font-weight:bold">rev</span>(cred[9,])),
+</span></span><span style="display:flex;"><span>          col <span style="color:#000;font-weight:bold">=</span> c_light, border <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">NA</span>)
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">polygon</span>(<span style="color:#900;font-weight:bold">c</span>(pred_values, <span style="color:#900;font-weight:bold">rev</span>(pred_values)), <span style="color:#900;font-weight:bold">c</span>(cred[2,], <span style="color:#900;font-weight:bold">rev</span>(cred[8,])),
+</span></span><span style="display:flex;"><span>          col <span style="color:#000;font-weight:bold">=</span> c_light_highlight, border <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">NA</span>)
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">polygon</span>(<span style="color:#900;font-weight:bold">c</span>(pred_values, <span style="color:#900;font-weight:bold">rev</span>(pred_values)), <span style="color:#900;font-weight:bold">c</span>(cred[3,], <span style="color:#900;font-weight:bold">rev</span>(cred[7,])),
+</span></span><span style="display:flex;"><span>          col <span style="color:#000;font-weight:bold">=</span> c_mid, border <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">NA</span>)
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">polygon</span>(<span style="color:#900;font-weight:bold">c</span>(pred_values, <span style="color:#900;font-weight:bold">rev</span>(pred_values)), <span style="color:#900;font-weight:bold">c</span>(cred[4,], <span style="color:#900;font-weight:bold">rev</span>(cred[6,])),
+</span></span><span style="display:flex;"><span>          col <span style="color:#000;font-weight:bold">=</span> c_mid_highlight, border <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">NA</span>)
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">lines</span>(pred_values, cred[5,], col <span style="color:#000;font-weight:bold">=</span> c_dark, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2.5</span>)
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">box</span>(bty <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;l&#39;</span>, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>)
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div>
+
+
+
+<h2 id="simulating-a-simple-linear-regression">Simulating a simple linear regression
+  <a href="#simulating-a-simple-linear-regression"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>A linear regression generally assumes additive, linear effects of predictors on the mean of a response variable. It also assumes the errors (unexplained variation) are independent and identically distributed (i.e. the same variance / sd) applies to  the full distribution of errors. We will simulate a vegetation cover outcome variable under the following model:</p>
+<p><code>$$\boldsymbol{vegetation}\sim \text{Normal}(\mu,\sigma)$$</code>
+A linear predictor is modeled on the <code>\(identity\)</code> scale to capture effects of covariates on <code>\(\mu\)</code>:</p>
+<p><code>$$\mu=\alpha+{\beta_{temp}}*\boldsymbol{temperature}$$</code></p>
+<p>We simulate data with a single predictor, <code>\(temperature\)</code>, and with varying sample sizes to inspect the influence of sample size on our inferences. Start with a sample size of <code>300</code>.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>N <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">300</span>
+</span></span></code></pre></div><p>First we will simulate the predictor variable, <code>\(temperature\)</code>. Our first decision is to think about what distribution the predictor might have. For many modelling approaches, it is often useful to transform continuous predictors so they are standard normal in distribution (i.e. <code>\(\boldsymbol{temperature}\sim \text{Normal}(0,1)\)</code>). This might be the case if we were to measure temperature and then standardise it to unit variance</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">set.seed</span>(<span style="color:#099">1971</span>)
+</span></span><span style="display:flex;"><span>temperature_raw <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">rnorm</span>(n <span style="color:#000;font-weight:bold">=</span> N, mean <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">14</span>, sd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">5</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">myhist</span>(temperature_raw, xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Raw temperature&#39;</span>)
+</span></span></code></pre></div><img src="/blog/2024-03-12-simulation/index_files/figure-html/unnamed-chunk-4-1.png" width="576" style="display: block; margin: auto;" />
+<p>It is often useful to standardize variables to unit variance before modelling; this helps us to compare effects from different predictors but also helps to specify useful prior distributions when fitting Bayesian models. This is most commonly done by shifting the mean to <code>0</code> and dividing by <code>1sd</code></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>temperature_scaled <span style="color:#000;font-weight:bold">&lt;-</span> (temperature_raw <span style="color:#000;font-weight:bold">-</span> <span style="color:#900;font-weight:bold">mean</span>(temperature_raw)) <span style="color:#000;font-weight:bold">/</span> 
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">sd</span>(temperature_raw)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">myhist</span>(temperature_scaled, xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Scaled temperature&#39;</span>)
+</span></span></code></pre></div><img src="/blog/2024-03-12-simulation/index_files/figure-html/unnamed-chunk-5-1.png" width="576" style="display: block; margin: auto;" />
+<p>This shifts the distribution but it does not change the properties of the variable</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">myscatter</span>(x <span style="color:#000;font-weight:bold">=</span> temperature_raw,
+</span></span><span style="display:flex;"><span>          y <span style="color:#000;font-weight:bold">=</span> temperature_scaled,
+</span></span><span style="display:flex;"><span>          xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Raw temperature&#39;</span>,
+</span></span><span style="display:flex;"><span>          ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Scaled temperature&#39;</span>)
+</span></span></code></pre></div><img src="/blog/2024-03-12-simulation/index_files/figure-html/unnamed-chunk-6-1.png" width="576" style="display: block; margin: auto;" />
+<p>Now simulate the actual linear effect of <code>\(temperature\)</code> on the mean of our outcome, <code>\(vegetation\)</code>. This is captured by the coefficient <code>\({\beta_{temp}}\)</code></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>beta_temp <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">0.25</span>
+</span></span></code></pre></div><p>Next we need to simulate the intercept <code>\(\alpha\)</code>. This parameter represents the average vegetation when temperature is at <code>0</code></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>alpha <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">1</span>
+</span></span></code></pre></div><p>The other parameter we need to simulate is the standard deviation of the errors <code>\(\sigma\)</code>; we don&rsquo;t expect that temperature is the only mechanism influencing vegetation, so we need to include unexplained variation</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>sigma <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">2</span>
+</span></span></code></pre></div><p>Finally, we have the components to simulate our outcome variable, <code>\(vegetation\)</code>. Simulate the linear predictor, which is <code>\(\mu=\alpha+{\beta_{temp}}*\boldsymbol{temperature}\)</code></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>mu <span style="color:#000;font-weight:bold">&lt;-</span> alpha <span style="color:#000;font-weight:bold">+</span> beta_temp <span style="color:#000;font-weight:bold">*</span> temperature_raw
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">myhist</span>(mu, xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">expression</span>(mu))
+</span></span></code></pre></div><img src="/blog/2024-03-12-simulation/index_files/figure-html/unnamed-chunk-10-1.png" width="576" style="display: block; margin: auto;" />
+<p>Next, complete the probabilistic data generation by simulating the observations. Here we assume vegetation is normally distributed, so we use the random number generator <code>rnorm()</code>. Use <code>?rnorm</code> to learn more about normal distribution functions in <code>R</code></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>vegetation <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">rnorm</span>(n <span style="color:#000;font-weight:bold">=</span> N, mean <span style="color:#000;font-weight:bold">=</span> mu, sd <span style="color:#000;font-weight:bold">=</span> sigma)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">myhist</span>(vegetation, xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Vegetation&#39;</span>)
+</span></span></code></pre></div><img src="/blog/2024-03-12-simulation/index_files/figure-html/unnamed-chunk-11-1.png" width="576" style="display: block; margin: auto;" />
+<p>There should be an obvious positive relationship between raw <code>\(temperature\)</code> and <code>\(vegetation\)</code>; but it also shouldn&rsquo;t be a perfect 1:1 relationship</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">myscatter</span>(x <span style="color:#000;font-weight:bold">=</span> temperature_raw, 
+</span></span><span style="display:flex;"><span>          y <span style="color:#000;font-weight:bold">=</span> vegetation, 
+</span></span><span style="display:flex;"><span>          xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Raw temperature&#39;</span>, 
+</span></span><span style="display:flex;"><span>          ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Vegetation&#39;</span>)
+</span></span></code></pre></div><img src="/blog/2024-03-12-simulation/index_files/figure-html/unnamed-chunk-12-1.png" width="576" style="display: block; margin: auto;" />
+<p>We can now estimate the effect of temperature on the mean of vegetation using the <code>lm()</code> function in <code>R</code>. This function uses iteratively reweighted least squares to estimate model parameters in a maximum likelihood framework. But we will use the scaled version of temperature to showcase how this gives us coefficients that we can still interpret</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>veg_mod <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">lm</span>(vegetation <span style="color:#000;font-weight:bold">~</span> temperature_scaled)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">summary</span>(veg_mod)
+</span></span></code></pre></div><pre tabindex="0"><code>## 
+## Call:
+## lm(formula = vegetation ~ temperature_scaled)
+## 
+## Residuals:
+##     Min      1Q  Median      3Q     Max 
+## -4.3773 -1.4182 -0.0611  1.2073  5.6760 
+## 
+## Coefficients:
+##                    Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)          4.6737     0.1168   40.01   &lt;2e-16 ***
+## temperature_scaled   1.2222     0.1170   10.45   &lt;2e-16 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Residual standard error: 2.023 on 298 degrees of freedom
+## Multiple R-squared:  0.268,	Adjusted R-squared:  0.2655 
+## F-statistic: 109.1 on 1 and 298 DF,  p-value: &lt; 2.2e-16
+</code></pre><p>The coefficients are harder to interpret now because we scaled the predictor</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">coef</span>(veg_mod) 
+</span></span></code></pre></div><pre tabindex="0"><code>##        (Intercept) temperature_scaled 
+##           4.673721           1.222223
+</code></pre><p>Compare these estimates to the true values</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">cbind</span>(alpha, beta_temp)[1,]
+</span></span></code></pre></div><pre tabindex="0"><code>##     alpha beta_temp 
+##      1.00      0.25
+</code></pre><p>Both of these coefficients need to be interpreted by taking into account the standard deviation of the predictor variable, <code>\(vegetation\)</code>. Once we back-transform, we can see the point estimates are very close to the true simulated values. This is a useful first check to ensure the model is able to recover simulated parameters. It is always surprising how often a model is not able to recover these when we simulate, especially for more complex models / simulations</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">coef</span>(veg_mod) <span style="color:#000;font-weight:bold">/</span> <span style="color:#900;font-weight:bold">sd</span>(temperature_raw)
+</span></span></code></pre></div><pre tabindex="0"><code>##        (Intercept) temperature_scaled 
+##          0.9237536          0.2415704
+</code></pre><p>We can also calculate uncertainties of these coefficients, again on the appropriate scale</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">confint</span>(veg_mod) <span style="color:#000;font-weight:bold">/</span> <span style="color:#900;font-weight:bold">sd</span>(temperature_raw)
+</span></span></code></pre></div><pre tabindex="0"><code>##                        2.5 %    97.5 %
+## (Intercept)        0.8783128 0.9691943
+## temperature_scaled 0.1960538 0.2870871
+</code></pre><p>Finally, for most maximum likelihood models in <code>R</code> (<code>lm</code>, <code>glm</code>, <code>gam</code> etc&hellip;.) we can draw samples of regression coefficients from the implied posterior distribution. Maximum likelihood finds the posterior mode and then uses gradients around the mode to approximate the posterior with a Gaussian (Normal) distribution. So the posterior of coefficients is always multivariate normal. All we need to generate samples from this posterior is the variance-covariance matrix and the mean coefficients</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>mean_coefs <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">coef</span>(veg_mod)
+</span></span><span style="display:flex;"><span>coef_vcv <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">vcov</span>(veg_mod)
+</span></span></code></pre></div><p>Generate 2,000 regression coefficient samples from the implied multivariate normal posterior distribution. We can use the <code>mvrnorm()</code> function from the <code>MASS</code> package to make this simple</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#000;font-weight:bold">if</span>(<span style="color:#000;font-weight:bold">!</span><span style="color:#900;font-weight:bold">require</span>(MASS)){
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">install.packages</span>(<span style="color:#d14">&#39;MASS&#39;</span>)
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><pre tabindex="0"><code>## Loading required package: MASS
+</code></pre><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>coef_posterior <span style="color:#000;font-weight:bold">&lt;-</span> MASS<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">mvrnorm</span>(n <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2000</span>, 
+</span></span><span style="display:flex;"><span>                                mu <span style="color:#000;font-weight:bold">=</span> mean_coefs, 
+</span></span><span style="display:flex;"><span>                                Sigma <span style="color:#000;font-weight:bold">=</span> coef_vcv)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">head</span>(coef_posterior)
+</span></span></code></pre></div><pre tabindex="0"><code>##      (Intercept) temperature_scaled
+## [1,]    4.821914          1.2911135
+## [2,]    4.572132          1.2185941
+## [3,]    4.612218          1.4297919
+## [4,]    4.534363          1.3223695
+## [5,]    4.636644          1.3577525
+## [6,]    4.866013          0.9418046
+</code></pre><p>Instead of simply looking at confidence intervals of coefficients, we can now inspect the full distribution and overlay the true simulated value. Remember to adjust for the  scaling of the variable</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">myhist</span>(x <span style="color:#000;font-weight:bold">=</span> coef_posterior[,<span style="color:#099">2</span>] <span style="color:#000;font-weight:bold">/</span> <span style="color:#900;font-weight:bold">sd</span>(temperature_raw), 
+</span></span><span style="display:flex;"><span>       xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Posterior temp coefficient (unscaled)&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> beta_temp, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> beta_temp, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2.5</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;black&#39;</span>)
+</span></span></code></pre></div><img src="/blog/2024-03-12-simulation/index_files/figure-html/unnamed-chunk-20-1.png" width="576" style="display: block; margin: auto;" />
+<p>Prediction intervals can also be obtained once we have the posterior estimates. Predicting from models is a crucial step to understand them and interrogate their weaknesses. To make predictions, we usually must supply <code>newdata</code> for predicting against. This would mean a new set of  temperature measurements, in our case. The best way to do this, depending  on model complexity, is to create a sequence of measurements for the variable of interest that we&rsquo;d like predictions for. See <code>?predict.lm</code> for more details</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>newtemps <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">seq</span>(from <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">min</span>(temperature_scaled),
+</span></span><span style="display:flex;"><span>                to <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">max</span>(temperature_scaled),
+</span></span><span style="display:flex;"><span>                length.out <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1000</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">summary</span>(newtemps)
+</span></span></code></pre></div><pre tabindex="0"><code>##     Min.  1st Qu.   Median     Mean  3rd Qu.     Max. 
+## -3.26551 -1.61228  0.04094  0.04094  1.69416  3.34738
+</code></pre><p>Create an empty <code>matrix</code> to store the predictions. We want to predict at these new <code>\(temperature\)</code> values for each combination of posterior coefficients so we can visualise uncertainty in those predictions</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>predictions <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">matrix</span>(<span style="color:#000;font-weight:bold">NA</span>, ncol <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">NROW</span>(coef_posterior),
+</span></span><span style="display:flex;"><span>                      nrow <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">length</span>(newtemps))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">dim</span>(predictions)
+</span></span></code></pre></div><pre tabindex="0"><code>## [1] 1000 2000
+</code></pre><p>Now fill the matrix with the predicted mean for each of the new <code>\(temperature\)</code> measurements, using each posterior draw of regression coefficients</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#000;font-weight:bold">for</span>(i <span style="color:#000;font-weight:bold">in</span> <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#900;font-weight:bold">NCOL</span>(predictions)){
+</span></span><span style="display:flex;"><span>  predictions[,i] <span style="color:#000;font-weight:bold">&lt;-</span> coef_posterior[i,<span style="color:#099">1</span>] <span style="color:#000;font-weight:bold">+</span> (coef_posterior[i,<span style="color:#099">2</span>] <span style="color:#000;font-weight:bold">*</span> newtemps)
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Plot empirical quantile ribbons of the predictions to visualise them, and overlay the simulated values as points</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">mypred_plot</span>(predictions <span style="color:#000;font-weight:bold">=</span> predictions,
+</span></span><span style="display:flex;"><span>            xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Temperature (scaled)&#39;</span>,
+</span></span><span style="display:flex;"><span>            ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Vegetation (expectation only)&#39;</span>,
+</span></span><span style="display:flex;"><span>            pred_values <span style="color:#000;font-weight:bold">=</span> newtemps,
+</span></span><span style="display:flex;"><span>            ylim <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">range</span>(<span style="color:#900;font-weight:bold">c</span>(vegetation,
+</span></span><span style="display:flex;"><span>                           <span style="color:#900;font-weight:bold">quantile</span>(predictions, probs <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">0.025</span>, <span style="color:#099">0.975</span>)))))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">points</span>(pch <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">16</span>, x <span style="color:#000;font-weight:bold">=</span> temperature_scaled, y <span style="color:#000;font-weight:bold">=</span> vegetation, 
+</span></span><span style="display:flex;"><span>       col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>,
+</span></span><span style="display:flex;"><span>       cex <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">points</span>(pch <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">16</span>, x <span style="color:#000;font-weight:bold">=</span> temperature_scaled, y <span style="color:#000;font-weight:bold">=</span> vegetation,
+</span></span><span style="display:flex;"><span>       cex <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.8</span>)
+</span></span></code></pre></div><img src="/blog/2024-03-12-simulation/index_files/figure-html/unnamed-chunk-24-1.png" width="576" style="display: block; margin: auto;" />
+<p>The uncertainty about this line seems far too narrow, and that&rsquo;s because it is! We have ignored the stochastic component, which is the normally distributed errors. This means we have only predicted the mean, otherwise known as the expectation. But we can easily compute full probabilistic predictions and re-plot. All we need is the sd estimate for <code>\(\sigma\)</code>, which is stored as <code>sigma</code> in the model. This estimate is extremely close to our true simulated value</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>sigma_estimate <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">summary</span>(veg_mod)<span style="color:#000;font-weight:bold">$</span>sigma
+</span></span><span style="display:flex;"><span>sigma_estimate; sigma
+</span></span></code></pre></div><pre tabindex="0"><code>## [1] 2.023472
+</code></pre><pre tabindex="0"><code>## [1] 2
+</code></pre><p>Now compute predictions using normal random draws with appropriate probabilistic uncertainty</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>predictions <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">matrix</span>(<span style="color:#000;font-weight:bold">NA</span>, ncol <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">NROW</span>(coef_posterior),
+</span></span><span style="display:flex;"><span>                      nrow <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">length</span>(newtemps))
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">for</span>(i <span style="color:#000;font-weight:bold">in</span> <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#900;font-weight:bold">NCOL</span>(predictions)){
+</span></span><span style="display:flex;"><span>  predictions[,i] <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">rnorm</span>(n <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">NROW</span>(predictions),
+</span></span><span style="display:flex;"><span>                           mean <span style="color:#000;font-weight:bold">=</span> coef_posterior[i,<span style="color:#099">1</span>] <span style="color:#000;font-weight:bold">+</span> (coef_posterior[i,<span style="color:#099">2</span>] <span style="color:#000;font-weight:bold">*</span> newtemps),
+</span></span><span style="display:flex;"><span>                           sd <span style="color:#000;font-weight:bold">=</span> sigma_estimate)
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Plot the full prediction distribution</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">mypred_plot</span>(predictions <span style="color:#000;font-weight:bold">=</span> predictions,
+</span></span><span style="display:flex;"><span>            xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Temperature (scaled)&#39;</span>,
+</span></span><span style="display:flex;"><span>            ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Vegetation (full uncertainty)&#39;</span>,
+</span></span><span style="display:flex;"><span>            pred_values <span style="color:#000;font-weight:bold">=</span> newtemps,
+</span></span><span style="display:flex;"><span>            ylim <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">range</span>(<span style="color:#900;font-weight:bold">c</span>(vegetation,
+</span></span><span style="display:flex;"><span>                           <span style="color:#900;font-weight:bold">quantile</span>(predictions, probs <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">0.025</span>, <span style="color:#099">0.975</span>)))))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">points</span>(pch <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">16</span>, x <span style="color:#000;font-weight:bold">=</span> temperature_scaled, y <span style="color:#000;font-weight:bold">=</span> vegetation, 
+</span></span><span style="display:flex;"><span>       col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>,
+</span></span><span style="display:flex;"><span>       cex <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">points</span>(pch <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">16</span>, x <span style="color:#000;font-weight:bold">=</span> temperature_scaled, y <span style="color:#000;font-weight:bold">=</span> vegetation,
+</span></span><span style="display:flex;"><span>       cex <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.8</span>)
+</span></span></code></pre></div><img src="/blog/2024-03-12-simulation/index_files/figure-html/unnamed-chunk-27-1.png" width="576" style="display: block; margin: auto;" />
+<p>This model fits the data very well, with good coverage properties of the prediction uncertainties. But what happens if we decrease the sample size to <code>10</code> and run the process again?</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>N <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">10</span>
+</span></span><span style="display:flex;"><span>temperature_raw <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">rnorm</span>(n <span style="color:#000;font-weight:bold">=</span> N, mean <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">14</span>, sd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">5</span>)
+</span></span><span style="display:flex;"><span>temperature_scaled <span style="color:#000;font-weight:bold">&lt;-</span> (temperature_raw <span style="color:#000;font-weight:bold">-</span> <span style="color:#900;font-weight:bold">mean</span>(temperature_raw)) <span style="color:#000;font-weight:bold">/</span> 
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">sd</span>(temperature_raw)
+</span></span><span style="display:flex;"><span>mu <span style="color:#000;font-weight:bold">&lt;-</span> alpha <span style="color:#000;font-weight:bold">+</span> beta_temp <span style="color:#000;font-weight:bold">*</span> temperature_raw
+</span></span><span style="display:flex;"><span>vegetation <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">rnorm</span>(n <span style="color:#000;font-weight:bold">=</span> N, mean <span style="color:#000;font-weight:bold">=</span> mu, sd <span style="color:#000;font-weight:bold">=</span> sigma)
+</span></span><span style="display:flex;"><span>veg_mod <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">lm</span>(vegetation <span style="color:#000;font-weight:bold">~</span> temperature_scaled)
+</span></span><span style="display:flex;"><span>mean_coefs <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">coef</span>(veg_mod); coef_vcv <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">vcov</span>(veg_mod)
+</span></span><span style="display:flex;"><span>coef_posterior_new <span style="color:#000;font-weight:bold">&lt;-</span> MASS<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">mvrnorm</span>(n <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2000</span>, 
+</span></span><span style="display:flex;"><span>                                mu <span style="color:#000;font-weight:bold">=</span> mean_coefs, 
+</span></span><span style="display:flex;"><span>                                Sigma <span style="color:#000;font-weight:bold">=</span> coef_vcv)
+</span></span></code></pre></div><p>Plot posterior estimates from both simulations, but use the same <code>x-axis</code> limits so the distributions can be compared</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">layout</span>(<span style="color:#900;font-weight:bold">matrix</span>(<span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">2</span>, nrow <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">myhist</span>(x <span style="color:#000;font-weight:bold">=</span> coef_posterior[,<span style="color:#099">2</span>] <span style="color:#000;font-weight:bold">/</span> <span style="color:#900;font-weight:bold">sd</span>(temperature_raw), 
+</span></span><span style="display:flex;"><span>       xlim <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">range</span>(<span style="color:#900;font-weight:bold">c</span>(coef_posterior[,<span style="color:#099">2</span>] <span style="color:#000;font-weight:bold">/</span> <span style="color:#900;font-weight:bold">sd</span>(temperature_raw),
+</span></span><span style="display:flex;"><span>                    coef_posterior_new[,<span style="color:#099">2</span>] <span style="color:#000;font-weight:bold">/</span> <span style="color:#900;font-weight:bold">sd</span>(temperature_raw))),
+</span></span><span style="display:flex;"><span>       xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>, main <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;N = 300&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> beta_temp, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> beta_temp, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2.5</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;black&#39;</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">myhist</span>(x <span style="color:#000;font-weight:bold">=</span> coef_posterior_new[,<span style="color:#099">2</span>] <span style="color:#000;font-weight:bold">/</span> <span style="color:#900;font-weight:bold">sd</span>(temperature_raw),
+</span></span><span style="display:flex;"><span>       xlim <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">range</span>(<span style="color:#900;font-weight:bold">c</span>(coef_posterior[,<span style="color:#099">2</span>] <span style="color:#000;font-weight:bold">/</span> <span style="color:#900;font-weight:bold">sd</span>(temperature_raw),
+</span></span><span style="display:flex;"><span>                      coef_posterior_new[,<span style="color:#099">2</span>] <span style="color:#000;font-weight:bold">/</span> <span style="color:#900;font-weight:bold">sd</span>(temperature_raw))),
+</span></span><span style="display:flex;"><span>       xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Posterior temp coefficient (unscaled)&#39;</span>,
+</span></span><span style="display:flex;"><span>       main <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;N = 30&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> beta_temp, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> beta_temp, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2.5</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;black&#39;</span>)
+</span></span></code></pre></div><img src="/blog/2024-03-12-simulation/index_files/figure-html/unnamed-chunk-29-1.png" width="576" style="display: block; margin: auto;" />
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">layout</span>(<span style="color:#099">1</span>)
+</span></span></code></pre></div><p>How does this wider uncertainty translate into the predictions?</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>sigma_estimate <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">summary</span>(veg_mod)<span style="color:#000;font-weight:bold">$</span>sigma
+</span></span><span style="display:flex;"><span>predictions <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">matrix</span>(<span style="color:#000;font-weight:bold">NA</span>, ncol <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">NROW</span>(coef_posterior_new),
+</span></span><span style="display:flex;"><span>                      nrow <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">length</span>(newtemps))
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">for</span>(i <span style="color:#000;font-weight:bold">in</span> <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#900;font-weight:bold">NCOL</span>(predictions)){
+</span></span><span style="display:flex;"><span>  predictions[,i] <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">rnorm</span>(n <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">NROW</span>(predictions),
+</span></span><span style="display:flex;"><span>                           mean <span style="color:#000;font-weight:bold">=</span> coef_posterior_new[i,<span style="color:#099">1</span>] <span style="color:#000;font-weight:bold">+</span> (coef_posterior_new[i,<span style="color:#099">2</span>] <span style="color:#000;font-weight:bold">*</span> newtemps),
+</span></span><span style="display:flex;"><span>                           sd <span style="color:#000;font-weight:bold">=</span> sigma_estimate)
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">mypred_plot</span>(predictions <span style="color:#000;font-weight:bold">=</span> predictions,
+</span></span><span style="display:flex;"><span>            xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Temperature (scaled)&#39;</span>,
+</span></span><span style="display:flex;"><span>            ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Vegetation (full uncertainty)&#39;</span>,
+</span></span><span style="display:flex;"><span>            pred_values <span style="color:#000;font-weight:bold">=</span> newtemps,
+</span></span><span style="display:flex;"><span>            ylim <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">range</span>(<span style="color:#900;font-weight:bold">c</span>(vegetation,
+</span></span><span style="display:flex;"><span>                           <span style="color:#900;font-weight:bold">quantile</span>(predictions, probs <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">0.025</span>, <span style="color:#099">0.975</span>)))))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">points</span>(pch <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">16</span>, x <span style="color:#000;font-weight:bold">=</span> temperature_scaled, y <span style="color:#000;font-weight:bold">=</span> vegetation, 
+</span></span><span style="display:flex;"><span>       col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>,
+</span></span><span style="display:flex;"><span>       cex <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">points</span>(pch <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">16</span>, x <span style="color:#000;font-weight:bold">=</span> temperature_scaled, y <span style="color:#000;font-weight:bold">=</span> vegetation,
+</span></span><span style="display:flex;"><span>       cex <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.8</span>)
+</span></span></code></pre></div><img src="/blog/2024-03-12-simulation/index_files/figure-html/unnamed-chunk-30-1.png" width="576" style="display: block; margin: auto;" />
+<p>Changing sample size is just one way to get a feel for how challenging some modelling problems can be to tackle. You can also change <code>\(\sigma\)</code>, the <code>\({\beta_{temp}}\)</code> coefficient, and / or the <code>\(\alpha\)</code> coefficient to understand what those changes might mean</p>
+
+
+
+
+<h2 id="inspecting-confounding-and-its-influence-on-causal-inferences">Inspecting confounding and its influence on causal inferences
+  <a href="#inspecting-confounding-and-its-influence-on-causal-inferences"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>In this next example, we will simulate a data-generating process that has a strong confounder (in the form of a collider). This will illustrate how wrong our conclusions can be if we simply throw all variables into a regression and interpret them as real risk factors / causal effects. We will use a similar approach as above, where the goal is to model <code>\(vegetation\)</code> density</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">set.seed</span>(<span style="color:#099">11155</span>)
+</span></span><span style="display:flex;"><span>N <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">100</span>
+</span></span></code></pre></div><p><code>\(temperature\)</code> again is our main predictor of interest. This time we&rsquo;ll ignore the scaling and just run with the scaled version for simplicity</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>temperature <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">rnorm</span>(N, 
+</span></span><span style="display:flex;"><span>                     mean <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0</span>, 
+</span></span><span style="display:flex;"><span>                     sd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>)
+</span></span></code></pre></div><p><code>\(temperature\)</code> again has a strong positive, linear effect on <code>\(vegetation\)</code></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>beta_temp <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">0.75</span>
+</span></span><span style="display:flex;"><span>vegetation <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">rnorm</span>(N, 
+</span></span><span style="display:flex;"><span>                    mean <span style="color:#000;font-weight:bold">=</span> beta_temp <span style="color:#000;font-weight:bold">*</span> temperature, 
+</span></span><span style="display:flex;"><span>                    sd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">myscatter</span>(x <span style="color:#000;font-weight:bold">=</span> temperature,
+</span></span><span style="display:flex;"><span>          y <span style="color:#000;font-weight:bold">=</span> vegetation,
+</span></span><span style="display:flex;"><span>          xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Temperature&#39;</span>,
+</span></span><span style="display:flex;"><span>          ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Vegetation&#39;</span>)
+</span></span></code></pre></div><img src="/blog/2024-03-12-simulation/index_files/figure-html/unnamed-chunk-33-1.png" width="576" style="display: block; margin: auto;" />
+<p>But this time, <code>\(temperature\)</code> also influences <code>\(pollinator density\)</code></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>beta_temp_pollinators <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">0.75</span>
+</span></span></code></pre></div><p>And <code>\(vegetation\)</code>, our outcome of interest, equally influences <code>\(pollinator density\)</code></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>beta_veg_pollinators <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">0.75</span>
+</span></span></code></pre></div><p>The problem here is that pollinators now exists as a collider variable; both our outcome of interest and one of our predictors influences this variable. This is an all-too-common issue we are faced with in regressin modelling</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>pollinators <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">rnorm</span>(N, 
+</span></span><span style="display:flex;"><span>                     mean <span style="color:#000;font-weight:bold">=</span> beta_temp_pollinators <span style="color:#000;font-weight:bold">*</span> temperature <span style="color:#000;font-weight:bold">+</span> 
+</span></span><span style="display:flex;"><span>                       beta_veg_pollinators <span style="color:#000;font-weight:bold">*</span> vegetation,
+</span></span><span style="display:flex;"><span>                     sd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>)
+</span></span></code></pre></div><p>There are now strong apparent relationships all around</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">layout</span>(<span style="color:#900;font-weight:bold">matrix</span>(<span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">2</span>, nrow <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">myscatter</span>(x <span style="color:#000;font-weight:bold">=</span> temperature,
+</span></span><span style="display:flex;"><span>          y <span style="color:#000;font-weight:bold">=</span> pollinators,
+</span></span><span style="display:flex;"><span>          xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Temperature&#39;</span>,
+</span></span><span style="display:flex;"><span>          ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Pollinators&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">myscatter</span>(x <span style="color:#000;font-weight:bold">=</span> vegetation,
+</span></span><span style="display:flex;"><span>          y <span style="color:#000;font-weight:bold">=</span> pollinators,
+</span></span><span style="display:flex;"><span>          xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Vegetation&#39;</span>,
+</span></span><span style="display:flex;"><span>          ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Pollinators&#39;</span>)
+</span></span></code></pre></div><img src="/blog/2024-03-12-simulation/index_files/figure-html/unnamed-chunk-37-1.png" width="576" style="display: block; margin: auto;" />
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">layout</span>(<span style="color:#099">1</span>)
+</span></span></code></pre></div><p>If we thought that pollinator density could be a reasonable predictor of vegetation, the standard approach we would often take would be to fit univariate models for each of our predictors and then choose which ones to include in a final model based on some arbitrary significance threshold. Let&rsquo;s see what happens if we do this</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>temp_only <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">lm</span>(vegetation <span style="color:#000;font-weight:bold">~</span> temperature)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">summary</span>(temp_only)
+</span></span></code></pre></div><pre tabindex="0"><code>## 
+## Call:
+## lm(formula = vegetation ~ temperature)
+## 
+## Residuals:
+##      Min       1Q   Median       3Q      Max 
+## -2.44451 -0.69136  0.03974  0.65918  2.26335 
+## 
+## Coefficients:
+##             Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept) -0.14338    0.09937  -1.443    0.152    
+## temperature  0.79203    0.09952   7.959 3.11e-12 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Residual standard error: 0.9885 on 98 degrees of freedom
+## Multiple R-squared:  0.3926,	Adjusted R-squared:  0.3864 
+## F-statistic: 63.34 on 1 and 98 DF,  p-value: 3.106e-12
+</code></pre><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>veg_only <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">lm</span>(vegetation <span style="color:#000;font-weight:bold">~</span> pollinators)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">summary</span>(veg_only)
+</span></span></code></pre></div><pre tabindex="0"><code>## 
+## Call:
+## lm(formula = vegetation ~ pollinators)
+## 
+## Residuals:
+##      Min       1Q   Median       3Q      Max 
+## -1.94531 -0.57399 -0.06453  0.57038  1.91163 
+## 
+## Coefficients:
+##             Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept) -0.15133    0.08499  -1.781   0.0781 .  
+## pollinators  0.53784    0.04864  11.057   &lt;2e-16 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Residual standard error: 0.846 on 98 degrees of freedom
+## Multiple R-squared:  0.555,	Adjusted R-squared:  0.5505 
+## F-statistic: 122.2 on 1 and 98 DF,  p-value: &lt; 2.2e-16
+</code></pre><p>Both predictors are found to be significant in univariate models; the standard approach we are taught now is to include them both in a final multivariable model</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>final_mod <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">lm</span>(vegetation <span style="color:#000;font-weight:bold">~</span> temperature <span style="color:#000;font-weight:bold">+</span> pollinators)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">summary</span>(final_mod)
+</span></span></code></pre></div><pre tabindex="0"><code>## 
+## Call:
+## lm(formula = vegetation ~ temperature + pollinators)
+## 
+## Residuals:
+##     Min      1Q  Median      3Q     Max 
+## -1.8385 -0.5926 -0.0930  0.5014  1.8816 
+## 
+## Coefficients:
+##             Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept) -0.15736    0.08454  -1.861   0.0657 .  
+## temperature  0.19296    0.12839   1.503   0.1361    
+## pollinators  0.45497    0.07333   6.205 1.35e-08 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Residual standard error: 0.8407 on 97 degrees of freedom
+## Multiple R-squared:  0.5652,	Adjusted R-squared:  0.5562 
+## F-statistic: 63.04 on 2 and 97 DF,  p-value: &lt; 2.2e-16
+</code></pre><p>This model is supported by <code>AIC</code> over the simpler models. The lower the <code>AIC</code>, the better are the penalized in-sample predictions from the model</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#39;full model better&#39;</span>, 
+</span></span><span style="display:flex;"><span>  <span style="color:#d14">&#39;temp only better&#39;</span>,
+</span></span><span style="display:flex;"><span>  <span style="color:#d14">&#39;veg only better&#39;</span>)<span style="color:#900;font-weight:bold">[which.min</span>(<span style="color:#900;font-weight:bold">c</span>(<span style="color:#900;font-weight:bold">AIC</span>(final_mod),
+</span></span><span style="display:flex;"><span>                                 <span style="color:#900;font-weight:bold">AIC</span>(temp_only),
+</span></span><span style="display:flex;"><span>                                 <span style="color:#900;font-weight:bold">AIC</span>(veg_only)))]
+</span></span></code></pre></div><pre tabindex="0"><code>## [1] &#34;full model better&#34;
+</code></pre><p>A type II <code>ANOVA</code> reveals that if we wanted the most parsimonious model, we&rsquo;d be justified in dropping <code>\(temperature\)</code> (even though this is the effect we actually care about!)</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">drop1</span>(final_mod, test <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;F&#39;</span>)
+</span></span></code></pre></div><pre tabindex="0"><code>## Single term deletions
+## 
+## Model:
+## vegetation ~ temperature + pollinators
+##             Df Sum of Sq    RSS     AIC F value    Pr(&gt;F)    
+## &lt;none&gt;                   68.551 -31.759                      
+## temperature  1    1.5962 70.147 -31.457  2.2586    0.1361    
+## pollinators  1   27.2062 95.757  -0.335 38.4969 1.349e-08 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+</code></pre><p>In fact, just about any model selection routine you use on these data will favour the multivariable model (stepwise selection, ridge regression, LASSO etc&hellip;.). But why do these general model selection routines favour a model that discards <code>\(temperature\)</code>. How does the estimated effect of temperature on vegetation resemble what we simulated as the actual truth?</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">confint</span>(final_mod)[2,]
+</span></span></code></pre></div><pre tabindex="0"><code>##       2.5 %      97.5 % 
+## -0.06186813  0.44778663
+</code></pre><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>beta_temp
+</span></span></code></pre></div><pre tabindex="0"><code>## [1] 0.75
+</code></pre><p>It misses. <strong>Badly</strong>. This is because of the influence of collider bias. We must be very cautious when throwing all sorts of variables into models and assuming the resulting estimates can be interpreted in any meaningful way. The correct approach here would actually be to omit <code>\(pollinators\)</code> altogether. This is better for inference, even though it doesn&rsquo;t fit the data as well. We&rsquo;ve already done that in our <code>temp_only</code> model</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">confint</span>(temp_only)[2,]
+</span></span></code></pre></div><pre tabindex="0"><code>##     2.5 %    97.5 % 
+## 0.5945409 0.9895126
+</code></pre><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>beta_temp
+</span></span></code></pre></div><pre tabindex="0"><code>## [1] 0.75
+</code></pre>
+
+
+
+<h2 id="effects-are-often-estimated-with-more-precision-when-including-other-predictors">Effects are often estimated with more precision when including other predictors
+  <a href="#effects-are-often-estimated-with-more-precision-when-including-other-predictors"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>Here we will explore why it is often important to adjust for other variables when estimating effects, even if those other variables are not &ldquo;significant&rdquo;. Simulate a scenario where age and season show independent effects on some disease&rsquo;s infection probability</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">set.seed</span>(<span style="color:#099">5555</span>)
+</span></span><span style="display:flex;"><span>N <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">200</span>
+</span></span></code></pre></div><p>Simulate <code>\(age\)</code> as a log-normally distributed, positive continuous variable</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>age <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">rlnorm</span>(N)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">myhist</span>(age, xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Age&#39;</span>)
+</span></span></code></pre></div><img src="/blog/2024-03-12-simulation/index_files/figure-html/unnamed-chunk-45-1.png" width="576" style="display: block; margin: auto;" />
+<p>Simulate a cyclic seasonal pattern to replicate what we often see with transmittable diseases, which is a fairly strong and consistent variation in risk across seasons. This type of simulation can be done with combinations of <code>sine</code> and <code>cosine</code> functions</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>season_function <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">rep</span>((<span style="color:#900;font-weight:bold">sin</span>(<span style="color:#099">0.2</span> <span style="color:#000;font-weight:bold">*</span> <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">12</span>) <span style="color:#000;font-weight:bold">-</span> <span style="color:#900;font-weight:bold">cos</span>(<span style="color:#099">-0.2</span> <span style="color:#000;font-weight:bold">*</span> <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">12</span>) <span style="color:#000;font-weight:bold">+</span> <span style="color:#900;font-weight:bold">sin</span>(<span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">12</span>)),
+</span></span><span style="display:flex;"><span>                        <span style="color:#099">50</span>)[1<span style="color:#000;font-weight:bold">:</span>N] <span style="color:#000;font-weight:bold">*</span> <span style="color:#099">0.1</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot</span>(season_function, type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;l&#39;</span>, 
+</span></span><span style="display:flex;"><span>     xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Time&#39;</span>, ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Seasonal effect&#39;</span>)
+</span></span></code></pre></div><img src="/blog/2024-03-12-simulation/index_files/figure-html/unnamed-chunk-46-1.png" width="672" />
+<p>Convert season to a numeric indicator of month, just like we would use in a model</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>season <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">rep</span>(<span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">12</span>, <span style="color:#900;font-weight:bold">ceiling</span>(N <span style="color:#000;font-weight:bold">/</span> <span style="color:#099">12</span>))[1<span style="color:#000;font-weight:bold">:</span>N]
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">head</span>(season, <span style="color:#099">24</span>)
+</span></span></code></pre></div><pre tabindex="0"><code>##  [1]  1  2  3  4  5  6  7  8  9 10 11 12  1  2  3  4  5  6  7  8  9 10 11 12
+</code></pre><p>Calculate infection probability with an <code>\(age\)</code> effect of <code>-0.4</code> (on the log scale) and with a minor seasonal effect. We use the <code>plogis</code> function, which uses the <code>inverse logit</code> transformation to convert real-valued continuous variables to the probability scale. This is the same link function that is used in logistic regression (where the outcomes are <code>1s</code> and <code>0s</code>) and in Beta regression (where the outcome is a proportion on <code>(1,0)</code>). We will use Beta regression here, which assumes the following:
+<code>$$\boldsymbol{inf~prob}\sim \text{Beta}(logit^{-1}(\mu)*\phi,(1-logit^{-1}(\mu))*\phi)$$</code></p>
+<p><code>$$\mu={\alpha}+{\beta_{age}}*\boldsymbol{log(age)}+f(season)$$</code>
+Where <code>\(\phi\)</code> is a shape parameter that controls the spread of the distribution. We can use <code>plogis</code> to convert our simulated values from the real line to the probability scale (this is a fast and efficient version of <code>inverse logit</code>)</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>beta_logage <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">-0.4</span>
+</span></span><span style="display:flex;"><span>inf_prob <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">plogis</span>(<span style="color:#099">-0.3</span> <span style="color:#000;font-weight:bold">+</span> season_function <span style="color:#000;font-weight:bold">+</span> beta_logage <span style="color:#000;font-weight:bold">*</span> <span style="color:#900;font-weight:bold">log</span>(age))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">myhist</span>(inf_prob)
+</span></span></code></pre></div><img src="/blog/2024-03-12-simulation/index_files/figure-html/unnamed-chunk-48-1.png" width="576" style="display: block; margin: auto;" />
+<p>Fit a beta regression model that ignores season</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(mgcv)
+</span></span></code></pre></div><pre tabindex="0"><code>## Loading required package: nlme
+</code></pre><pre tabindex="0"><code>## This is mgcv 1.8-42. For overview type &#39;help(&#34;mgcv-package&#34;)&#39;.
+</code></pre><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>mod_noseason <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">gam</span>(inf_prob <span style="color:#000;font-weight:bold">~</span> <span style="color:#900;font-weight:bold">log</span>(age),
+</span></span><span style="display:flex;"><span>                    family <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">betar</span>(),
+</span></span><span style="display:flex;"><span>                    method <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;REML&#39;</span>)
+</span></span></code></pre></div><p>The estimate for <code>\(log(age)\)</code> is fairly precise</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">summary</span>(mod_noseason)
+</span></span></code></pre></div><pre tabindex="0"><code>## 
+## Family: Beta regression(605.665) 
+## Link function: logit 
+## 
+## Formula:
+## inf_prob ~ log(age)
+## 
+## Parametric coefficients:
+##              Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept) -0.247234   0.005879  -42.05   &lt;2e-16 ***
+## log(age)    -0.390477   0.006448  -60.56   &lt;2e-16 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## 
+## R-sq.(adj) =  0.951   Deviance explained = 95.2%
+## -REML = -493.13  Scale est. = 1         n = 200
+</code></pre><p>Fit a model that includes only <code>\(season\)</code>, which finds that this predictor is not statistically significant on its own. Again, the standard practice would be to drop this predictor when we proceed with a multivariable analysis</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>mod_seasononly <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">gam</span>(inf_prob <span style="color:#000;font-weight:bold">~</span> <span style="color:#900;font-weight:bold">s</span>(season, bs <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;cc&#39;</span>),
+</span></span><span style="display:flex;"><span>                    family <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">betar</span>(),
+</span></span><span style="display:flex;"><span>                    method <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;REML&#39;</span>)
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">summary</span>(mod_seasononly)
+</span></span></code></pre></div><pre tabindex="0"><code>## 
+## Family: Beta regression(29.583) 
+## Link function: logit 
+## 
+## Formula:
+## inf_prob ~ s(season, bs = &#34;cc&#34;)
+## 
+## Parametric coefficients:
+##             Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept) -0.24268    0.02574  -9.429   &lt;2e-16 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Approximate significance of smooth terms:
+##                 edf Ref.df Chi.sq p-value
+## s(season) 0.0004364      8      0   0.607
+## 
+## R-sq.(adj) =  5.21e-08   Deviance explained = 0.000239%
+## -REML = -196.38  Scale est. = 1         n = 200
+</code></pre><p>Fit a model that includes both predictors</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>mod_bothpredictors <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">gam</span>(inf_prob <span style="color:#000;font-weight:bold">~</span> <span style="color:#900;font-weight:bold">log</span>(age) <span style="color:#000;font-weight:bold">+</span> <span style="color:#900;font-weight:bold">s</span>(season, bs <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;cc&#39;</span>),
+</span></span><span style="display:flex;"><span>                    family <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">betar</span>(),
+</span></span><span style="display:flex;"><span>                    method <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;REML&#39;</span>)
+</span></span></code></pre></div><p>The estimate for <code>log(age)</code> also appears precise in this model, just like in the first model</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">summary</span>(mod_bothpredictors)
+</span></span></code></pre></div><pre tabindex="0"><code>## 
+## Family: Beta regression(14453.538) 
+## Link function: logit 
+## 
+## Formula:
+## inf_prob ~ log(age) + s(season, bs = &#34;cc&#34;)
+## 
+## Parametric coefficients:
+##              Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept) -0.247699   0.001206  -205.5   &lt;2e-16 ***
+## log(age)    -0.399987   0.001343  -297.9   &lt;2e-16 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Approximate significance of smooth terms:
+##             edf Ref.df Chi.sq p-value    
+## s(season) 7.748      8   4518  &lt;2e-16 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## R-sq.(adj) =  0.998   Deviance explained = 99.8%
+## -REML = -787.93  Scale est. = 1         n = 200
+</code></pre><p>But which model gives us <em>better</em> estimates for <code>log(age)</code>? Draw 5,000 posterior estimates from each model&rsquo;s posterior coefficient distribution. Because <code>gam()</code> uses a form of maximum likelihood for estimation, the posterior once again is an implied multivariate Gaussian. The variance-covariance matrix for the coefficients is stored in the model object in the <code>Vc</code> slot</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>coefs_noseason <span style="color:#000;font-weight:bold">&lt;-</span> MASS<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">mvrnorm</span>(<span style="color:#099">5000</span>, mu <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">coef</span>(mod_noseason), 
+</span></span><span style="display:flex;"><span>                       Sigma <span style="color:#000;font-weight:bold">=</span> mod_noseason<span style="color:#000;font-weight:bold">$</span>Ve)
+</span></span><span style="display:flex;"><span>coefs_bothpredictors <span style="color:#000;font-weight:bold">&lt;-</span> MASS<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">mvrnorm</span>(<span style="color:#099">5000</span>, mu <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">coef</span>(mod_bothpredictors), 
+</span></span><span style="display:flex;"><span>                                Sigma <span style="color:#000;font-weight:bold">=</span> mod_bothpredictors<span style="color:#000;font-weight:bold">$</span>Ve)
+</span></span></code></pre></div><p>Calculate the continuous rank probability score (CRPS), a proper scoring rule for probabilistic predictions; a <em>lower</em> score is better, as it indicates the probability density is more concentrated around the true value</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#000;font-weight:bold">if</span>(<span style="color:#000;font-weight:bold">!</span><span style="color:#900;font-weight:bold">require</span>(scoringRules)){
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">install.packages</span>(<span style="color:#d14">&#39;scoringRules&#39;</span>)
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><pre tabindex="0"><code>## Loading required package: scoringRules
+</code></pre><pre tabindex="0"><code>## Warning: package &#39;scoringRules&#39; was built under R version 4.3.2
+</code></pre><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>score_noseason <span style="color:#000;font-weight:bold">&lt;-</span> scoringRules<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">crps_sample</span>(y <span style="color:#000;font-weight:bold">=</span> beta_logage,
+</span></span><span style="display:flex;"><span>                                            dat <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">t</span>(coefs_noseason[,<span style="color:#099">2</span>]))
+</span></span><span style="display:flex;"><span>score_bothpredictors <span style="color:#000;font-weight:bold">&lt;-</span> scoringRules<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">crps_sample</span>(y <span style="color:#000;font-weight:bold">=</span> beta_logage, 
+</span></span><span style="display:flex;"><span>                                              dat <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">t</span>(coefs_bothpredictors[,<span style="color:#099">2</span>]))
+</span></span></code></pre></div><p>Plot estimates and print the CRPS for each model</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">layout</span>(<span style="color:#900;font-weight:bold">matrix</span>(<span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">2</span>, nrow <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">myhist</span>(coefs_noseason[,<span style="color:#099">2</span>], 
+</span></span><span style="display:flex;"><span>       xlim <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">range</span>(<span style="color:#900;font-weight:bold">c</span>(coefs_noseason[,<span style="color:#099">2</span>], coefs_bothpredictors[,<span style="color:#099">2</span>])),
+</span></span><span style="display:flex;"><span>       main <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">paste0</span>(<span style="color:#d14">&#39;Without seasonal adjustment; score = &#39;</span>, <span style="color:#900;font-weight:bold">round</span>(score_noseason, <span style="color:#099">3</span>)))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> beta_logage, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> beta_logage, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2.5</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">myhist</span>(coefs_bothpredictors[,<span style="color:#099">2</span>], xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Posterior estimates for log(age)&#39;</span>,
+</span></span><span style="display:flex;"><span>            xlim <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">range</span>(<span style="color:#900;font-weight:bold">c</span>(coefs_noseason[,<span style="color:#099">2</span>], coefs_bothpredictors[,<span style="color:#099">2</span>])),
+</span></span><span style="display:flex;"><span>       main <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">paste0</span>(<span style="color:#d14">&#39;With seasonal adjustment; score = &#39;</span>, <span style="color:#900;font-weight:bold">round</span>(score_bothpredictors, <span style="color:#099">3</span>)))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> beta_logage, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> beta_logage, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2.5</span>)
+</span></span></code></pre></div><img src="/blog/2024-03-12-simulation/index_files/figure-html/unnamed-chunk-57-1.png" width="576" style="display: block; margin: auto;" />
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">layout</span>(<span style="color:#099">1</span>)
+</span></span></code></pre></div><p>Here it is clear that <em>adjusting for important control variables, even if they aren&rsquo;t &ldquo;significant&rdquo;, gives us better estimates of risk factors</em>. What happens if we have binary outcomes as our dependent variable? This is often the case in disease surveillance. We can easily generate such data using another of <code>R</code>&rsquo;s random number generator functions. See <code>?rbinom</code> for more details</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>infections <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">rbinom</span>(n <span style="color:#000;font-weight:bold">=</span> N, size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>, prob <span style="color:#000;font-weight:bold">=</span> inf_prob)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">myhist</span>(infections, xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Infection status&#39;</span>)
+</span></span></code></pre></div><img src="/blog/2024-03-12-simulation/index_files/figure-html/unnamed-chunk-58-1.png" width="576" style="display: block; margin: auto;" />
+<p>Fit the same models as above, but this time use a Bernoulli observation model with logit link function. The full model we will fit is:
+<code>$$\boldsymbol{infections}\sim \text{Bernoulli}(p)$$</code>
+<code>$$logit(p)={\alpha}+{\beta_{age}}*\boldsymbol{log(age)}+f(season)$$</code></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>mod_noseason <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">gam</span>(infections <span style="color:#000;font-weight:bold">~</span> <span style="color:#900;font-weight:bold">log</span>(age),
+</span></span><span style="display:flex;"><span>                    family <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">binomial</span>(),
+</span></span><span style="display:flex;"><span>                    method <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;REML&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">summary</span>(mod_noseason)
+</span></span></code></pre></div><pre tabindex="0"><code>## 
+## Family: binomial 
+## Link function: logit 
+## 
+## Formula:
+## infections ~ log(age)
+## 
+## Parametric coefficients:
+##             Estimate Std. Error z value Pr(&gt;|z|)  
+## (Intercept)  -0.2423     0.1434  -1.689   0.0912 .
+## log(age)     -0.2517     0.1549  -1.625   0.1043  
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## 
+## R-sq.(adj) =  0.00824   Deviance explained = 0.98%
+## -REML = 137.81  Scale est. = 1         n = 200
+</code></pre><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>mod_seasononly <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">gam</span>(infections <span style="color:#000;font-weight:bold">~</span> <span style="color:#900;font-weight:bold">s</span>(season, bs <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;cc&#39;</span>),
+</span></span><span style="display:flex;"><span>                    family <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">binomial</span>(),
+</span></span><span style="display:flex;"><span>                    method <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;REML&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">summary</span>(mod_seasononly)
+</span></span></code></pre></div><pre tabindex="0"><code>## 
+## Family: binomial 
+## Link function: logit 
+## 
+## Formula:
+## infections ~ s(season, bs = &#34;cc&#34;)
+## 
+## Parametric coefficients:
+##             Estimate Std. Error z value Pr(&gt;|z|)  
+## (Intercept)  -0.2490     0.1449  -1.718   0.0858 .
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Approximate significance of smooth terms:
+##            edf Ref.df Chi.sq p-value   
+## s(season) 1.95      8  8.352 0.00572 **
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## R-sq.(adj) =  0.0423   Deviance explained =  3.8%
+## -REML = 135.62  Scale est. = 1         n = 200
+</code></pre><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>mod_bothpredictors <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">gam</span>(infections <span style="color:#000;font-weight:bold">~</span> <span style="color:#900;font-weight:bold">log</span>(age) <span style="color:#000;font-weight:bold">+</span> <span style="color:#900;font-weight:bold">s</span>(season, bs <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;cc&#39;</span>),
+</span></span><span style="display:flex;"><span>                    family <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">binomial</span>(),
+</span></span><span style="display:flex;"><span>                    method <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;REML&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">summary</span>(mod_bothpredictors)
+</span></span></code></pre></div><pre tabindex="0"><code>## 
+## Family: binomial 
+## Link function: logit 
+## 
+## Formula:
+## infections ~ log(age) + s(season, bs = &#34;cc&#34;)
+## 
+## Parametric coefficients:
+##             Estimate Std. Error z value Pr(&gt;|z|)  
+## (Intercept)  -0.2506     0.1461  -1.715   0.0863 .
+## log(age)     -0.2722     0.1594  -1.708   0.0877 .
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Approximate significance of smooth terms:
+##             edf Ref.df Chi.sq p-value   
+## s(season) 1.985      8  8.743 0.00475 **
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## R-sq.(adj) =  0.0512   Deviance explained = 4.93%
+## -REML = 135.02  Scale est. = 1         n = 200
+</code></pre><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>coefs_noseason <span style="color:#000;font-weight:bold">&lt;-</span> MASS<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">mvrnorm</span>(<span style="color:#099">5000</span>, mu <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">coef</span>(mod_noseason), 
+</span></span><span style="display:flex;"><span>                       Sigma <span style="color:#000;font-weight:bold">=</span> mod_noseason<span style="color:#000;font-weight:bold">$</span>Ve)
+</span></span><span style="display:flex;"><span>coefs_bothpredictors <span style="color:#000;font-weight:bold">&lt;-</span> MASS<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">mvrnorm</span>(<span style="color:#099">5000</span>, mu <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">coef</span>(mod_bothpredictors), 
+</span></span><span style="display:flex;"><span>                                Sigma <span style="color:#000;font-weight:bold">=</span> mod_bothpredictors<span style="color:#000;font-weight:bold">$</span>Ve)
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>score_noseason <span style="color:#000;font-weight:bold">&lt;-</span> scoringRules<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">crps_sample</span>(y <span style="color:#000;font-weight:bold">=</span> beta_logage,
+</span></span><span style="display:flex;"><span>                                            dat <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">t</span>(coefs_noseason[,<span style="color:#099">2</span>]))
+</span></span><span style="display:flex;"><span>score_bothpredictors <span style="color:#000;font-weight:bold">&lt;-</span> scoringRules<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">crps_sample</span>(y <span style="color:#000;font-weight:bold">=</span> beta_logage, 
+</span></span><span style="display:flex;"><span>                                              dat <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">t</span>(coefs_bothpredictors[,<span style="color:#099">2</span>]))
+</span></span></code></pre></div><p>Plot estimates and print the CRPS for each model</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">layout</span>(<span style="color:#900;font-weight:bold">matrix</span>(<span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">2</span>, nrow <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">myhist</span>(coefs_noseason[,<span style="color:#099">2</span>], 
+</span></span><span style="display:flex;"><span>       xlim <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">range</span>(<span style="color:#900;font-weight:bold">c</span>(coefs_noseason[,<span style="color:#099">2</span>], coefs_bothpredictors[,<span style="color:#099">2</span>])),
+</span></span><span style="display:flex;"><span>       main <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">paste0</span>(<span style="color:#d14">&#39;Without seasonal adjustment; score = &#39;</span>, <span style="color:#900;font-weight:bold">round</span>(score_noseason, <span style="color:#099">3</span>)))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> beta_logage, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> beta_logage, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2.5</span>)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">myhist</span>(coefs_bothpredictors[,<span style="color:#099">2</span>], xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Posterior estimates for log(age)&#39;</span>,
+</span></span><span style="display:flex;"><span>            xlim <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">range</span>(<span style="color:#900;font-weight:bold">c</span>(coefs_noseason[,<span style="color:#099">2</span>], coefs_bothpredictors[,<span style="color:#099">2</span>])),
+</span></span><span style="display:flex;"><span>       main <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">paste0</span>(<span style="color:#d14">&#39;With seasonal adjustment; score = &#39;</span>, <span style="color:#900;font-weight:bold">round</span>(score_bothpredictors, <span style="color:#099">3</span>)))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> beta_logage, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> beta_logage, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2.5</span>)
+</span></span></code></pre></div><img src="/blog/2024-03-12-simulation/index_files/figure-html/unnamed-chunk-64-1.png" width="576" style="display: block; margin: auto;" />
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">layout</span>(<span style="color:#099">1</span>)
+</span></span></code></pre></div><p>In this case it doesn&rsquo;t make much difference whether we adjust for <code>\(season\)</code> or not when estimating effect of <code>log(age)</code>. This is because binary data has much less information than the proportional data we were using in the Beta regression. We&rsquo;d need to boos our sample size to have a better chance of adequately estimating these effects with a logistic regression. This is another advantage of simulation, as it allows us to get a better sense of the limitations of our sampling designs</p>
+
+
+
+
+<h2 id="failing-to-account-for-unobserved-autocorrelation-causes-problems">Failing to account for unobserved autocorrelation causes problems
+  <a href="#failing-to-account-for-unobserved-autocorrelation-causes-problems"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>In this final example, we will simulate a time series of counts that has autocorrelation in the underlying data-generating process. It is useful to get a sense of how models perform when we fail to take this autocorrelation into account. First we simulate the underlying autocorrelated trend, which follows an AR1 model</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">set.seed</span>(<span style="color:#099">500</span>)
+</span></span><span style="display:flex;"><span>N <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">100</span>
+</span></span><span style="display:flex;"><span>time <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span>N
+</span></span><span style="display:flex;"><span>trend <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">as.vector</span>(<span style="color:#900;font-weight:bold">scale</span>(<span style="color:#900;font-weight:bold">arima.sim</span>(model <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">list</span>(ar <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.7</span>), n <span style="color:#000;font-weight:bold">=</span> N)))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">myscatter</span>(x <span style="color:#000;font-weight:bold">=</span> time, y <span style="color:#000;font-weight:bold">=</span> trend, xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Time&#39;</span>, ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Trend&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">lines</span>(trend, col <span style="color:#000;font-weight:bold">=</span> c_dark, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>)
+</span></span></code></pre></div><img src="/blog/2024-03-12-simulation/index_files/figure-html/unnamed-chunk-65-1.png" width="576" style="display: block; margin: auto;" />
+<p>Next we simulate our covariate, <code>\(rainfall\)</code>, and it&rsquo;s linear additive coefficient</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>rainfall <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">rnorm</span>(N)
+</span></span><span style="display:flex;"><span>beta_rain <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">0.4</span>
+</span></span></code></pre></div><p>Finally, we can simulate the counts. In this case, counts follow a Poisson observation process. Poisson regression that assumes the underlying mean evolves on the log scale:
+<code>$$\boldsymbol{Counts}\sim \text{Poisson}(\lambda)$$</code>
+<code>$$log(\lambda)={\alpha}+{\beta_{rainfall}}*\boldsymbol{rainfall}+trend$$</code></p>
+<p>In this example, the linear predictor, <code>\(log(\lambda)\)</code> (referred to here as <code>\(\mu\)</code>), captures the additive effects of the intercept <code>\(\alpha\)</code>, the effect of <code>\(rainfall\)</code> and the underlying trend on the the log of the mean for <code>\(counts\)</code>. See <code>?rpois</code> for more information about the Poisson distribution functions in <code>R</code></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>alpha <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">1</span>
+</span></span><span style="display:flex;"><span>mu <span style="color:#000;font-weight:bold">&lt;-</span> alpha <span style="color:#000;font-weight:bold">+</span> beta_rain <span style="color:#000;font-weight:bold">*</span> rainfall <span style="color:#000;font-weight:bold">+</span> <span style="color:#099">0.8</span> <span style="color:#000;font-weight:bold">*</span> trend
+</span></span><span style="display:flex;"><span>counts <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">rpois</span>(n <span style="color:#000;font-weight:bold">=</span> N, lambda <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">exp</span>(mu))
+</span></span></code></pre></div><p>Plot the counts over time</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">myscatter</span>(x <span style="color:#000;font-weight:bold">=</span> time, y <span style="color:#000;font-weight:bold">=</span> counts, xlab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Time&#39;</span>, ylab <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Counts&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">lines</span>(counts, col <span style="color:#000;font-weight:bold">=</span> c_dark, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>)
+</span></span></code></pre></div><img src="/blog/2024-03-12-simulation/index_files/figure-html/unnamed-chunk-68-1.png" width="576" style="display: block; margin: auto;" />
+<p>When working with time series, it is always useful to understand whether there is any autocorrelation in the observations. This can be checked using the <code>acf()</code> function</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">acf</span>(counts)
+</span></span></code></pre></div><img src="/blog/2024-03-12-simulation/index_files/figure-html/unnamed-chunk-69-1.png" width="576" style="display: block; margin: auto;" />
+<p>This doesn&rsquo;t give us too much concern, and many people would use the fact that none of the lags shows too much autocorrelation as evidence that they do not need to account for this in their models. But what happens when we ignore time in our models?</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>mod_notime <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">gam</span>(counts <span style="color:#000;font-weight:bold">~</span> rainfall,
+</span></span><span style="display:flex;"><span>                   family <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">poisson</span>())
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">acf</span>(<span style="color:#900;font-weight:bold">residuals</span>(mod_notime))
+</span></span></code></pre></div><img src="/blog/2024-03-12-simulation/index_files/figure-html/unnamed-chunk-70-1.png" width="576" style="display: block; margin: auto;" />
+<p>There is some apparent autocorrelation left in the residuals. This means our model&rsquo;s errors are not independent, which is a violation of the model&rsquo;s assumptions. This can lead to overly precise standard errors and overconfident <code>p-values</code>. But it can also lead to downright absurd estimates for our predictors. Let&rsquo;s compare estimates of the <code>\(rainfall\)</code> coefficient from this model with a model that does attempt to capture the effect of time. This is done using a flexible smoothing spline for time</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>mod_time <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">gam</span>(counts <span style="color:#000;font-weight:bold">~</span> rainfall <span style="color:#000;font-weight:bold">+</span> <span style="color:#900;font-weight:bold">s</span>(time, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">30</span>),
+</span></span><span style="display:flex;"><span>                     family <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">poisson</span>())
+</span></span></code></pre></div><p>As before, we can compare the accuracies of our posterior estimates of the <code>\(rainfall\)</code> coefficient using probabilistic scoring rules</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>coefs_notime<span style="color:#000;font-weight:bold">&lt;-</span> MASS<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">mvrnorm</span>(<span style="color:#099">5000</span>, mu <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">coef</span>(mod_notime), 
+</span></span><span style="display:flex;"><span>                                Sigma <span style="color:#000;font-weight:bold">=</span> mod_notime<span style="color:#000;font-weight:bold">$</span>Ve)
+</span></span><span style="display:flex;"><span>coefs_time <span style="color:#000;font-weight:bold">&lt;-</span> MASS<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">mvrnorm</span>(<span style="color:#099">5000</span>, mu <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">coef</span>(mod_time), 
+</span></span><span style="display:flex;"><span>                                      Sigma <span style="color:#000;font-weight:bold">=</span> mod_time<span style="color:#000;font-weight:bold">$</span>Ve)
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>score_notime <span style="color:#000;font-weight:bold">&lt;-</span> scoringRules<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">crps_sample</span>(y <span style="color:#000;font-weight:bold">=</span> beta_rain,
+</span></span><span style="display:flex;"><span>                                            dat <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">t</span>(coefs_notime[,<span style="color:#099">2</span>]))
+</span></span><span style="display:flex;"><span>score_time<span style="color:#000;font-weight:bold">&lt;-</span> scoringRules<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">crps_sample</span>(y <span style="color:#000;font-weight:bold">=</span> beta_rain, 
+</span></span><span style="display:flex;"><span>                                                  dat <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">t</span>(coefs_time[,<span style="color:#099">2</span>]))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">layout</span>(<span style="color:#900;font-weight:bold">matrix</span>(<span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">2</span>, nrow <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">myhist</span>(coefs_notime[,<span style="color:#099">2</span>],
+</span></span><span style="display:flex;"><span>       xlim <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">range</span>(<span style="color:#900;font-weight:bold">c</span>(coefs_notime[,<span style="color:#099">2</span>], coefs_time[,<span style="color:#099">2</span>])),
+</span></span><span style="display:flex;"><span>       main <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">paste0</span>(<span style="color:#d14">&#39;Without time adjustment; score = &#39;</span>, <span style="color:#900;font-weight:bold">round</span>(score_notime, <span style="color:#099">3</span>)))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> beta_rain, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> beta_rain, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2.5</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">myhist</span>(coefs_time[,<span style="color:#099">2</span>],
+</span></span><span style="display:flex;"><span>       xlim <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">range</span>(<span style="color:#900;font-weight:bold">c</span>(coefs_notime[,<span style="color:#099">2</span>], coefs_time[,<span style="color:#099">2</span>])),
+</span></span><span style="display:flex;"><span>       main <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">paste0</span>(<span style="color:#d14">&#39;With time adjustment; score = &#39;</span>, <span style="color:#900;font-weight:bold">round</span>(score_time, <span style="color:#099">3</span>)))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> beta_rain, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(v <span style="color:#000;font-weight:bold">=</span> beta_rain, lwd <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2.5</span>)
+</span></span></code></pre></div><img src="/blog/2024-03-12-simulation/index_files/figure-html/unnamed-chunk-72-1.png" width="576" style="display: block; margin: auto;" />
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">layout</span>(<span style="color:#099">1</span>)
+</span></span></code></pre></div><p>The model with the temporal component does better in this case, giving us more accurate estimates of our coefficient of interest. How does the smoothing spline capture this temporal variation?</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot</span>(mod_time, shade <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>, shade.col <span style="color:#000;font-weight:bold">=</span> c_mid, col <span style="color:#000;font-weight:bold">=</span> c_dark_highlight,
+</span></span><span style="display:flex;"><span>     bty <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;l&#39;</span>)
+</span></span></code></pre></div><img src="/blog/2024-03-12-simulation/index_files/figure-html/unnamed-chunk-73-1.png" width="672" />
+<p>More examples will follow, but now that you have the building blocks of simulation of random variables and random sampling, you can simulate more complex generative models directly</p>
+
+      </section>
+      <footer class="post-footer">
+        <div class="post-pagination dt w-100 mt4 mb2">
+  
+  
+  
+  
+    <a class="next dtc pl2 tr v-top fw6"
+    href="http://localhost:4321/blog/stan-detection-error/">Using Stan for logistic regressions with detection error &rarr;</a>
+  
+</div>
+
+      </footer>
+    </article>
+    
+      
+<div class="post-comments pa0 pa4-l mt4">
+  
+  <script src="https://utteranc.es/client.js"
+          repo="apreshill/apero"
+          issue-term="pathname"
+          theme="boxy-light"
+          label="comments :crystal_ball:"
+          crossorigin="anonymous"
+          async
+          type="text/javascript">
+  </script>
+  
+</div>
+
+    
+  </section>
+</main>
+<aside class="page-sidebar" role="complementary">
+                         
+ 
+
+
+                       
+ 
+
+
+
+
+
+
+
+
+
+
+
+  <img src="/blog/sidebar-listing.jpg" class="db ma0">
+
+
+<div class="blog-info ph4 pt4 pb4 pb0-l">
+  
+
+  <h1 class="f3">GAMbler</h1>
+  <p class="f6 lh-copy measure">A blog on (somewhat) interesting and (hopefully) useful tips for ecological modeling, with (perhaps too much) emphasis on Generalized Additive Models.</p>
+  <p class="f7 measure lh-copy i mh0-l">Written by Nicholas Clark</p>
+
+
+  
+  <div class="dib bt bw1 b--black-10">
+    
+      <small class="db f7 pt3"><a href="/blog/" class="dib fw7 ttu">View recent posts</a></small>
+    
+    
+    
+    
+  </div>
+
+
+</div>
+
+
+  
+  <details open class="f6 fw7 input-reset">
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Posted on:</dt>
+    <dd class="fw5 ml0">March 12, 2024</dd>
+  </dl>
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Length:</dt>
+    <dd class="fw5 ml0">25 minute read, 5321 words</dd>
+  </dl>
+  
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Categories:</dt>
+    <dd class="fw5 ml0"> <a href="http://localhost:4321/categories/rstats">rstats</a>  <a href="http://localhost:4321/categories/simulation">simulation</a> </dd>
+  </dl>
+  
+  
+  
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Tags:</dt>
+    <dd class="fw5 ml0"> <a href="http://localhost:4321/tags/rstats">rstats</a>  <a href="http://localhost:4321/tags/mgcv">mgcv</a>  <a href="http://localhost:4321/tags/simulation">simulation</a>  <a href="http://localhost:4321/tags/confounding">confounding</a> </dd>
+  </dl>
+  
+  <dl class="f6 lh-copy">
+    <dt class="fw7">See Also:</dt>
+    
+    <dd class="fw5 ml0"><a href="/blog/stan-detection-error/">Using Stan for logistic regressions with detection error</a></dd>
+    
+    <dd class="fw5 ml0"><a href="/blog/phylogenetic-smooths-mgcv/">Phylogenetic smoothing using mgcv</a></dd>
+    
+  </dl>
+</details>
+
+                           
+  
+  
+  
+ <nav id="TableOfContents" class="sticky ph4 pb4 pt6" role="navigation"> 
+   <h2 class="mv0 f5 fw7 ttu tracked dib">On this page</h2> 
+     <nav id="TableOfContents">
+  <ul>
+    <li><a href="#purpose">Purpose</a></li>
+    <li><a href="#simulating-a-simple-linear-regression">Simulating a simple linear regression</a></li>
+    <li><a href="#inspecting-confounding-and-its-influence-on-causal-inferences">Inspecting confounding and its influence on causal inferences</a></li>
+    <li><a href="#effects-are-often-estimated-with-more-precision-when-including-other-predictors">Effects are often estimated with more precision when including other predictors</a></li>
+    <li><a href="#failing-to-account-for-unobserved-autocorrelation-causes-problems">Failing to account for unobserved autocorrelation causes problems</a></li>
+  </ul>
+</nav> 
+ </nav> 
+  
+
+</aside>
+<footer class="site-footer pv4 bt b--transparent ph5" role="contentinfo">
+  <nav class="db dt-l w-100">
+    <p class="site-copyright f7 db dtc-l v-mid w-100 w-33-l tc tl-l pv2 pv0-l mv0 lh-copy">
+      &copy; 2024 RStudio, Anywhere
+      <span class="middot-divider"></span>
+      Made with <span xmlns:dct="http://purl.org/dc/terms/" property="dct:title"><a xmlns:dct="http://purl.org/dc/terms/" href="https://github.com/hugo-apero/" rel="dct:source">Hugo Apéro</a></span>.
+      <br />
+      
+Based on <span xmlns:dct="http://purl.org/dc/terms/" property="dct:title"><a xmlns:dct="http://purl.org/dc/terms/" href="https://github.com/formspree/blogophonic-hugo" rel="dct:source">Blogophonic</a></span> by <a xmlns:cc="http://creativecommons.org/ns#" href="https://formspree.io" property="cc:attributionName" rel="cc:attributionURL">Formspree</a>.
+    </p>
+    
+    <div class="site-social-links db dtc-l v-mid w-100 w-33-l tc pv2 pv0-l mv0">
+      <div class="social-icon-links" aria-hidden="true">
+  
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://github.com/nicholasjclark" title="github" target="_blank" rel="me noopener">
+      <i class="fab fa-github fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://www.youtube.com/@NJ_Clark" title="youtube" target="_blank" rel="me noopener">
+      <i class="fab fa-youtube fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://twitter.com/nj_clark" title="twitter" target="_blank" rel="me noopener">
+      <i class="fab fa-twitter fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://orcid.org/0000-0001-7131-3301" title="orcid" target="_blank" rel="me noopener">
+      <i class="ai ai-orcid fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://scholar.google.com.au/citations?user=5bO9uxEAAAAJ&amp;hl=en" title="google-scholar" target="_blank" rel="me noopener">
+      <i class="ai ai-google-scholar fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="/blog/index.xml" title="rss" >
+      <i class="fas fa-rss fa-lg fa-fw"></i>
+    </a>
+  
+</div>
+
+    </div>
+    
+    <div class="site-links f6 db dtc-l v-mid w-100 w-67-l tc tr-l pv2 pv0-l mv0">
+      
+      <a class="dib pv1 ph2 link" href="/license/" title="License">License</a>
+      
+      <a class="dib pv1 ph2 link" href="/contact/" title="Contact form">Contact</a>
+      
+      <a class="dib pv1 ph2 link" href="/contributors/" title="Contributors">Contributors</a>
+      
+    </div>
+  </nav>
+  
+    <script>
+
+    var i, text, code, codes = document.getElementsByTagName('code');
+    for (let i = 0; i < codes.length;) {
+      code = codes[i];
+      if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+        text = code.textContent;
+        if (/^\$[^$]/.test(text) && /[^$]\$$/.test(text)) {
+          text = text.replace(/^\$/, '\\(').replace(/\$$/, '\\)');
+          code.textContent = text;
+        }
+        if (/^\\\((.|\s)+\\\)$/.test(text) ||
+            /^\\\[(.|\s)+\\\]$/.test(text) ||
+            /^\$(.|\s)+\$$/.test(text) ||
+            /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+          code.outerHTML = code.innerHTML;  
+          continue;
+        }
+      }
+      i++;
+    }
+</script>
+
+  
+    
+    
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/katex.min.css" integrity="sha384-RZU/ijkSsFbcmivfdRBQDtwuwVqK7GMOw6IMvKyeWL2K5UAlyp6WonmB8m7Jd0Hn" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/katex.min.js" integrity="sha384-pK1WpvzWVBQiP0/GjnvRxV4mOb0oxFuyRxJlk6vVw146n3egcN5C925NCP7a7BY8" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/contrib/auto-render.min.js" integrity="sha384-vZTG03m+2yp6N6BNi5iM4rW4oIwk5DfcNdFfxkk9ZWpDriOkXX8voJBFrAO7MpVl" crossorigin="anonymous" onload="renderMathInElement(document.body);"></script>
+
+
+
+    
+  
+  
+</footer>
+
+      </div>
+    </body>
+</html>

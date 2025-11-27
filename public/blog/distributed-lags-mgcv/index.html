@@ -1,0 +1,1102 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr"><head>
+  
+                           
+     
+
+
+<meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="generator" content="Hugo 0.123.8">
+<title>Distributed lags (and hierarchical distributed lags) using mgcv and mvgam | GAMbler</title>
+
+
+<meta property="twitter:site" content="@twitter = &#34;nj_clark&#34;">
+<meta property="twitter:creator" content="@twitter = &#34;nj_clark&#34;">
+
+
+
+
+
+
+
+  
+    
+  
+<meta name="description" content="Use mgcv&#39;s convenient list data format for setting up nonlinear functions that change smoothly over increasing temporal lags">
+
+
+<meta property="og:site_name" content="GAMbler">
+<meta property="og:title" content="Distributed lags (and hierarchical distributed lags) using mgcv and mvgam | GAMbler">
+<meta property="og:description" content="Use mgcv&#39;s convenient list data format for setting up nonlinear functions that change smoothly over increasing temporal lags" />
+<meta property="og:type" content="page" />
+<meta property="og:url" content="https://ecogambler.netlify.app/blog/distributed-lags-mgcv/" />
+<meta property="og:locale" content="en">
+
+
+
+
+    
+        <meta property="og:image" content="https://ecogambler.netlify.app/blog/distributed-lags-mgcv/featured.png" >
+        <meta property="twitter:card" content="summary_large_image">
+        <meta name="twitter:image" content="https://ecogambler.netlify.app/blog/distributed-lags-mgcv/featured.png" >
+    
+    
+  <meta itemprop="name" content="Distributed lags (and hierarchical distributed lags) using mgcv and mvgam">
+<meta itemprop="description" content="Here we will use mgcv to estimate parameters of nonlinear distributed lag models. These models are used to describe simultaneously non-linear and delayed functional relationships between a covariate and a response, and are sometimes referred to as exposure-lag-response models. If we assume \(\tilde{\boldsymbol{y}}_{t}\) is the conditional expectation of a response variable \(\boldsymbol{y}\) at time \(\boldsymbol{t}\), and that \(g\) is a suitable inverse link function, the linear predictor for a distributed lag GAM with one lagged covariate is written as:"><meta itemprop="datePublished" content="2023-08-15T00:00:00+00:00" />
+<meta itemprop="dateModified" content="2023-08-15T00:00:00+00:00" />
+<meta itemprop="wordCount" content="5111"><meta itemprop="image" content="https://ecogambler.netlify.app/blog/distributed-lags-mgcv/featured.png" />
+<meta itemprop="keywords" content="rstats,mgcv,tutorial,mvgam," />
+  
+  <!--[if IE]><script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script><![endif]-->
+  <link rel="shortcut icon" href="/img/header_logo.ico" type="image/x-icon">
+  <link rel="icon" href="/img/header_logo.ico" type="image/x-icon">
+  
+  
+  <link rel="stylesheet" href="/style.main.min.13ba2c07d7acc52c13dbb9003240e2adf360a5d73e1392ede873916180ee1701.css" integrity="sha256-E7osB9esxSwT27kAMkDirfNgpdc&#43;E5Lt6HORYYDuFwE=" media="screen">
+  
+  
+  <script src="/panelset.min.ed1ac24b6e16f4e2481e3d1d098ae66f5bc77438aef619e6e266d8ac5b00dc72.js" type="text/javascript"></script>
+  
+  
+  <script src="/main.min.7c7401b27b903bdc8736f72a2f739f7602bf606c451e8cb5e7fab2bf6b4af582.js" type="text/javascript"></script>
+</head>
+<body>
+      <div class="grid-container single-sidebar">
+<header class="site-header pt4 pb2 mb4 bb b--transparent ph5 headroom z-max" role="banner">
+  <nav class="site-nav db dt-l w-100" role="navigation">
+    <a class="site-brand db dtc-l v-mid link no-underline w-100 w-33-l tc tl-l" href="https://ecogambler.netlify.app/" title="Home">
+      <img src="/img/header_logo.png" class="dib db-l h2 w-auto" alt="GAMbler">
+    </a>
+    <div class="site-links db dtc-l v-mid w-100 w-47-l tc tr-l mt3 mt0-l ttu tracked">
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 active" href="/blog/" title="Blog">Blog</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/project/" title="Project Portfolio">Software</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/talk/" title="Talks">Talks &amp; Workshops</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/opportunities/" title="Opportunities">Opportunities</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/archives/" title="Archive">Archive</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/blogroll/" title="Blogroll">Blogroll</a>
+      
+      
+    </div>
+  </nav>
+</header>
+
+<main class="page-main pa4" role="main">
+  <section class="page-content mw7 center">
+    <article class="post-content pa0 pr3-l">
+      <header class="post-header">
+        <h1 class="f1 lh-solid measure-narrow mb3 fw4">Distributed lags (and hierarchical distributed lags) using mgcv and mvgam</h1>
+        
+        <p class="f6 measure lh-copy mv1">By Nicholas Clark in <a href="https://ecogambler.netlify.app/categories/rstats">rstats</a>  <a href="https://ecogambler.netlify.app/categories/mgcv">mgcv</a>  <a href="https://ecogambler.netlify.app/categories/mvgam">mvgam</a> </p>
+        <p class="f7 db mv0 ttu">August 15, 2023</p>
+      </header>
+      <section class="post-body pt5 pb4">
+        <p>Here we will use <code>mgcv</code> to estimate parameters of nonlinear distributed lag models. These models are used to describe simultaneously non-linear and delayed functional relationships between a covariate and a response, and are sometimes referred to as exposure-lag-response models. If we assume <code>\(\tilde{\boldsymbol{y}}_{t}\)</code> is the conditional expectation of a response variable <code>\(\boldsymbol{y}\)</code> at time <code>\(\boldsymbol{t}\)</code>, and that <code>\(g\)</code> is a suitable inverse link function, the linear predictor for a distributed lag GAM with one lagged covariate is written as:</p>
+<p><code>$$g(\tilde{\boldsymbol{y}}_{t})={\boldsymbol{B}}_0+\sum\limits_{k=1}^K{f}(\boldsymbol{b}_{k,t}\boldsymbol{x}_{k,t})\,$$</code>
+where <code>\(\boldsymbol{B}_{0}\)</code> is the unknown intercept and the <code>\(\boldsymbol{b}\)</code>&rsquo;s are unknown spline coefficients estimating how the functional effect of covariate <code>\(\boldsymbol{x}\)</code> on <code>\(g(\tilde{\boldsymbol{y}}_{t})\)</code> changes over increasing lags (up to a maximum lag of <code>\(\boldsymbol{K}\)</code>).</p>
+<p>We will work with time series of rodent captures from the Portal Project, 
+<a href="https://portal.weecology.org/" target="_blank" rel="noopener">a long-term monitoring study based near the town of Portal, Arizona</a>. Researchers have been operating a standardized set of baited traps within 24 experimental plots at this site since the 1970&rsquo;s. Sampling follows the lunar monthly cycle, with observations occurring on average about 28 days apart. However, missing observations do occur due to difficulties accessing the site (weather events, COVID disruptions etc..). You can read about the full sampling protocol 
+<a href="https://www.biorxiv.org/content/10.1101/332783v3.full" target="_blank" rel="noopener">in this preprint by Ernest et al on the Biorxiv</a>.</p>
+<p><img src="portal_plots.jpg" alt="Portal Project sampling scheme in the desert near Portal, Arizona, USA; photo by SKM Ernest"></p>
+
+
+
+
+<h2 id="environment-setup">Environment setup
+  <a href="#environment-setup"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>This tutorial relies on the following packages:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(mvgam)           <span style="color:#998;font-style:italic"># Fit, interrogate and forecast DGAMs</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(dplyr)           <span style="color:#998;font-style:italic"># Tidy and flexible data manipulation</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(ggplot2)         <span style="color:#998;font-style:italic"># Flexible plotting</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(gratia)          <span style="color:#998;font-style:italic"># Graceful plotting of smooth terms</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(viridis)         <span style="color:#998;font-style:italic"># Plotting colours</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(patchwork)       <span style="color:#998;font-style:italic"># Combining ggplot objects</span>
+</span></span></code></pre></div><p>A custom <code>ggplot2</code> theme; feel free to ignore if you have your own plot preferences</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">theme_set</span>(<span style="color:#900;font-weight:bold">theme_classic</span>(base_size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">12</span>, base_family <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;serif&#39;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#900;font-weight:bold">theme</span>(axis.line.x.bottom <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">element_line</span>(colour <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;black&#34;</span>,
+</span></span><span style="display:flex;"><span>                                                    size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>),
+</span></span><span style="display:flex;"><span>                  axis.line.y.left <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">element_line</span>(colour <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;black&#34;</span>,
+</span></span><span style="display:flex;"><span>                                                  size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>)))
+</span></span></code></pre></div><pre tabindex="0"><code>## Warning: The `size` argument of `element_line()` is deprecated as of ggplot2 3.4.0.
+## ℹ Please use the `linewidth` argument instead.
+## This warning is displayed once every 8 hours.
+## Call `lifecycle::last_lifecycle_warnings()` to see where this warning was
+## generated.
+</code></pre><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">options</span>(ggplot2.discrete.colour <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;#A25050&#34;</span>,
+</span></span><span style="display:flex;"><span>                                    <span style="color:#d14">&#34;#8F2727&#34;</span>,
+</span></span><span style="display:flex;"><span>                                    <span style="color:#d14">&#39;darkred&#39;</span>,
+</span></span><span style="display:flex;"><span>                                    <span style="color:#d14">&#34;#630000&#34;</span>),
+</span></span><span style="display:flex;"><span>        ggplot2.discrete.fill <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;#A25050&#34;</span>,
+</span></span><span style="display:flex;"><span>                                  <span style="color:#d14">&#34;#8F2727&#34;</span>,
+</span></span><span style="display:flex;"><span>                                  <span style="color:#d14">&#39;darkred&#39;</span>,
+</span></span><span style="display:flex;"><span>                                  <span style="color:#d14">&#34;#630000&#34;</span>))
+</span></span></code></pre></div>
+
+
+
+<h2 id="load-and-inspect-the-portal-data">Load and inspect the Portal data
+  <a href="#load-and-inspect-the-portal-data"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>All data from the Portal Project are made openly available in near real-time so that they can provide the maximum benefit to scientific research and outreach (
+<a href="https://www.weecology.org/software-projects/portalr/" target="_blank" rel="noopener">a set of open-source software tools make data readily accessible</a>). These data are extremely rich, containing monthly counts of rodent captures for &gt;20 species. But rather than accessing the raw data, we will use some data that I have already processed and put into a simple, usable form</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>portal_ts <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">read.csv</span>(<span style="color:#d14">&#39;https://raw.githubusercontent.com/nicholasjclark/EFI_seminar/main/data/portal_data.csv&#39;</span>, as.is <span style="color:#000;font-weight:bold">=</span> <span style="color:#999">T</span>)
+</span></span></code></pre></div><p>Inspect the data structure, which contains lunar monthly total captures across control plots for four different rodent species. It also contains a 12-month moving average of the unitless NDVI vegetation index, and monthly average minimum temperature (already scaled to unit variance)</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">glimpse</span>(portal_ts)
+</span></span></code></pre></div><pre tabindex="0"><code>## Rows: 320
+## Columns: 5
+## $ captures  &lt;int&gt; 20, 2, 0, 0, NA, NA, NA, NA, 36, 5, 0, 0, 40, 3, 0, 1, 29, 3…
+## $ time      &lt;int&gt; 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, …
+## $ species   &lt;chr&gt; &#34;DM&#34;, &#34;DO&#34;, &#34;PB&#34;, &#34;PP&#34;, &#34;DM&#34;, &#34;DO&#34;, &#34;PB&#34;, &#34;PP&#34;, &#34;DM&#34;, &#34;DO&#34;, …
+## $ ndvi_ma12 &lt;dbl&gt; -0.172144125, -0.172144125, -0.172144125, -0.172144125, -0.2…
+## $ mintemp   &lt;dbl&gt; -0.79633807, -0.79633807, -0.79633807, -0.79633807, -1.33471…
+</code></pre><p>The data contain 80 lunar monthly observations, though there are plenty of NAs in the number of total captures (NAs are shown as red bars in the below plot)</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">max</span>(portal_ts<span style="color:#000;font-weight:bold">$</span>time)
+</span></span></code></pre></div><pre tabindex="0"><code>## [1] 80
+</code></pre><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">image</span>(<span style="color:#900;font-weight:bold">is.na</span>(<span style="color:#900;font-weight:bold">t</span>(portal_ts <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>                dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">arrange</span>(dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">desc</span>(time)))), axes <span style="color:#000;font-weight:bold">=</span> <span style="color:#999">F</span>,
+</span></span><span style="display:flex;"><span>      col <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#39;grey80&#39;</span>, <span style="color:#d14">&#39;darkred&#39;</span>))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">axis</span>(<span style="color:#099">3</span>, at <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">seq</span>(<span style="color:#099">0</span>,<span style="color:#099">1</span>, len <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">NCOL</span>(portal_ts)), 
+</span></span><span style="display:flex;"><span>     labels <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">colnames</span>(portal_ts))
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/distributed-lags-mgcv/index_files/figure-html/unnamed-chunk-6-1.png" alt="Visualising features of time series data in R" width="60%" style="display: block; margin: auto;" />
+<p>The data are already in &rsquo;long&rsquo; format, meaning each series x time observation has its own entry in the <code>data.frame</code>. But {<code>mvgam</code>} needs a <code>series</code> column that acts as a factor indicator for the time series. Add one using {<code>dplyr</code>} commands:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>portal_ts <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">mutate</span>(series <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">as.factor</span>(species)) <span style="color:#000;font-weight:bold">-&gt;</span> portal_ts
+</span></span><span style="display:flex;"><span>dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">glimpse</span>(portal_ts)
+</span></span></code></pre></div><pre tabindex="0"><code>## Rows: 320
+## Columns: 6
+## $ captures  &lt;int&gt; 20, 2, 0, 0, NA, NA, NA, NA, 36, 5, 0, 0, 40, 3, 0, 1, 29, 3…
+## $ time      &lt;int&gt; 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, …
+## $ species   &lt;chr&gt; &#34;DM&#34;, &#34;DO&#34;, &#34;PB&#34;, &#34;PP&#34;, &#34;DM&#34;, &#34;DO&#34;, &#34;PB&#34;, &#34;PP&#34;, &#34;DM&#34;, &#34;DO&#34;, …
+## $ ndvi_ma12 &lt;dbl&gt; -0.172144125, -0.172144125, -0.172144125, -0.172144125, -0.2…
+## $ mintemp   &lt;dbl&gt; -0.79633807, -0.79633807, -0.79633807, -0.79633807, -1.33471…
+## $ series    &lt;fct&gt; DM, DO, PB, PP, DM, DO, PB, PP, DM, DO, PB, PP, DM, DO, PB, …
+</code></pre><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">levels</span>(portal_ts<span style="color:#000;font-weight:bold">$</span>series)
+</span></span></code></pre></div><pre tabindex="0"><code>## [1] &#34;DM&#34; &#34;DO&#34; &#34;PB&#34; &#34;PP&#34;
+</code></pre><p>It is important that the number of levels matches the number of unique series in the data to ensure indexing across series works properly in the underlying modelling functions. For more information on how to format data for {<code>mvgam</code>} modelling, see 
+<a href="https://nicholasjclark.github.io/mvgam/articles/data_in_mvgam.html" target="_blank" rel="noopener">the data formatting vignette in the package</a></p>
+<p>Now we can plot all of the time series together, using the <code>captures</code> measurement as our outcome variable</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot_mvgam_series</span>(data <span style="color:#000;font-weight:bold">=</span> portal_ts, y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;captures&#39;</span>, series <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;all&#39;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/distributed-lags-mgcv/index_files/figure-html/unnamed-chunk-8-1.png" alt="Visualising features of time series data in mvgam and R" width="60%" style="display: block; margin: auto;" />
+<p>We can also plot some more in-depth features for individual series</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot_mvgam_series</span>(data <span style="color:#000;font-weight:bold">=</span> portal_ts, y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;captures&#39;</span>, series <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/distributed-lags-mgcv/index_files/figure-html/unnamed-chunk-9-1.png" alt="Visualising features of time series data in mvgam and R" width="60%" style="display: block; margin: auto;" />
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot_mvgam_series</span>(data <span style="color:#000;font-weight:bold">=</span> portal_ts, y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;captures&#39;</span>, series <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/distributed-lags-mgcv/index_files/figure-html/unnamed-chunk-9-2.png" alt="Visualising features of time series data in mvgam and R" width="60%" style="display: block; margin: auto;" />
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot_mvgam_series</span>(data <span style="color:#000;font-weight:bold">=</span> portal_ts, y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;captures&#39;</span>, series <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/distributed-lags-mgcv/index_files/figure-html/unnamed-chunk-9-3.png" alt="Visualising features of time series data in mvgam and R" width="60%" style="display: block; margin: auto;" />
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot_mvgam_series</span>(data <span style="color:#000;font-weight:bold">=</span> portal_ts, y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;captures&#39;</span>, series <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">4</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/distributed-lags-mgcv/index_files/figure-html/unnamed-chunk-9-4.png" alt="Visualising features of time series data in mvgam and R" width="60%" style="display: block; margin: auto;" />
+<p>Inspect some associations between <code>log(captures + 1)</code> and minimum temperature / NDVI moving average for each species to get a sense of how their relative abundances vary over seasons and with varying habitat conditions. First for <strong>DM</strong></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>portal_ts <span style="color:#000;font-weight:bold">%&gt;%</span> 
+</span></span><span style="display:flex;"><span>  dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">filter</span>(species <span style="color:#000;font-weight:bold">==</span> <span style="color:#d14">&#39;DM&#39;</span>) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">ggplot</span>(<span style="color:#900;font-weight:bold">aes</span>(x <span style="color:#000;font-weight:bold">=</span> mintemp, y <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">log</span>(captures <span style="color:#000;font-weight:bold">+</span> <span style="color:#099">1</span>))) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_point</span>() <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_smooth</span>(method <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;gam&#34;</span>, formula <span style="color:#000;font-weight:bold">=</span> y <span style="color:#000;font-weight:bold">~</span> <span style="color:#900;font-weight:bold">s</span>(x, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">12</span>),
+</span></span><span style="display:flex;"><span>              col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;darkred&#39;</span>, fill <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;#A25050&#34;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">labs</span>(title <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;DM&#39;</span>,
+</span></span><span style="display:flex;"><span>       y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;log(captures)&#34;</span>, 
+</span></span><span style="display:flex;"><span>       x <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Minimum temperature&#39;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  portal_ts <span style="color:#000;font-weight:bold">%&gt;%</span> 
+</span></span><span style="display:flex;"><span>  dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">filter</span>(species <span style="color:#000;font-weight:bold">==</span> <span style="color:#d14">&#39;DM&#39;</span>) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">ggplot</span>(<span style="color:#900;font-weight:bold">aes</span>(x <span style="color:#000;font-weight:bold">=</span> ndvi_ma12, y <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">log</span>(captures <span style="color:#000;font-weight:bold">+</span> <span style="color:#099">1</span>))) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_point</span>() <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_smooth</span>(method <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;gam&#34;</span>, formula <span style="color:#000;font-weight:bold">=</span> y <span style="color:#000;font-weight:bold">~</span> <span style="color:#900;font-weight:bold">s</span>(x, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">12</span>),
+</span></span><span style="display:flex;"><span>              col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;darkred&#39;</span>, fill <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;#A25050&#34;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">labs</span>(y <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">NULL</span>, 
+</span></span><span style="display:flex;"><span>       x <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;NDVI moving average&#39;</span>)
+</span></span></code></pre></div><pre tabindex="0"><code>## Warning: Removed 17 rows containing non-finite outside the scale range
+## (`stat_smooth()`).
+</code></pre><pre tabindex="0"><code>## Warning: Removed 17 rows containing missing values or values outside the scale range
+## (`geom_point()`).
+</code></pre><pre tabindex="0"><code>## Warning: Removed 17 rows containing non-finite outside the scale range
+## (`stat_smooth()`).
+</code></pre><pre tabindex="0"><code>## Warning: Removed 17 rows containing missing values or values outside the scale range
+## (`geom_point()`).
+</code></pre><img src="https://ecogambler.netlify.app/blog/distributed-lags-mgcv/index_files/figure-html/unnamed-chunk-10-1.png" alt="Visualising features of time series data in ggplot2 and R" width="60%" style="display: block; margin: auto;" />
+<p>And for <strong>PP</strong></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>portal_ts <span style="color:#000;font-weight:bold">%&gt;%</span> 
+</span></span><span style="display:flex;"><span>  dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">filter</span>(species <span style="color:#000;font-weight:bold">==</span> <span style="color:#d14">&#39;PP&#39;</span>) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">ggplot</span>(<span style="color:#900;font-weight:bold">aes</span>(x <span style="color:#000;font-weight:bold">=</span> mintemp, y <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">log</span>(captures <span style="color:#000;font-weight:bold">+</span> <span style="color:#099">1</span>))) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_point</span>() <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_smooth</span>(method <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;gam&#34;</span>, formula <span style="color:#000;font-weight:bold">=</span> y <span style="color:#000;font-weight:bold">~</span> <span style="color:#900;font-weight:bold">s</span>(x, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">12</span>),
+</span></span><span style="display:flex;"><span>              col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;darkred&#39;</span>, fill <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;#A25050&#34;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">labs</span>(title <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;PP&#39;</span>,
+</span></span><span style="display:flex;"><span>       y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;log(captures)&#34;</span>, 
+</span></span><span style="display:flex;"><span>       x <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Minimum temperature&#39;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  portal_ts <span style="color:#000;font-weight:bold">%&gt;%</span> 
+</span></span><span style="display:flex;"><span>  dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">filter</span>(species <span style="color:#000;font-weight:bold">==</span> <span style="color:#d14">&#39;PP&#39;</span>) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">ggplot</span>(<span style="color:#900;font-weight:bold">aes</span>(x <span style="color:#000;font-weight:bold">=</span> ndvi_ma12, y <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">log</span>(captures <span style="color:#000;font-weight:bold">+</span> <span style="color:#099">1</span>))) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_point</span>() <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_smooth</span>(method <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;gam&#34;</span>, formula <span style="color:#000;font-weight:bold">=</span> y <span style="color:#000;font-weight:bold">~</span> <span style="color:#900;font-weight:bold">s</span>(x, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">12</span>),
+</span></span><span style="display:flex;"><span>              col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;darkred&#39;</span>, fill <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;#A25050&#34;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">labs</span>(y <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">NULL</span>, 
+</span></span><span style="display:flex;"><span>       x <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;NDVI moving average&#39;</span>)
+</span></span></code></pre></div><pre tabindex="0"><code>## Warning: Removed 17 rows containing non-finite outside the scale range
+## (`stat_smooth()`).
+</code></pre><pre tabindex="0"><code>## Warning: Removed 17 rows containing missing values or values outside the scale range
+## (`geom_point()`).
+</code></pre><pre tabindex="0"><code>## Warning: Removed 17 rows containing non-finite outside the scale range
+## (`stat_smooth()`).
+</code></pre><pre tabindex="0"><code>## Warning: Removed 17 rows containing missing values or values outside the scale range
+## (`geom_point()`).
+</code></pre><img src="https://ecogambler.netlify.app/blog/distributed-lags-mgcv/index_files/figure-html/unnamed-chunk-11-1.png" alt="Visualising features of time series data in ggplot2 and R" width="60%" style="display: block; margin: auto;" />
+<p>Next for <strong>PB</strong></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>portal_ts <span style="color:#000;font-weight:bold">%&gt;%</span> 
+</span></span><span style="display:flex;"><span>  dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">filter</span>(species <span style="color:#000;font-weight:bold">==</span> <span style="color:#d14">&#39;PB&#39;</span>) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">ggplot</span>(<span style="color:#900;font-weight:bold">aes</span>(x <span style="color:#000;font-weight:bold">=</span> mintemp, y <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">log</span>(captures <span style="color:#000;font-weight:bold">+</span> <span style="color:#099">1</span>))) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_point</span>() <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_smooth</span>(method <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;gam&#34;</span>, formula <span style="color:#000;font-weight:bold">=</span> y <span style="color:#000;font-weight:bold">~</span> <span style="color:#900;font-weight:bold">s</span>(x, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">12</span>),
+</span></span><span style="display:flex;"><span>              col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;darkred&#39;</span>, fill <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;#A25050&#34;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">labs</span>(title <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;PB&#39;</span>,
+</span></span><span style="display:flex;"><span>       y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;log(captures)&#34;</span>, 
+</span></span><span style="display:flex;"><span>       x <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Minimum temperature&#39;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  portal_ts <span style="color:#000;font-weight:bold">%&gt;%</span> 
+</span></span><span style="display:flex;"><span>  dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">filter</span>(species <span style="color:#000;font-weight:bold">==</span> <span style="color:#d14">&#39;PB&#39;</span>) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">ggplot</span>(<span style="color:#900;font-weight:bold">aes</span>(x <span style="color:#000;font-weight:bold">=</span> ndvi_ma12, y <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">log</span>(captures <span style="color:#000;font-weight:bold">+</span> <span style="color:#099">1</span>))) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_point</span>() <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_smooth</span>(method <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;gam&#34;</span>, formula <span style="color:#000;font-weight:bold">=</span> y <span style="color:#000;font-weight:bold">~</span> <span style="color:#900;font-weight:bold">s</span>(x, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">12</span>),
+</span></span><span style="display:flex;"><span>              col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;darkred&#39;</span>, fill <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;#A25050&#34;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">labs</span>(y <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">NULL</span>, 
+</span></span><span style="display:flex;"><span>       x <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;NDVI moving average&#39;</span>)
+</span></span></code></pre></div><pre tabindex="0"><code>## Warning: Removed 17 rows containing non-finite outside the scale range
+## (`stat_smooth()`).
+</code></pre><pre tabindex="0"><code>## Warning: Removed 17 rows containing missing values or values outside the scale range
+## (`geom_point()`).
+</code></pre><pre tabindex="0"><code>## Warning: Removed 17 rows containing non-finite outside the scale range
+## (`stat_smooth()`).
+</code></pre><pre tabindex="0"><code>## Warning: Removed 17 rows containing missing values or values outside the scale range
+## (`geom_point()`).
+</code></pre><img src="https://ecogambler.netlify.app/blog/distributed-lags-mgcv/index_files/figure-html/unnamed-chunk-12-1.png" alt="Visualising features of time series data in ggplot2 and R" width="60%" style="display: block; margin: auto;" />
+<p>And finally for <strong>DO</strong></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>portal_ts <span style="color:#000;font-weight:bold">%&gt;%</span> 
+</span></span><span style="display:flex;"><span>  dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">filter</span>(species <span style="color:#000;font-weight:bold">==</span> <span style="color:#d14">&#39;DO&#39;</span>) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">ggplot</span>(<span style="color:#900;font-weight:bold">aes</span>(x <span style="color:#000;font-weight:bold">=</span> mintemp, y <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">log</span>(captures <span style="color:#000;font-weight:bold">+</span> <span style="color:#099">1</span>))) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_point</span>() <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_smooth</span>(method <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;gam&#34;</span>, formula <span style="color:#000;font-weight:bold">=</span> y <span style="color:#000;font-weight:bold">~</span> <span style="color:#900;font-weight:bold">s</span>(x, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">12</span>),
+</span></span><span style="display:flex;"><span>              col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;darkred&#39;</span>, fill <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;#A25050&#34;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">labs</span>(title <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;DO&#39;</span>,
+</span></span><span style="display:flex;"><span>       y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;log(captures)&#34;</span>, 
+</span></span><span style="display:flex;"><span>       x <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Minimum temperature&#39;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  portal_ts <span style="color:#000;font-weight:bold">%&gt;%</span> 
+</span></span><span style="display:flex;"><span>  dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">filter</span>(species <span style="color:#000;font-weight:bold">==</span> <span style="color:#d14">&#39;DO&#39;</span>) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">ggplot</span>(<span style="color:#900;font-weight:bold">aes</span>(x <span style="color:#000;font-weight:bold">=</span> ndvi_ma12, y <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">log</span>(captures <span style="color:#000;font-weight:bold">+</span> <span style="color:#099">1</span>))) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_point</span>() <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_smooth</span>(method <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;gam&#34;</span>, formula <span style="color:#000;font-weight:bold">=</span> y <span style="color:#000;font-weight:bold">~</span> <span style="color:#900;font-weight:bold">s</span>(x, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">12</span>),
+</span></span><span style="display:flex;"><span>              col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;darkred&#39;</span>, fill <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;#A25050&#34;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">labs</span>(y <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">NULL</span>, 
+</span></span><span style="display:flex;"><span>       x <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;NDVI moving average&#39;</span>)
+</span></span></code></pre></div><pre tabindex="0"><code>## Warning: Removed 17 rows containing non-finite outside the scale range
+## (`stat_smooth()`).
+</code></pre><pre tabindex="0"><code>## Warning: Removed 17 rows containing missing values or values outside the scale range
+## (`geom_point()`).
+</code></pre><pre tabindex="0"><code>## Warning: Removed 17 rows containing non-finite outside the scale range
+## (`stat_smooth()`).
+</code></pre><pre tabindex="0"><code>## Warning: Removed 17 rows containing missing values or values outside the scale range
+## (`geom_point()`).
+</code></pre><img src="https://ecogambler.netlify.app/blog/distributed-lags-mgcv/index_files/figure-html/unnamed-chunk-13-1.png" alt="Visualising features of time series data in ggplot2 and R" width="60%" style="display: block; margin: auto;" />
+<p>There may be some support for some nonlinear effects here, but we know that the rodents in this system do not show immediate responses to climatic or environmental changes. Rather, these responses are often <em>delayed</em>, and can be thought of as <em>cumulative</em> responses to varying conditions over a period of months. How can we capture these effects using GAMs? This is where distributed lag models come in.</p>
+
+
+
+
+<h2 id="setting-up-lag-matrices">Setting up lag matrices
+  <a href="#setting-up-lag-matrices"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>A lesser-known feature of <code>mgcv</code> is its ability to handle data in <code>list</code> format as opposed to the traditional <code>data.frame</code> format that most regression packages in R use. This allows us to supply some (or all) of our covariates as <code>matrices</code> rather than <code>vectors</code>, and opens many possibilities for more complex modeling. You can read a bit more about this using <code>?gam.models</code> and looking at the section on <strong>Linear functional terms</strong>. We can make use of this to set up the objects needed for estimating nonlinear distributed lag functions.</p>
+<p>Below is an exact reproduction of Simon Wood&rsquo;s lag matrix function (which he uses in his distributed lag example from his book 
+<a href="https://www.taylorfrancis.com/books/mono/10.1201/9781315370279/generalized-additive-models-simon-wood" target="_blank" rel="noopener">Generalized Additive Models - An Introduction with R 2nd edition</a>). To use this function we need to supply a vector and specify the maximum lag that we want, and it will return a matrix of dimension <code>length(x) * lag</code>. Note that <code>NAs</code> are used for the missing lag values at the beginning of the matrix. In essence, the matrix objects represent exposure histories, where each row represents the lagged values of the predictor that correspond to each observation in our outcome variable. By creating a <em>tensor product</em> of this lagged covariate matrix and a matrix of equal dimensions that indicates which lag each cell in the covariate matrix represents, we can effectively set up a function that changes nonlinearly over lagged values of the covariate.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>lagard <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#000;font-weight:bold">function</span>(x, n_lag <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">6</span>) {
+</span></span><span style="display:flex;"><span>  n <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">length</span>(x)
+</span></span><span style="display:flex;"><span>  X <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">matrix</span>(<span style="color:#000;font-weight:bold">NA</span>, n, n_lag)
+</span></span><span style="display:flex;"><span>  <span style="color:#000;font-weight:bold">for</span> (i <span style="color:#000;font-weight:bold">in</span> <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span>n_lag){
+</span></span><span style="display:flex;"><span>    X[i<span style="color:#000;font-weight:bold">:</span>n, i] <span style="color:#000;font-weight:bold">&lt;-</span> x[i<span style="color:#000;font-weight:bold">:</span>n <span style="color:#000;font-weight:bold">-</span> i <span style="color:#000;font-weight:bold">+</span> <span style="color:#099">1</span>]
+</span></span><span style="display:flex;"><span>  } 
+</span></span><span style="display:flex;"><span>  X
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>We can make use of this function to organise all data needed for modeling into a list. For this simple example we will use lags of up to six months in the past. Some bookkeeping is necessary, as we must ensure that we remove the first five observations <em>for each series</em>. This is best achieved by arranging the data by <code>series</code> and then by <code>time</code>. I do this first to create the <code>mintemp</code> matrix</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>mintemp <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">do.call</span>(rbind, <span style="color:#900;font-weight:bold">lapply</span>(<span style="color:#900;font-weight:bold">seq_along</span>(<span style="color:#900;font-weight:bold">levels</span>(portal_ts<span style="color:#000;font-weight:bold">$</span>series)), <span style="color:#000;font-weight:bold">function</span>(x){
+</span></span><span style="display:flex;"><span>  portal_ts <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>    dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">filter</span>(series <span style="color:#000;font-weight:bold">==</span> <span style="color:#900;font-weight:bold">levels</span>(portal_ts<span style="color:#000;font-weight:bold">$</span>series)[x]) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>    dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">arrange</span>(time) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>    dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">select</span>(mintemp, time) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>    dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">pull</span>(mintemp) <span style="color:#000;font-weight:bold">-&gt;</span> tempdat
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  lag_mat <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">lagard</span>(tempdat, <span style="color:#099">6</span>)
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">tail</span>(lag_mat, <span style="color:#900;font-weight:bold">NROW</span>(lag_mat) <span style="color:#000;font-weight:bold">-</span> <span style="color:#099">5</span>)
+</span></span><span style="display:flex;"><span>}))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">dim</span>(mintemp)[1]
+</span></span></code></pre></div><pre tabindex="0"><code>## [1] 300
+</code></pre><p>The lagged <code>mintemp</code> matrix now looks like this:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">head</span>(mintemp, <span style="color:#099">10</span>)
+</span></span></code></pre></div><pre tabindex="0"><code>##              [,1]        [,2]        [,3]        [,4]        [,5]        [,6]
+##  [6,]  0.06532892 -0.42447625 -1.08048145 -1.24166462 -1.33471597 -0.79633807
+##  [7,]  0.82279570  0.06532892 -0.42447625 -1.08048145 -1.24166462 -1.33471597
+##  [8,]  1.16043027  0.82279570  0.06532892 -0.42447625 -1.08048145 -1.24166462
+##  [9,]  1.35620578  1.16043027  0.82279570  0.06532892 -0.42447625 -1.08048145
+## [10,]  1.25417764  1.35620578  1.16043027  0.82279570  0.06532892 -0.42447625
+## [11,]  1.15421766  1.25417764  1.35620578  1.16043027  0.82279570  0.06532892
+## [12,] -0.17521991  1.15421766  1.25417764  1.35620578  1.16043027  0.82279570
+## [13,] -0.65285556 -0.17521991  1.15421766  1.25417764  1.35620578  1.16043027
+## [14,] -1.47224270 -0.65285556 -0.17521991  1.15421766  1.25417764  1.35620578
+## [15,] -1.26667509 -1.47224270 -0.65285556 -0.17521991  1.15421766  1.25417764
+</code></pre><p>Now we can arrange the data in the same way and pull necessary objects into the <code>list</code>:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>portal_ts <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">arrange</span>(series, time) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">filter</span>(time <span style="color:#000;font-weight:bold">&gt;</span> <span style="color:#099">5</span>) <span style="color:#000;font-weight:bold">-&gt;</span> portal_ts
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>data_all <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">list</span>(
+</span></span><span style="display:flex;"><span>  lag <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">matrix</span>(<span style="color:#099">0</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">5</span>, <span style="color:#900;font-weight:bold">nrow</span>(portal_ts), <span style="color:#099">6</span>, byrow <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>),
+</span></span><span style="display:flex;"><span>  captures <span style="color:#000;font-weight:bold">=</span> portal_ts<span style="color:#000;font-weight:bold">$</span>captures,
+</span></span><span style="display:flex;"><span>  ndvi_ma12 <span style="color:#000;font-weight:bold">=</span> portal_ts<span style="color:#000;font-weight:bold">$</span>ndvi_ma12,
+</span></span><span style="display:flex;"><span>  time <span style="color:#000;font-weight:bold">=</span> portal_ts<span style="color:#000;font-weight:bold">$</span>time,
+</span></span><span style="display:flex;"><span>  series <span style="color:#000;font-weight:bold">=</span> portal_ts<span style="color:#000;font-weight:bold">$</span>series)
+</span></span></code></pre></div><p>And add the <code>mintemp</code> history matrix:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>data_all<span style="color:#000;font-weight:bold">$</span>mintemp <span style="color:#000;font-weight:bold">&lt;-</span> mintemp
+</span></span></code></pre></div><p>The lag exposure history matrix looks as follows:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">head</span>(data_all<span style="color:#000;font-weight:bold">$</span>lag, <span style="color:#099">5</span>)
+</span></span></code></pre></div><pre tabindex="0"><code>##      [,1] [,2] [,3] [,4] [,5] [,6]
+## [1,]    0    1    2    3    4    5
+## [2,]    0    1    2    3    4    5
+## [3,]    0    1    2    3    4    5
+## [4,]    0    1    2    3    4    5
+## [5,]    0    1    2    3    4    5
+</code></pre><p>All other elements of the data list are in the usual vector format</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">head</span>(data_all<span style="color:#000;font-weight:bold">$</span>captures, <span style="color:#099">5</span>)
+</span></span></code></pre></div><pre tabindex="0"><code>## [1] 25 29 23 22 NA
+</code></pre><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">head</span>(data_all<span style="color:#000;font-weight:bold">$</span>series, <span style="color:#099">5</span>)
+</span></span></code></pre></div><pre tabindex="0"><code>## [1] DM DM DM DM DM
+## Levels: DM DO PB PP
+</code></pre><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">head</span>(data_all<span style="color:#000;font-weight:bold">$</span>time, <span style="color:#099">5</span>)
+</span></span></code></pre></div><pre tabindex="0"><code>## [1]  6  7  8  9 10
+</code></pre><p>The dimensions of all the objects need to match up</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">dim</span>(data_all<span style="color:#000;font-weight:bold">$</span>lag)
+</span></span></code></pre></div><pre tabindex="0"><code>## [1] 300   6
+</code></pre><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">dim</span>(data_all<span style="color:#000;font-weight:bold">$</span>mintemp)
+</span></span></code></pre></div><pre tabindex="0"><code>## [1] 300   6
+</code></pre><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">length</span>(data_all<span style="color:#000;font-weight:bold">$</span>time)
+</span></span></code></pre></div><pre tabindex="0"><code>## [1] 300
+</code></pre>
+
+
+
+<h2 id="fitting-a-distributed-lag-model-for-one-species">Fitting a distributed lag model for one species
+  <a href="#fitting-a-distributed-lag-model-for-one-species"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>The setup we have now is fine for fitting a distributed lag model to captures of just a single species. To illustrate how this works and what these models estimate, we can subset the data to only include observations for <strong>PP</strong>:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>pp_inds <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">which</span>(data_all<span style="color:#000;font-weight:bold">$</span>series <span style="color:#000;font-weight:bold">==</span> <span style="color:#d14">&#39;PP&#39;</span>)
+</span></span><span style="display:flex;"><span>data_pp <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">lapply</span>(data_all, <span style="color:#000;font-weight:bold">function</span>(x){
+</span></span><span style="display:flex;"><span>  <span style="color:#000;font-weight:bold">if</span>(<span style="color:#900;font-weight:bold">is.matrix</span>(x)){
+</span></span><span style="display:flex;"><span>    x[pp_inds, ]
+</span></span><span style="display:flex;"><span>  } <span style="color:#000;font-weight:bold">else</span> {
+</span></span><span style="display:flex;"><span>    x[pp_inds]
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>})
+</span></span></code></pre></div><p>Setting up the model is now very straightforward. We simply wrap the <code>lag</code> and <code>mintemp</code> matrices in a call to <code>te()</code>, which will set up a tensor product smoother (see <code>?mgcv::te</code> for details). I also use a smooth term for <code>ndvi_ma12</code> in this model, and stick with a Poisson observation model to keep things simple</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>mod1 <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">gam</span>(captures <span style="color:#000;font-weight:bold">~</span> 
+</span></span><span style="display:flex;"><span>              <span style="color:#900;font-weight:bold">te</span>(mintemp, lag, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">6</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>              <span style="color:#900;font-weight:bold">s</span>(ndvi_ma12),
+</span></span><span style="display:flex;"><span>            family <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">poisson</span>(),
+</span></span><span style="display:flex;"><span>            data <span style="color:#000;font-weight:bold">=</span> data_pp,
+</span></span><span style="display:flex;"><span>            method <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;REML&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">summary</span>(mod1)
+</span></span></code></pre></div><pre tabindex="0"><code>## 
+## Family: poisson 
+## Link function: log 
+## 
+## Formula:
+## captures ~ te(mintemp, lag, k = 6) + s(ndvi_ma12)
+## 
+## Parametric coefficients:
+##             Estimate Std. Error z value Pr(&gt;|z|)    
+## (Intercept)  1.36702    0.07786   17.56   &lt;2e-16 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Approximate significance of smooth terms:
+##                    edf Ref.df Chi.sq p-value    
+## te(mintemp,lag) 19.009 21.686 127.94  &lt;2e-16 ***
+## s(ndvi_ma12)     4.169  5.075  13.06  0.0219 *  
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Rank: 44/45
+## R-sq.(adj) =   0.62   Deviance explained =   69%
+## -REML = 180.09  Scale est. = 1         n = 59
+</code></pre><p>There will surely be autocorrelation left in the residuals from this model, but we will ignore that for now and focus on how to interpret the distributed lag term. Plotting these terms is easy with <code>mgcv</code>:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot</span>(mod1, select <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>, scheme <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/distributed-lags-mgcv/index_files/figure-html/unnamed-chunk-24-1.png" alt="Visualising distributed lag smooths in mgcv and R" width="60%" style="display: block; margin: auto;" />
+<p>Here the brighter yellow colours indicate larger linear predictor values, while the darker red colours indicate smaller linear predictor values. We can get a nicer plot of this effect using 
+<a href="https://gavinsimpson.github.io/gratia/" target="_blank" rel="noopener">Gavin Simpson&rsquo;s {<code>gratia</code>} package</a>. Note, I am currently using the development version of this package that was recently installed from Github. This is necessary for accurate plots of nonlinear functionals that include <code>by</code> terms (use <code>devtools::install_github('gavinsimpson/gratia')</code> to get the latest version)</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">draw</span>(mod1, select <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/distributed-lags-mgcv/index_files/figure-html/unnamed-chunk-25-1.png" alt="Visualising distributed lag smooths in mgcv and Gavin Simpson's gratia package in R" width="60%" style="display: block; margin: auto;" />
+<p>To me these bivariate heatmaps are a bit difficult to interpret, but more on that later.</p>
+<p>Clearly there is support for a nonlinear effect of <code>mintemp</code> that changes over different lags, which is sensible given what we know about population dynamics in this system. But how can we incorporate such effects for <em>all species</em> in the model at once? The <code>by</code> argument in <code>mgcv</code> parlance can frequently be used to set up smoothers that vary across levels of a factor, and there are many extremely useful strategies for setting up hierarchical GAMs (
+<a href="https://peerj.com/articles/6876/" target="_blank" rel="noopener">see this paper by Pedersen et al for some more context and many useful examples</a>). But this option doesn&rsquo;t work when we are dealing with covariates that are stored in <code>matrix</code> format. In fact, there was 
+<a href="https://stackoverflow.com/questions/75376475/gam-distributed-lag-model-with-factor-smooth-interaction-by-variable" target="_blank" rel="noopener">a recent post on StackOverflow asking about this very issue</a>:</p>
+<p><img src="stackoverflow_shot.png" alt="StackOverflow request for help on setting up factor interactions for distributed lag effects"></p>
+
+
+
+
+<h2 id="group-level-and-hierarchical-distributed-lags">Group-level and hierarchical distributed lags
+  <a href="#group-level-and-hierarchical-distributed-lags"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>I banged my head against the desk for several hours trying to fit hierarchical distributed lag models in {<code>mgcv</code>} for 
+<a href="https://github.com/nicholasjclark/portal_VAR" target="_blank" rel="noopener">a recent paper using these very data</a>. So I know exactly how the author of this post feels. Fortunately, I discovered that they are possible. The key of course is to carefully read the {<code>mgcv</code>} documentation. If you look at the help for linear functionals (<code>?mgcv::linear.functional.terms</code> and <code>?mgcv::gam.models</code>), you will see that the <code>by</code> variable is used in these cases as a <em>weighting matrix</em>. The resulting smooth is therefore constructed as <code>rowSums(L * F)</code>, where <code>F</code> is the distributed lag smooth and <code>L</code> is the weighting matrix. After reading this (several times) I finally realised that I needed to supply group-level distributed lag terms <em>for each group</em> in the formula. In short, we can create weight matrices for each level of the grouping factor to set up group-level and hierarchical distributed lag terms by doing this:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>weights_dm <span style="color:#000;font-weight:bold">&lt;-</span> weights_do <span style="color:#000;font-weight:bold">&lt;-</span> weights_pb <span style="color:#000;font-weight:bold">&lt;-</span> weights_pp <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">matrix</span>(<span style="color:#099">1</span>, ncol <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">ncol</span>(data_all<span style="color:#000;font-weight:bold">$</span>lag), nrow <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">nrow</span>(data_all<span style="color:#000;font-weight:bold">$</span>lag))
+</span></span></code></pre></div><p>What we now have is a weighting matrix for each level of the grouping factor. Currently the weights are all set to <code>1</code> for each row of the data:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">head</span>(weights_dm)
+</span></span></code></pre></div><pre tabindex="0"><code>##      [,1] [,2] [,3] [,4] [,5] [,6]
+## [1,]    1    1    1    1    1    1
+## [2,]    1    1    1    1    1    1
+## [3,]    1    1    1    1    1    1
+## [4,]    1    1    1    1    1    1
+## [5,]    1    1    1    1    1    1
+## [6,]    1    1    1    1    1    1
+</code></pre><p>But to set up the appropriate group-level tensor products, we need to change these appropriately. Essentially, for each level in the grouping factor, the rows in that level&rsquo;s corresponding weighting matrix need to have <code>1</code>s when the corresponding observation in the data matches that level, and <code>0</code>s otherwise:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>weights_dm[<span style="color:#000;font-weight:bold">!</span>(data_all<span style="color:#000;font-weight:bold">$</span>series <span style="color:#000;font-weight:bold">==</span> <span style="color:#d14">&#39;DM&#39;</span>), ] <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">0</span>
+</span></span><span style="display:flex;"><span>weights_do[<span style="color:#000;font-weight:bold">!</span>(data_all<span style="color:#000;font-weight:bold">$</span>series <span style="color:#000;font-weight:bold">==</span> <span style="color:#d14">&#39;DO&#39;</span>), ] <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">0</span>
+</span></span><span style="display:flex;"><span>weights_pb[<span style="color:#000;font-weight:bold">!</span>(data_all<span style="color:#000;font-weight:bold">$</span>series <span style="color:#000;font-weight:bold">==</span> <span style="color:#d14">&#39;PB&#39;</span>), ] <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">0</span>
+</span></span><span style="display:flex;"><span>weights_pp[<span style="color:#000;font-weight:bold">!</span>(data_all<span style="color:#000;font-weight:bold">$</span>series <span style="color:#000;font-weight:bold">==</span> <span style="color:#d14">&#39;PP&#39;</span>), ] <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#099">0</span>
+</span></span></code></pre></div><p>Adding these weighting matrices to the data list gives us all we need to set up group-level or hierarchical distributed lag terms</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>data_all<span style="color:#000;font-weight:bold">$</span>weights_dm <span style="color:#000;font-weight:bold">&lt;-</span> weights_dm
+</span></span><span style="display:flex;"><span>data_all<span style="color:#000;font-weight:bold">$</span>weights_do <span style="color:#000;font-weight:bold">&lt;-</span> weights_do
+</span></span><span style="display:flex;"><span>data_all<span style="color:#000;font-weight:bold">$</span>weights_pb <span style="color:#000;font-weight:bold">&lt;-</span> weights_pb
+</span></span><span style="display:flex;"><span>data_all<span style="color:#000;font-weight:bold">$</span>weights_pp <span style="color:#000;font-weight:bold">&lt;-</span> weights_pp
+</span></span></code></pre></div><p>Let&rsquo;s try it out! We will fit a multispecies GAM that includes distributed lag terms of <code>mintemp</code> for each species. It will also smooths of <code>ndvi_ma12</code> for each species, random intercepts for each species and smooths of <code>time</code> for each species. Again this model is probably not completely appropriate because it doesn&rsquo;t take temporal autocorrelation into account very well (though the smooths of <code>time</code> will help), but it is useful to illustrate some of these principles</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>mod2 <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">gam</span>(captures <span style="color:#000;font-weight:bold">~</span> 
+</span></span><span style="display:flex;"><span>              <span style="color:#998;font-style:italic"># Hierarchical intercepts</span>
+</span></span><span style="display:flex;"><span>              <span style="color:#900;font-weight:bold">s</span>(series, bs <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;re&#39;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>              
+</span></span><span style="display:flex;"><span>              <span style="color:#998;font-style:italic"># Smooths of time to try and capture autocorrelation</span>
+</span></span><span style="display:flex;"><span>              <span style="color:#900;font-weight:bold">s</span>(time, by <span style="color:#000;font-weight:bold">=</span> series, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">30</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>              
+</span></span><span style="display:flex;"><span>              <span style="color:#998;font-style:italic"># Smooths of ndvi_ma12</span>
+</span></span><span style="display:flex;"><span>              <span style="color:#900;font-weight:bold">s</span>(ndvi_ma12, by <span style="color:#000;font-weight:bold">=</span> series, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">5</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>              
+</span></span><span style="display:flex;"><span>              <span style="color:#998;font-style:italic"># Distributed lags of mintemp</span>
+</span></span><span style="display:flex;"><span>              <span style="color:#900;font-weight:bold">te</span>(mintemp, lag, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">4</span>, by <span style="color:#000;font-weight:bold">=</span> weights_dm) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>              <span style="color:#900;font-weight:bold">te</span>(mintemp, lag, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">4</span>, by <span style="color:#000;font-weight:bold">=</span> weights_do) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>              <span style="color:#900;font-weight:bold">te</span>(mintemp, lag, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">4</span>, by <span style="color:#000;font-weight:bold">=</span> weights_pb) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>              <span style="color:#900;font-weight:bold">te</span>(mintemp, lag, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">4</span>, by <span style="color:#000;font-weight:bold">=</span> weights_pp),
+</span></span><span style="display:flex;"><span>            family <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">poisson</span>(),
+</span></span><span style="display:flex;"><span>            data <span style="color:#000;font-weight:bold">=</span> data_all,
+</span></span><span style="display:flex;"><span>            control <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">list</span>(nthreads <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">6</span>),
+</span></span><span style="display:flex;"><span>            method <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;REML&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">summary</span>(mod2)
+</span></span></code></pre></div><pre tabindex="0"><code>## 
+## Family: poisson 
+## Link function: log 
+## 
+## Formula:
+## captures ~ s(series, bs = &#34;re&#34;) + s(time, by = series, k = 30) + 
+##     s(ndvi_ma12, by = series, k = 5) + te(mintemp, lag, k = 4, 
+##     by = weights_dm) + te(mintemp, lag, k = 4, by = weights_do) + 
+##     te(mintemp, lag, k = 4, by = weights_pb) + te(mintemp, lag, 
+##     k = 4, by = weights_pp)
+## 
+## Parametric coefficients:
+##             Estimate Std. Error z value Pr(&gt;|z|)
+## (Intercept)   0.0374     0.5223   0.072    0.943
+## 
+## Approximate significance of smooth terms:
+##                                   edf Ref.df  Chi.sq  p-value    
+## s(series)                  -2.847e-16  4.000   0.000 0.045616 *  
+## s(time):seriesDM            3.971e+00  4.827  74.186  &lt; 2e-16 ***
+## s(time):seriesDO            3.419e+00  4.173  39.097  &lt; 2e-16 ***
+## s(time):seriesPB            5.460e+00  6.497  85.988  &lt; 2e-16 ***
+## s(time):seriesPP            1.445e+01 17.310 100.348  &lt; 2e-16 ***
+## s(ndvi_ma12):seriesDM       2.803e+00  3.268  15.759 0.002060 ** 
+## s(ndvi_ma12):seriesDO       3.268e+00  3.689  10.113 0.034299 *  
+## s(ndvi_ma12):seriesPB       2.580e+00  2.993   5.629 0.140632    
+## s(ndvi_ma12):seriesPP       1.654e+00  1.929   2.139 0.268807    
+## te(mintemp,lag):weights_dm  4.614e+00  5.613  41.490 1.73e-06 ***
+## te(mintemp,lag):weights_do  4.135e+00  4.440  24.922 0.000106 ***
+## te(mintemp,lag):weights_pb  6.848e+00  8.307  19.273 0.017449 *  
+## te(mintemp,lag):weights_pp  3.000e+00  3.000  25.324 1.25e-05 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Rank: 196/201
+## R-sq.(adj) =  0.885   Deviance explained = 89.7%
+## -REML = 557.05  Scale est. = 1         n = 236
+</code></pre><p>Again, useful plots of the these smooth terms can be made using {<code>gratia</code>}</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">draw</span>(mod2, select <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">5</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/distributed-lags-mgcv/index_files/figure-html/unnamed-chunk-31-1.png" alt="Visualising nonlinear smooths in mgcv and Gavin Simpson's gratia package in R" width="60%" style="display: block; margin: auto;" />
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">draw</span>(mod2, select <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">6</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">9</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/distributed-lags-mgcv/index_files/figure-html/unnamed-chunk-32-1.png" alt="Visualising nonlinear smooths in mgcv and Gavin Simpson's gratia package in R" width="60%" style="display: block; margin: auto;" />
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">draw</span>(mod2, select <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">10</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">13</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/distributed-lags-mgcv/index_files/figure-html/unnamed-chunk-33-1.png" alt="Visualising distributed lag smooths in mgcv and Gavin Simpson's gratia package in R" width="60%" style="display: block; margin: auto;" />
+
+
+
+
+<h2 id="visualising-distributed-lag-terms">Visualising distributed lag terms
+  <a href="#visualising-distributed-lag-terms"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>If you are like me then you&rsquo;ll find these bivariate heatmap plots of the distributed lag terms rather difficult to interpret. Again, the more intense yellow/white colours indicate higher predicted values, with the deeper red colours representing lower predicted values, but actually making sense of how the functional response is expected to change over different lags is not easy from these plots. However, we can use the <code>predict.gam()</code> function to generate much more interpretable plots. To do so, we can generate a series of conditional predictions to visualise how the estimated function of <code>mintemp</code> changes over different lags for each species. This is done by setting up prediction data that zeros out all covariates apart from the covariate of interest. Ordinarily I&rsquo;d use the wonderful 
+<a href="https://marginaleffects.com/" target="_blank" rel="noopener">{<code>marginaleffects</code>} package</a> to automate this process, but unfortunately it doesn&rsquo;t work with data that are in <code>list</code> format (yet). So here is a rather lengthy function that will do the work for us. It works by iterating over lags and keeping all <code>mintemp</code> values at zero apart from the particular lag being predicted so that we can visualise how the predicted function changes over lags of <code>mintemp</code>. Predictions are generated on the link scale in this case, though you could also use the response scale. Note that we need to first generate predictions with all covariates (including the <code>mintemp</code> covariate) zeroed out to find the &lsquo;baseline&rsquo; prediction (which will centre around the species&rsquo; expected average count, on the log scale) so that we can shift by this baseline for generating a zero-centred plot. That way our resulting plot will roughly follow the traditional <code>mgcv</code> partial effect plots</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>plot_dist_lags <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">function</span>(model, data_all){
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  all_species <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">levels</span>(data_all<span style="color:#000;font-weight:bold">$</span>series)
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Loop across species to create the effect plot dataframe</span>
+</span></span><span style="display:flex;"><span>  sp_plot_dat <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">do.call</span>(rbind, <span style="color:#900;font-weight:bold">lapply</span>(all_species, <span style="color:#000;font-weight:bold">function</span>(sp){
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># Zero out all predictors to start the newdata</span>
+</span></span><span style="display:flex;"><span>    newdata <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">lapply</span>(data_all, <span style="color:#000;font-weight:bold">function</span>(x){
+</span></span><span style="display:flex;"><span>      <span style="color:#000;font-weight:bold">if</span>(<span style="color:#900;font-weight:bold">is.matrix</span>(x)){
+</span></span><span style="display:flex;"><span>        <span style="color:#900;font-weight:bold">matrix</span>(<span style="color:#099">0</span>, nrow <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">nrow</span>(x), ncol <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">ncol</span>(x))
+</span></span><span style="display:flex;"><span>      } <span style="color:#000;font-weight:bold">else</span> {
+</span></span><span style="display:flex;"><span>        <span style="color:#900;font-weight:bold">rep</span>(<span style="color:#099">0</span>, <span style="color:#900;font-weight:bold">length</span>(x))
+</span></span><span style="display:flex;"><span>      }
+</span></span><span style="display:flex;"><span>    })
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># Modify to only focus on the species of interest</span>
+</span></span><span style="display:flex;"><span>    newdata<span style="color:#000;font-weight:bold">$</span>series <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">rep</span>(sp, <span style="color:#900;font-weight:bold">nrow</span>(data_all<span style="color:#000;font-weight:bold">$</span>lag))
+</span></span><span style="display:flex;"><span>    newdata<span style="color:#000;font-weight:bold">$</span>lag <span style="color:#000;font-weight:bold">&lt;-</span> data_all<span style="color:#000;font-weight:bold">$</span>lag
+</span></span><span style="display:flex;"><span>    which_weightmat <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">grep</span>(<span style="color:#900;font-weight:bold">paste0</span>(<span style="color:#d14">&#39;weights_&#39;</span>, 
+</span></span><span style="display:flex;"><span>                                   <span style="color:#900;font-weight:bold">tolower</span>(sp)), 
+</span></span><span style="display:flex;"><span>                            <span style="color:#900;font-weight:bold">names</span>(newdata))
+</span></span><span style="display:flex;"><span>    newdata[[which_weightmat]] <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">matrix</span>(<span style="color:#099">1</span>, nrow <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">nrow</span>(newdata[[which_weightmat]]),
+</span></span><span style="display:flex;"><span>                                         ncol <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">ncol</span>(newdata[[which_weightmat]]))
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># Calculate predictions for when mintemp is zero to find the baseline</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># value for centring the plot</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">if</span>(<span style="color:#900;font-weight:bold">inherits</span>(model, <span style="color:#d14">&#39;mvgam&#39;</span>)){
+</span></span><span style="display:flex;"><span>      preds <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">predict</span>(model, newdata <span style="color:#000;font-weight:bold">=</span> newdata, 
+</span></span><span style="display:flex;"><span>                       type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;link&#39;</span>, process_error <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">FALSE</span>)
+</span></span><span style="display:flex;"><span>      preds <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">apply</span>(preds, <span style="color:#099">2</span>, median)
+</span></span><span style="display:flex;"><span>    } <span style="color:#000;font-weight:bold">else</span> {
+</span></span><span style="display:flex;"><span>      preds <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">predict</span>(model, newdata <span style="color:#000;font-weight:bold">=</span> newdata, type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;link&#39;</span>)
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    offset <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">mean</span>(preds)
+</span></span><span style="display:flex;"><span>    plot_dat <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">do.call</span>(rbind, <span style="color:#900;font-weight:bold">lapply</span>(<span style="color:#900;font-weight:bold">seq</span>(<span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">6</span>), <span style="color:#000;font-weight:bold">function</span>(lag){
+</span></span><span style="display:flex;"><span>      <span style="color:#998;font-style:italic"># Set up prediction matrix for mintemp; </span>
+</span></span><span style="display:flex;"><span>      <span style="color:#998;font-style:italic"># use a sequence of values across the full range of observed values</span>
+</span></span><span style="display:flex;"><span>      newdata<span style="color:#000;font-weight:bold">$</span>mintemp <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">matrix</span>(<span style="color:#099">0</span>, ncol <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">ncol</span>(newdata<span style="color:#000;font-weight:bold">$</span>lag),
+</span></span><span style="display:flex;"><span>                                nrow <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">nrow</span>(newdata<span style="color:#000;font-weight:bold">$</span>lag))
+</span></span><span style="display:flex;"><span>      newdata<span style="color:#000;font-weight:bold">$</span>mintemp[,lag] <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">seq</span>(<span style="color:#900;font-weight:bold">min</span>(data_all<span style="color:#000;font-weight:bold">$</span>mintemp),
+</span></span><span style="display:flex;"><span>                                   <span style="color:#900;font-weight:bold">max</span>(data_all<span style="color:#000;font-weight:bold">$</span>mintemp),
+</span></span><span style="display:flex;"><span>                                   length.out <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">length</span>(newdata<span style="color:#000;font-weight:bold">$</span>time))
+</span></span><span style="display:flex;"><span>      
+</span></span><span style="display:flex;"><span>      <span style="color:#998;font-style:italic"># Predict on the link scale and shift by the offset </span>
+</span></span><span style="display:flex;"><span>      <span style="color:#998;font-style:italic"># so that values are roughly centred at zero</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#000;font-weight:bold">if</span>(<span style="color:#900;font-weight:bold">inherits</span>(model, <span style="color:#d14">&#39;mvgam&#39;</span>)){
+</span></span><span style="display:flex;"><span>       preds <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">predict</span>(model, newdata <span style="color:#000;font-weight:bold">=</span> newdata, 
+</span></span><span style="display:flex;"><span>                        type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;link&#39;</span>, process_error <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">FALSE</span>) 
+</span></span><span style="display:flex;"><span>       preds <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">apply</span>(preds, <span style="color:#099">2</span>, median)
+</span></span><span style="display:flex;"><span>      } <span style="color:#000;font-weight:bold">else</span> {
+</span></span><span style="display:flex;"><span>       preds <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">predict</span>(model, newdata <span style="color:#000;font-weight:bold">=</span> newdata,
+</span></span><span style="display:flex;"><span>                        type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;link&#39;</span>) 
+</span></span><span style="display:flex;"><span>      }
+</span></span><span style="display:flex;"><span>      preds <span style="color:#000;font-weight:bold">&lt;-</span> preds <span style="color:#000;font-weight:bold">-</span> offset
+</span></span><span style="display:flex;"><span>      
+</span></span><span style="display:flex;"><span>      <span style="color:#900;font-weight:bold">data.frame</span>(lag <span style="color:#000;font-weight:bold">=</span> lag,
+</span></span><span style="display:flex;"><span>                 preds <span style="color:#000;font-weight:bold">=</span> preds,
+</span></span><span style="display:flex;"><span>                 mintemp <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">seq</span>(<span style="color:#900;font-weight:bold">min</span>(data_all<span style="color:#000;font-weight:bold">$</span>mintemp),
+</span></span><span style="display:flex;"><span>                                   <span style="color:#900;font-weight:bold">max</span>(data_all<span style="color:#000;font-weight:bold">$</span>mintemp),
+</span></span><span style="display:flex;"><span>                                   length.out <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">length</span>(newdata<span style="color:#000;font-weight:bold">$</span>time)))
+</span></span><span style="display:flex;"><span>    }))
+</span></span><span style="display:flex;"><span>    plot_dat<span style="color:#000;font-weight:bold">$</span>species <span style="color:#000;font-weight:bold">&lt;-</span> sp
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    plot_dat
+</span></span><span style="display:flex;"><span>  }))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Build the facetted distributed lag plot</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">ggplot</span>(data <span style="color:#000;font-weight:bold">=</span> sp_plot_dat <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>           dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">mutate</span>(lag <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">as.factor</span>(lag)),
+</span></span><span style="display:flex;"><span>         <span style="color:#900;font-weight:bold">aes</span>(x <span style="color:#000;font-weight:bold">=</span> mintemp, y <span style="color:#000;font-weight:bold">=</span> preds, 
+</span></span><span style="display:flex;"><span>             colour <span style="color:#000;font-weight:bold">=</span> lag, fill <span style="color:#000;font-weight:bold">=</span> lag)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">facet_wrap</span>(<span style="color:#000;font-weight:bold">~</span> species, scales <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;free&#39;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">geom_hline</span>(yintercept <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># Use geom_smooth, though beware these uncertainty</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># intervals aren&#39;t necessarily correct</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">geom_smooth</span>() <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">scale_fill_viridis</span>(discrete <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">scale_colour_viridis</span>(discrete <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">labs</span>(x <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Minimum temperature (z-scored)&#39;</span>,
+</span></span><span style="display:flex;"><span>         y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Partial effect&#39;</span>)
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>Plot the conditional <code>mintemp</code> effects for each species</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot_dist_lags</span>(mod2, data_all)
+</span></span></code></pre></div><pre tabindex="0"><code>## `geom_smooth()` using method = &#39;loess&#39; and formula = &#39;y ~ x&#39;
+</code></pre><img src="https://ecogambler.netlify.app/blog/distributed-lags-mgcv/index_files/figure-html/unnamed-chunk-35-1.png" alt="Visualising nonlinear distributed lag smooths in mgcv and R" width="60%" style="display: block; margin: auto;" />
+<p>There we have it. Now it is clear that some species show fairly strong responses to cumulative change in minimum temperature, while others do not. But the fact that we aren&rsquo;t effectively capturing temporal autocorrelation could be influencing these estimates. What happens if we do model temporal dynamics appropriately?</p>
+
+
+
+
+<h2 id="using-mvgam-to-capture-dynamic-processes">Using mvgam to capture dynamic processes
+  <a href="#using-mvgam-to-capture-dynamic-processes"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>Just as a quick illustration, I will show how the same model can be used in <code>mvgam</code>, except that we replace the smooth functions of <code>time</code> with more appropriate dynamic processes that can capture the temporal autocorrelation in the observations. This model uses very similar syntax to the above and can use the same data objects, so there is no need to change much here</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>mod3 <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">mvgam</span>(captures <span style="color:#000;font-weight:bold">~</span> 
+</span></span><span style="display:flex;"><span>              <span style="color:#998;font-style:italic"># Hierarchical intercepts</span>
+</span></span><span style="display:flex;"><span>              <span style="color:#900;font-weight:bold">s</span>(series, bs <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;re&#39;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>              
+</span></span><span style="display:flex;"><span>              <span style="color:#998;font-style:italic"># Smooths of ndvi_ma12</span>
+</span></span><span style="display:flex;"><span>              <span style="color:#900;font-weight:bold">s</span>(ndvi_ma12, by <span style="color:#000;font-weight:bold">=</span> series, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">6</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>              
+</span></span><span style="display:flex;"><span>              <span style="color:#998;font-style:italic"># Distributed lags of mintemp</span>
+</span></span><span style="display:flex;"><span>              <span style="color:#900;font-weight:bold">te</span>(mintemp, lag, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">8</span>, <span style="color:#099">5</span>), by <span style="color:#000;font-weight:bold">=</span> weights_dm) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>              <span style="color:#900;font-weight:bold">te</span>(mintemp, lag, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">8</span>, <span style="color:#099">5</span>), by <span style="color:#000;font-weight:bold">=</span> weights_do) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>              <span style="color:#900;font-weight:bold">te</span>(mintemp, lag, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">8</span>, <span style="color:#099">5</span>), by <span style="color:#000;font-weight:bold">=</span> weights_pb) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>              <span style="color:#900;font-weight:bold">te</span>(mintemp, lag, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">8</span>, <span style="color:#099">5</span>), by <span style="color:#000;font-weight:bold">=</span> weights_pp),
+</span></span><span style="display:flex;"><span>              
+</span></span><span style="display:flex;"><span>              <span style="color:#998;font-style:italic"># Latent dynamic processes to capture autocorrelation</span>
+</span></span><span style="display:flex;"><span>              trend_model <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">AR</span>(),
+</span></span><span style="display:flex;"><span>            family <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">poisson</span>(),
+</span></span><span style="display:flex;"><span>            data <span style="color:#000;font-weight:bold">=</span> data_all)
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">summary</span>(mod3, include_betas <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">FALSE</span>)
+</span></span></code></pre></div><pre tabindex="0"><code>## GAM formula:
+## captures ~ s(ndvi_ma12, by = series, k = 5) + te(mintemp, lag, 
+##     k = 4, by = weights_dm) + te(mintemp, lag, k = 4, by = weights_do) + 
+##     te(mintemp, lag, k = 4, by = weights_pb) + te(mintemp, lag, 
+##     k = 4, by = weights_pp) + s(series, bs = &#34;re&#34;)
+## 
+## Family:
+## poisson
+## 
+## Link function:
+## log
+## 
+## Trend model:
+## AR()
+## 
+## N series:
+## 4 
+## 
+## N timepoints:
+## 80 
+## 
+## Status:
+## Fitted using Stan 
+## 4 chains, each with iter = 1000; warmup = 500; thin = 1 
+## Total post-warmup draws = 2000
+## 
+## 
+## GAM coefficient (beta) estimates:
+##              2.5% 50% 97.5% Rhat n_eff
+## (Intercept) -0.73 1.6   3.7    1  1478
+## 
+## GAM group-level estimates:
+##                  2.5%   50% 97.5% Rhat n_eff
+## mean(s(series)) -1.80 0.013   1.8 1.00  2446
+## sd(s(series))    0.33 1.300   3.6 1.02   632
+## 
+## Approximate significance of GAM smooths:
+##                              edf Ref.df Chi.sq p-value
+## s(ndvi_ma12):seriesDM      1.093      4   8.82     1.0
+## s(ndvi_ma12):seriesDO      1.048      4   2.93     1.0
+## s(ndvi_ma12):seriesPB      0.889      4   0.18     1.0
+## s(ndvi_ma12):seriesPP      1.037      4   3.30     1.0
+## te(mintemp,lag):weights_dm 8.649     16  11.57     1.0
+## te(mintemp,lag):weights_do 5.059     16  29.12     1.0
+## te(mintemp,lag):weights_pb 5.715     16  13.49     1.0
+## te(mintemp,lag):weights_pp 6.973     16 144.90     1.0
+## s(series)                  2.137      4  31.88     0.2
+## 
+## Latent trend parameter AR estimates:
+##           2.5%  50% 97.5% Rhat n_eff
+## ar1[1]   0.760 0.95  1.00 1.04   144
+## ar1[2]   0.800 0.95  1.00 1.01   404
+## ar1[3]   0.850 0.96  1.00 1.00   651
+## ar1[4]   0.670 0.86  0.98 1.01   693
+## sigma[1] 0.075 0.14  0.24 1.07   105
+## sigma[2] 0.150 0.28  0.49 1.03   111
+## sigma[3] 0.270 0.47  0.72 1.02   185
+## sigma[4] 0.400 0.58  0.85 1.01   329
+## 
+## Stan MCMC diagnostics:
+## n_eff / iter looks reasonable for all parameters
+## Rhats above 1.05 found for 1 parameters
+##  *Diagnose further to investigate why the chains have not mixed
+## 9 of 2000 iterations ended with a divergence (0.45%)
+##  *Try running with larger adapt_delta to remove the divergences
+## 0 of 2000 iterations saturated the maximum tree depth of 12 (0%)
+## Chain 1: E-FMI = 0.1879
+##  *E-FMI below 0.2 indicates you may need to reparameterize your model
+## 
+## Samples were drawn using NUTS(diag_e) at Thu Apr 04 10:37:31 AM 2024.
+## For each parameter, n_eff is a crude measure of effective sample size,
+## and Rhat is the potential scale reduction factor on split MCMC chains
+## (at convergence, Rhat = 1)
+</code></pre><p>Pay no attention to the approximate significances of these smooths, I&rsquo;m still not convinced that they are being calculated correctly in {<code>mvgam</code>}. But notice how the AR terms are all close to <code>1</code>, suggesting there is a lot of unmodelled temporal autocorrelation in the data. Has this impacted our inferences of distributed lag effects? The same prediction function can be used to visualize the distributed lag effects of <code>mintemp</code>:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot_dist_lags</span>(mod3, data_all)
+</span></span></code></pre></div><pre tabindex="0"><code>## `geom_smooth()` using method = &#39;loess&#39; and formula = &#39;y ~ x&#39;
+</code></pre><img src="https://ecogambler.netlify.app/blog/distributed-lags-mgcv/index_files/figure-html/unnamed-chunk-39-1.png" alt="Visualising nonlinear smooths in mgcv, mvgam and R" width="60%" style="display: block; margin: auto;" />
+<p>These estimates are now more nonlinear, probably because we have more power to detect effects by effectively capturing temporal dynamics with the latent AR processes:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot</span>(mod3, type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;trend&#39;</span>, series <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/distributed-lags-mgcv/index_files/figure-html/unnamed-chunk-40-1.png" alt="Visualising latent dynamic time series processes in mvgam and R" width="60%" style="display: block; margin: auto;" />
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot</span>(mod3, type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;trend&#39;</span>, series <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/distributed-lags-mgcv/index_files/figure-html/unnamed-chunk-40-2.png" alt="Visualising latent dynamic time series processes in mvgam and R" width="60%" style="display: block; margin: auto;" />
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot</span>(mod3, type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;trend&#39;</span>, series <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/distributed-lags-mgcv/index_files/figure-html/unnamed-chunk-40-3.png" alt="Visualising latent dynamic time series processes in mvgam and R" width="60%" style="display: block; margin: auto;" />
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot</span>(mod3, type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;trend&#39;</span>, series <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">4</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/distributed-lags-mgcv/index_files/figure-html/unnamed-chunk-40-4.png" alt="Visualising latent dynamic time series processes in mvgam and R" width="60%" style="display: block; margin: auto;" />
+<p>We will leave it there for this post. Hopefully you find this useful at some point!</p>
+
+
+
+
+<h2 id="further-reading">Further reading
+  <a href="#further-reading"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>The following papers and resources offer useful material about Hierarchical Generalized Additive Models and distributed lag modeling</p>
+<p>Clark, N. J., Ernest, S. K. M., Senyondo, H., Simonis, J. L., White, E. P., Yennis, G. M., &amp; Karunarathna, K. A. N. K. (2023). 
+<a href="https://ecoevorxiv.org/repository/view/5143/" target="_blank" rel="noopener">Multi-species dependencies improve forecasts of population dynamics in a long-term monitoring study</a>. <em>Biorxiv</em>, doi: 
+<a href="https://doi.org/10.32942/X2TS34" target="_blank" rel="noopener">https://doi.org/10.32942/X2TS34</a>.</p>
+<p>Gasparrini, A. (2014). 
+<a href="https://onlinelibrary.wiley.com/doi/full/10.1002/sim.5963" target="_blank" rel="noopener">Modeling exposure–lag–response associations with distributed lag non‐linear models</a>. <em>Statistics in Medicine</em>, 33(5), 881-899.</p>
+<p>Karunarathna, K. A. N. K., Wells, K., &amp; Clark, N. J. (2024). 
+<a href="https://www.sciencedirect.com/science/article/pii/S0304380024000371" target="_blank" rel="noopener">Modelling nonlinear responses of a desert rodent species to environmental change with hierarchical dynamic generalized additive models</a>. <em>Ecological Modelling</em>, 490, 110648.</p>
+<p>Pedersen, E. J., Miller, D. L., Simpson, G. L., &amp; Ross, N. (2019). 
+<a href="https://peerj.com/articles/6876/" target="_blank" rel="noopener">Hierarchical generalized additive models in ecology: an introduction with mgcv</a>. <em>PeerJ</em>, 7, e6876.</p>
+
+      </section>
+      <footer class="post-footer">
+        <div class="post-pagination dt w-100 mt4 mb2">
+  
+  
+    <a class="prev dtc pr2 tl v-top fw6"
+    href="https://ecogambler.netlify.app/blog/stan-discrete-geostatistical/">&larr; Using Stan to model geostatistical count data with distance matrices</a>
+  
+  
+  
+    <a class="next dtc pl2 tr v-top fw6"
+    href="https://ecogambler.netlify.app/blog/autocorrelated-gams/">Temporal autocorrelation in GAMs and the mvgam package &rarr;</a>
+  
+</div>
+
+      </footer>
+    </article>
+    
+      
+<div class="post-comments pa0 pa4-l mt4">
+  
+  <script src="https://utteranc.es/client.js"
+          repo="apreshill/apero"
+          issue-term="pathname"
+          theme="boxy-light"
+          label="comments :crystal_ball:"
+          crossorigin="anonymous"
+          async
+          type="text/javascript">
+  </script>
+  
+</div>
+
+    
+  </section>
+</main>
+<aside class="page-sidebar" role="complementary">
+                         
+ 
+
+
+                       
+ 
+
+
+
+
+
+
+
+
+
+
+
+  <img src="/blog/sidebar-listing.jpg" class="db ma0">
+
+
+<div class="blog-info ph4 pt4 pb4 pb0-l">
+  
+
+  <h1 class="f3">GAMbler</h1>
+  <p class="f6 lh-copy measure">A blog on (somewhat) interesting and (hopefully) useful tips for ecological modeling, with (perhaps too much) emphasis on Generalized Additive Models.</p>
+  <p class="f7 measure lh-copy i mh0-l">Written by Nicholas Clark (n.clark&rsquo;at&rsquo;uq.edu.au)</p>
+
+
+  
+  <div class="dib bt bw1 b--black-10">
+    
+      <small class="db f7 pt3"><a href="/blog/" class="dib fw7 ttu">View recent posts</a></small>
+    
+    
+    
+    
+  </div>
+
+
+</div>
+
+
+  
+  <details open class="f6 fw7 input-reset">
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Posted on:</dt>
+    <dd class="fw5 ml0">August 15, 2023</dd>
+  </dl>
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Length:</dt>
+    <dd class="fw5 ml0">24 minute read, 5111 words</dd>
+  </dl>
+  
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Categories:</dt>
+    <dd class="fw5 ml0"> <a href="https://ecogambler.netlify.app/categories/rstats">rstats</a>  <a href="https://ecogambler.netlify.app/categories/mgcv">mgcv</a>  <a href="https://ecogambler.netlify.app/categories/mvgam">mvgam</a> </dd>
+  </dl>
+  
+  
+  
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Tags:</dt>
+    <dd class="fw5 ml0"> <a href="https://ecogambler.netlify.app/tags/rstats">rstats</a>  <a href="https://ecogambler.netlify.app/tags/mgcv">mgcv</a>  <a href="https://ecogambler.netlify.app/tags/tutorial">tutorial</a>  <a href="https://ecogambler.netlify.app/tags/mvgam">mvgam</a> </dd>
+  </dl>
+  
+  <dl class="f6 lh-copy">
+    <dt class="fw7">See Also:</dt>
+    
+    <dd class="fw5 ml0"><a href="/blog/emergency-department-shiny/">Building an Interactive Emergency Department Dashboard with Shiny</a></dd>
+    
+    <dd class="fw5 ml0"><a href="/blog/plant-community-dirichlet/">Compositional modeling of plant communities with Dirichlet regression</a></dd>
+    
+    <dd class="fw5 ml0"><a href="/blog/clv-prediction/">GAMs for Customer Lifetime Value (CLV) prediction</a></dd>
+    
+  </dl>
+</details>
+
+                           
+  
+  
+  
+ <nav id="TableOfContents" class="sticky ph4 pb4 pt6" role="navigation"> 
+   <h2 class="mv0 f5 fw7 ttu tracked dib">On this page</h2> 
+     <nav id="TableOfContents">
+  <ul>
+    <li><a href="#environment-setup">Environment setup</a></li>
+    <li><a href="#load-and-inspect-the-portal-data">Load and inspect the Portal data</a></li>
+    <li><a href="#setting-up-lag-matrices">Setting up lag matrices</a></li>
+    <li><a href="#fitting-a-distributed-lag-model-for-one-species">Fitting a distributed lag model for one species</a></li>
+    <li><a href="#group-level-and-hierarchical-distributed-lags">Group-level and hierarchical distributed lags</a></li>
+    <li><a href="#visualising-distributed-lag-terms">Visualising distributed lag terms</a></li>
+    <li><a href="#using-mvgam-to-capture-dynamic-processes">Using mvgam to capture dynamic processes</a></li>
+    <li><a href="#further-reading">Further reading</a></li>
+  </ul>
+</nav> 
+ </nav> 
+  
+
+</aside>
+<footer class="site-footer pv4 bt b--transparent ph5" role="contentinfo">
+  <nav class="db dt-l w-100">
+    <p class="site-copyright f7 db dtc-l v-mid w-100 w-33-l tc tl-l pv2 pv0-l mv0 lh-copy">
+      © Nicholas J Clark (2024)
+      <span class="middot-divider"></span>
+      Made with <span xmlns:dct="http://purl.org/dc/terms/" property="dct:title"><a xmlns:dct="http://purl.org/dc/terms/" href="https://github.com/hugo-apero/" rel="dct:source">Hugo Apéro</a></span>.
+      <br />
+      
+Based on <span xmlns:dct="http://purl.org/dc/terms/" property="dct:title"><a xmlns:dct="http://purl.org/dc/terms/" href="https://github.com/formspree/blogophonic-hugo" rel="dct:source">Blogophonic</a></span> by <a xmlns:cc="http://creativecommons.org/ns#" href="https://formspree.io" property="cc:attributionName" rel="cc:attributionURL">Formspree</a>.
+    </p>
+    
+    <div class="site-social-links db dtc-l v-mid w-100 w-33-l tc pv2 pv0-l mv0">
+      <div class="social-icon-links" aria-hidden="true">
+  
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://github.com/nicholasjclark" title="github" target="_blank" rel="me noopener">
+      <i class="fab fa-github fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://www.youtube.com/@NJ_Clark" title="youtube" target="_blank" rel="me noopener">
+      <i class="fab fa-youtube fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://bsky.app/profile/njclark.bsky.social" title="mixcloud" target="_blank" rel="me noopener">
+      <i class="fab fa-mixcloud fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://orcid.org/0000-0001-7131-3301" title="orcid" target="_blank" rel="me noopener">
+      <i class="ai ai-orcid fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://scholar.google.com.au/citations?user=5bO9uxEAAAAJ&amp;hl=en" title="google-scholar" target="_blank" rel="me noopener">
+      <i class="ai ai-google-scholar fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="/blog/index.xml" title="rss" >
+      <i class="fas fa-rss fa-lg fa-fw"></i>
+    </a>
+  
+</div>
+
+    </div>
+    
+    <div class="site-links f6 db dtc-l v-mid w-100 w-67-l tc tr-l pv2 pv0-l mv0">
+      
+      <a class="dib pv1 ph2 link" href="/license/" title="License">License</a>
+      
+      <a class="dib pv1 ph2 link" href="/contributors/" title="Contributors">Collaborators</a>
+      
+    </div>
+  </nav>
+  
+    <script>
+
+    var i, text, code, codes = document.getElementsByTagName('code');
+    for (let i = 0; i < codes.length;) {
+      code = codes[i];
+      if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+        text = code.textContent;
+        if (/^\$[^$]/.test(text) && /[^$]\$$/.test(text)) {
+          text = text.replace(/^\$/, '\\(').replace(/\$$/, '\\)');
+          code.textContent = text;
+        }
+        if (/^\\\((.|\s)+\\\)$/.test(text) ||
+            /^\\\[(.|\s)+\\\]$/.test(text) ||
+            /^\$(.|\s)+\$$/.test(text) ||
+            /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+          code.outerHTML = code.innerHTML;  
+          continue;
+        }
+      }
+      i++;
+    }
+</script>
+
+  
+    
+    
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/katex.min.css" integrity="sha384-RZU/ijkSsFbcmivfdRBQDtwuwVqK7GMOw6IMvKyeWL2K5UAlyp6WonmB8m7Jd0Hn" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/katex.min.js" integrity="sha384-pK1WpvzWVBQiP0/GjnvRxV4mOb0oxFuyRxJlk6vVw146n3egcN5C925NCP7a7BY8" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/contrib/auto-render.min.js" integrity="sha384-vZTG03m+2yp6N6BNi5iM4rW4oIwk5DfcNdFfxkk9ZWpDriOkXX8voJBFrAO7MpVl" crossorigin="anonymous" onload="renderMathInElement(document.body);"></script>
+
+
+
+    
+  
+  
+</footer>
+
+      </div>
+    </body>
+</html>

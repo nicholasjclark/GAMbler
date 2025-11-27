@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+  <title>Workshops on GAMbler</title>
+  <link>https://ecogambler.netlify.app/categories/workshops/</link>
+  <description>Recent content in Workshops on GAMbler</description>
+  <generator>Hugo</generator>
+  <language>en</language>
+<copyright>© Nicholas J Clark (2024)</copyright>
+<lastBuildDate>Mon, 24 Mar 2025 14:14:05 -0600</lastBuildDate>
+<atom:link href="https://ecogambler.netlify.app/categories/workshops/index.xml" rel="self" type="application/rss+xml" />
+<item>
+  <title>Ecological forecasting with R 📦&#39;s {mvgam} and {brms}</title>
+  <link>https://ecogambler.netlify.app/talk/physalia-mvgam-2025/</link>
+  <pubDate>Mon, 24 Mar 2025 14:14:05 -0600</pubDate>
+<guid>https://ecogambler.netlify.app/talk/physalia-mvgam-2025/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>2025 R Workshops @ UQ</title>
+  <link>https://ecogambler.netlify.app/talk/uq-r-workshops/</link>
+  <pubDate>Mon, 10 Feb 2025 09:30:00 -0600</pubDate>
+<guid>https://ecogambler.netlify.app/talk/uq-r-workshops/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Ecological forecasting with R 📦&#39;s {mvgam} and {brms}</title>
+  <link>https://ecogambler.netlify.app/talk/physalia-mvgam-2024/</link>
+  <pubDate>Mon, 27 May 2024 14:14:05 -0600</pubDate>
+<guid>https://ecogambler.netlify.app/talk/physalia-mvgam-2024/</guid>
+  <description></description>
+  </item>
+</channel>
+  </rss>

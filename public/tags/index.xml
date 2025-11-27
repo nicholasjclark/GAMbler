@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+  <title>Tags on GAMbler</title>
+  <link>https://ecogambler.netlify.app/tags/</link>
+  <description>Recent content in Tags on GAMbler</description>
+  <generator>Hugo</generator>
+  <language>en</language>
+<copyright>© Nicholas J Clark (2024)</copyright>
+<lastBuildDate>Wed, 05 Nov 2025 00:00:00 +0000</lastBuildDate>
+<atom:link href="https://ecogambler.netlify.app/tags/index.xml" rel="self" type="application/rss+xml" />
+<item>
+  <title>Healthcare</title>
+  <link>https://ecogambler.netlify.app/tags/healthcare/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/tags/healthcare/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Leaflet</title>
+  <link>https://ecogambler.netlify.app/tags/leaflet/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/tags/leaflet/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Rstats</title>
+  <link>https://ecogambler.netlify.app/tags/rstats/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/tags/rstats/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Shiny</title>
+  <link>https://ecogambler.netlify.app/tags/shiny/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/tags/shiny/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Tutorial</title>
+  <link>https://ecogambler.netlify.app/tags/tutorial/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/tags/tutorial/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Visualization</title>
+  <link>https://ecogambler.netlify.app/tags/visualization/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/tags/visualization/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Brms</title>
+  <link>https://ecogambler.netlify.app/tags/brms/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/tags/brms/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Compositional</title>
+  <link>https://ecogambler.netlify.app/tags/compositional/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/tags/compositional/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Ecology</title>
+  <link>https://ecogambler.netlify.app/tags/ecology/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/tags/ecology/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Forecasting</title>
+  <link>https://ecogambler.netlify.app/tags/forecasting/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/tags/forecasting/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Mgcv</title>
+  <link>https://ecogambler.netlify.app/tags/mgcv/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/tags/mgcv/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Time-Series</title>
+  <link>https://ecogambler.netlify.app/tags/time-series/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/tags/time-series/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Mvgam</title>
+  <link>https://ecogambler.netlify.app/tags/mvgam/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/tags/mvgam/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Cran</title>
+  <link>https://ecogambler.netlify.app/tags/cran/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/tags/cran/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Package</title>
+  <link>https://ecogambler.netlify.app/tags/package/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/tags/package/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Marginaleffects</title>
+  <link>https://ecogambler.netlify.app/tags/marginaleffects/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/tags/marginaleffects/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Simulation</title>
+  <link>https://ecogambler.netlify.app/tags/simulation/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/tags/simulation/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Confounding</title>
+  <link>https://ecogambler.netlify.app/tags/confounding/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/tags/confounding/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Stan</title>
+  <link>https://ecogambler.netlify.app/tags/stan/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/tags/stan/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Spatial</title>
+  <link>https://ecogambler.netlify.app/tags/spatial/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/tags/spatial/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>Autocorrelation</title>
+  <link>https://ecogambler.netlify.app/tags/autocorrelation/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/tags/autocorrelation/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>MrIML</title>
+  <link>https://ecogambler.netlify.app/tags/mriml/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/tags/mriml/</guid>
+  <description></description>
+  </item>
+<item>
+  <title>MRFcov</title>
+  <link>https://ecogambler.netlify.app/tags/mrfcov/</link>
+  <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
+<guid>https://ecogambler.netlify.app/tags/mrfcov/</guid>
+  <description></description>
+  </item>
+</channel>
+  </rss>

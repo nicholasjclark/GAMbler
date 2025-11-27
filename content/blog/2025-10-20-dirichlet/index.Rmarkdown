@@ -1,0 +1,977 @@
+---
+title: "Compositional modeling of plant communities with Dirichlet regression"
+author: "Nicholas Clark"
+subtitle: ""
+excerpt: "Compositional data appears everywhere in scientific research, yet many analysts fall back on problematic approaches that ignore fundamental mathematical constraints. I demonstrate how Dirichlet regression with Gaussian process smooths provides a principled framework for modeling plant community composition across environmental gradients, using approximate Hilbert space methods that make these models computationally tractable for realistic datasets. Unlike separate binomial models that can predict impossible total abundances exceeding 100%, this approach automatically ensures predictions respect compositional constraints while capturing complex nonlinear environmental responses."
+slug: plant-community-dirichlet
+date: 2025-10-20
+draft: false
+images:
+series:
+tags:
+  - rstats
+  - brms
+  - compositional
+  - ecology
+  - tutorial
+categories:
+  - rstats
+  - brms
+  - ecology
+layout: single-sidebar
+---
+
+```{r setup, include=FALSE}
+library(kableExtra)
+# Set global chunk options for consistent figure output
+knitr::opts_chunk$set(
+  echo = TRUE,   
+  dpi = 150,
+  fig.asp = 0.8,
+  fig.width = 6,
+  out.width = "60%",
+  fig.align = "center",
+  warning = FALSE,
+  message = FALSE
+)
+```
+
+Compositional data, where observations represent proportions that sum to a constant, are ubiquitous in ecology, yet many analysts fall back on problematic approaches like separate binomial models, beta regression on ratios, or worse, standard linear regression on raw proportions. These methods ignore the fundamental constraint that proportions must sum to unity and fail to model the inherent dependencies between components. [Aitchison's landmark work](https://doi.org/10.1111/j.2517-6161.1982.tb01195.x) established the mathematical foundation for proper compositional analysis, while [van den Boogaart & Tolosana-Delgado](https://link.springer.com/book/10.1007/978-3-642-36809-7) provide comprehensive coverage of modern compositional data analysis methods.
+
+Here I demonstrate how Dirichlet regression with Gaussian process smooths provides a principled, flexible framework for modeling plant community composition across environmental gradients. I'll use [Riutort-Mayol et al's approximate Hilbert space Gaussian processes](https://link.springer.com/article/10.1007/s11222-022-10167-2), which make these models computationally tractable even for moderately large datasets.
+
+## Overview of this post
+
+Compositional data appears everywhere in scientific research: microbiome relative abundances in biology, market share distributions in economics, geological mineral compositions in earth sciences, time allocation in behavioral studies, and survey response proportions in social research. Yet despite this ubiquity, many analysts resort to problematic approaches that ignore the fundamental constraint that components must sum to a constant (typically 1 or 100%).
+
+This post addresses two critical challenges data scientists face with compositional data. Methodologically, I demonstrate why standard approaches like separate Binomial models or Beta regression on ratios fail to capture the inherent dependencies between components, leading to impossible predictions and inefficient inference. If you've worked with [GAMs for time series analysis](https://ecogambler.netlify.app/blog/autocorrelated-gams/) like I have, you'll appreciate how Gaussian processes provide similar flexibility for capturing nonlinear relationships while respecting compositional constraints.
+
+Computationally, I show how approximate Hilbert space Gaussian processes make sophisticated nonlinear modeling feasible for realistic dataset sizes, overcoming the traditional scalability limitations of GP methods. This builds on the same computational advances that make [complex hierarchical models](https://ecogambler.netlify.app/blog/distributed-lags-mgcv/) practical for everyday use.
+
+I begin with the mathematical foundation of the Dirichlet distribution and its regression parameterization, emphasizing how brms enables separate linear predictors for each component. Next, I simulate realistic plant community data to demonstrate complex ecological relationships. I then fit Dirichlet regression models with bivariate Gaussian process smooths, extract and visualize predictions across environmental gradients, and interpret the results. Throughout, I emphasize practical implementation details and computational considerations that make this approach accessible for real-world applications.
+
+By the end, you'll understand when and how to apply Dirichlet regression to your own compositional data, regardless of scientific domain. Plus, you'll never again have to explain to a collaborator why your separate logistic regressions predict that 130% of survey respondents chose option A.
+
+## The Dirichlet distribution and compositional constraints
+
+For a ${\color{#FDE725}{K}}$-component composition ${\color{#440154}{\boldsymbol{y}}} = ({\color{#440154}{y_1}}, {\color{#440154}{y_2}}, \ldots, {\color{#440154}{y_K}})$ where $\sum_{k=1}^{\color{#FDE725}{K}} {\color{#440154}{y_k}} = 1$ and ${\color{#440154}{y_k}} > 0$, the Dirichlet distribution provides a natural model:
+
+$${\color{#440154}{\boldsymbol{y}}} \sim \text{Dirichlet}({\color{#31688E}{\boldsymbol{\alpha}}})$$
+
+where ${\color{#31688E}{\boldsymbol{\alpha}}} = ({\color{#31688E}{\alpha_1}}, {\color{#31688E}{\alpha_2}}, \ldots, {\color{#31688E}{\alpha_K}})$ are positive concentration parameters. The probability density is:
+
+$$f({\color{#440154}{\boldsymbol{y}}}|{\color{#31688E}{\boldsymbol{\alpha}}}) = \frac{\Gamma({\color{#31688E}{\alpha_0}})}{\prod_{k=1}^{\color{#FDE725}{K}} \Gamma({\color{#31688E}{\alpha_k}})} \prod_{k=1}^{\color{#FDE725}{K}} {\color{#440154}{y_k}}^{{\color{#31688E}{\alpha_k}} - 1}$$
+
+with ${\color{#31688E}{\alpha_0}} = \sum_{k=1}^{\color{#FDE725}{K}} {\color{#31688E}{\alpha_k}}$ and $\Gamma(\cdot)$ the gamma function. The expected proportion for component $k$ is $\mathbb{E}[{\color{#440154}{y_k}}] = {\color{#31688E}{\alpha_k}} / {\color{#31688E}{\alpha_0}}$, while the precision (inverse variance) increases with ${\color{#31688E}{\alpha_0}}$.
+
+In regression contexts, we model how ${\color{#31688E}{\boldsymbol{\alpha}}}$ depends on predictors. The brms package uses a multivariate logit parameterization where the expected proportions ${\color{#35B779}{\boldsymbol{\mu}}} = \mathbb{E}[{\color{#440154}{\boldsymbol{y}}}]$ are linked to linear predictors via:
+
+$${\color{#35B779}{\mu_j}} = \frac{\exp({\color{#21918C}{\eta_j}})}{\sum_{k=1}^{\color{#FDE725}{K}} \exp({\color{#21918C}{\eta_k}})}$$
+
+where ${\color{#21918C}{\eta_j}}$ is the linear predictor for category $j$. For identifiability, one category (typically the last) serves as reference with ${\color{#21918C}{\eta_{\text{ref}}}} = 0$. This means we estimate separate linear predictors for ${\color{#FDE725}{K}}-1$ categories:
+
+$${\color{#21918C}{\eta_j}} = \boldsymbol{x}^T \boldsymbol{\beta}_j + f_j(\boldsymbol{x}), \quad j = 1, \ldots, {\color{#FDE725}{K}}-1$$
+
+where $f_j(\cdot)$ represents smooth functions (like our Gaussian processes). This approach naturally ensures $\sum_{k=1}^K \mu_k = 1$ while allowing each functional group to have its own flexible, nonlinear response to environmental gradients.
+
+### Parameter guide for Dirichlet regression
+
+Let me break down what each parameter means in our ecological context, using the same color scheme as above:
+
+* **Observed composition** ${\color{#440154}{\boldsymbol{y}}} = ({\color{#440154}{y_1}}, ..., {\color{#440154}{y_K}})$: The actual proportions we observe at each site. In our case, this is a 5-element vector containing the relative abundances of grass, forb, shrub, tree, and lichen. These must sum to 1 and all be positive.
+
+* **Concentration parameters** ${\color{#31688E}{\boldsymbol{\alpha}}} = ({\color{#31688E}{\alpha_1}}, ..., {\color{#31688E}{\alpha_K}})$: These control both the expected proportions and the precision of the distribution. Higher ${\color{#31688E}{\alpha_k}}$ means functional group $k$ has higher expected proportion. The sum ${\color{#31688E}{\alpha_0}} = \sum_k {\color{#31688E}{\alpha_k}}$ determines overall precision. Larger values mean less variance around expected proportions.
+
+* **Expected proportions** ${\color{#35B779}{\boldsymbol{\mu}}} = ({\color{#35B779}{\mu_1}}, ..., {\color{#35B779}{\mu_K}})$: The mean of the Dirichlet distribution, representing expected composition at any given environmental combination. This is what we're ultimately interested in predicting, how community composition changes across environmental gradients.
+
+* **Linear predictors** ${\color{#21918C}{\eta_j}}$ for $j = 1, ..., {\color{#FDE725}{K}}-1$: The unconstrained predictions before applying the softmax transformation. This is where we place our Gaussian process smooths of elevation and temperature. Note we only model ${\color{#FDE725}{K}}-1$ predictors, with the last category serving as reference.
+
+* **Number of categories** ${\color{#FDE725}{K}}$: The dimensionality of our compositional data. For plant communities, ${\color{#FDE725}{K}}=5$ functional groups. This could be any number of categories in other applications like market shares, time allocation, or mineral compositions.
+
+The key insight is that the linear predictors $\eta_j$ are where we incorporate environmental effects through Gaussian process smooths, allowing each functional group to have its own flexible, nonlinear response to environmental gradients while ensuring all predictions respect compositional constraints.
+
+## Environment setup
+
+This tutorial relies on the following packages:
+
+```{r, include = FALSE}
+library(brms)            # Bayesian modeling with Stan
+library(tidyverse)       # Data manipulation and visualization  
+library(viridis)         # Color palettes
+library(patchwork)       # Plot composition
+library(waffle)          # Waffle plots for compositional visualization
+library(cowplot)         # Extract and manipulate plot components
+```
+
+```{r, eval = FALSE}
+library(brms)            # Bayesian modeling with Stan
+library(tidyverse)       # Data manipulation and visualization  
+library(viridis)         # Color palettes
+library(patchwork)       # Plot composition
+library(waffle)          # Waffle plots for compositional visualization
+library(cowplot)         # Extract and manipulate plot components
+```
+
+A custom `ggplot2` theme; feel free to ignore if you have your own plot preferences
+
+```{r}
+# Set consistent ggplot theme for all visualizations
+theme_set(
+  theme_classic(
+    base_size = 15, 
+    base_family = 'serif'
+  ) +
+  theme(
+    axis.line.x.bottom = element_line(
+      colour = "black",
+      size = 1
+    ),
+    axis.line.y.left = element_line(
+      colour = "black",
+      size = 1
+    )
+  )
+)
+```
+
+## Simulating plant community data
+
+I simulate realistic plant community composition data across elevation and temperature gradients, where five functional groups (grasses, forbs, shrubs, trees, lichens) respond differently to environmental conditions. This simulation captures the ecological reality that different plant types show varying tolerance ranges and optimal growing conditions along environmental gradients—a pattern we'll later model using Dirichlet regression.
+
+```{r}
+simulate_plant_community <- function(
+    n_sites = 60, 
+    elevation_range = c(1, 3),
+    temp_range = c(5, 25)
+) {
+  
+  set.seed(42)
+  
+  # Generate elevation gradient with uniform random sampling
+  elevation <- runif(
+    n_sites, 
+    elevation_range[1], 
+    elevation_range[2]
+  )
+  elev_norm <- (elevation - elevation_range[1]) / 
+    (elevation_range[2] - elevation_range[1])
+  
+  # Create realistic temperature-elevation relationship with plateau
+  # Temperature decreases with elevation but plateaus at high elevations
+  plateau_point <- 0.8
+  sharpness <- 2
+  temp_factor <- 0.5 * (1 - tanh(sharpness * (elev_norm - plateau_point)))
+  temperature <- temp_range[1] + 
+    (temp_range[2] - temp_range[1]) * temp_factor +
+    rnorm(n_sites, 0, 3)
+  
+  
+  # Define functional group responses to environmental gradients
+  # Each group has distinct ecological preferences that create realistic
+  # community assembly patterns along elevation and temperature gradients
+  
+  # Grasses: peak abundance at mid-elevations with moderate temperatures
+  # Strong quadratic responses in both elevation and temperature
+  grass_logit <- 0.2 + 0.6 * elevation - 0.3 * elevation^2 + 
+    0.08 * temperature - 0.004 * temperature^2 + 0.02 * elevation * temperature
+  
+  # Forbs: prefer lower-mid elevations and warmer temperatures
+  # Negative elevation effect with positive temperature response
+  forb_logit <- 0.8 - 0.8 * elevation + 0.12 * temperature - 
+    0.005 * temperature^2 + -0.03 * elevation * temperature
+  
+  # Shrubs: adapted to mid-high elevations with moderate-cool temperatures
+  # Positive elevation effect with cool temperature preference
+  shrub_logit <- 0.3 + 0.6 * elevation - 0.2 * elevation^2 + 
+    -0.04 * temperature - 0.003 * temperature^2
+  
+  # Trees: dominate at lower elevations and warmer temperatures
+  # Strong negative elevation effects with positive temperature response
+  tree_logit <- 1.2 - 1.5 * elevation - 0.3 * elevation^2 + 
+    0.15 * temperature - 0.005 * temperature^2 + 0.04 * elevation * temperature
+  
+  # Lichens: alpine specialists preferring high elevation, cool temperatures
+  # Strong positive elevation effect with negative temperature preference
+  lichen_logit <- -1.8 + 1.2 * elevation + 0.1 * elevation^2 + 
+    -0.1 * temperature + 0.003 * temperature^2
+  
+  # Apply softmax transformation to ensure probabilities sum to 1
+  # This converts unconstrained logits to valid probability simplex
+  logits <- cbind(
+    grass_logit, 
+    forb_logit, 
+    shrub_logit, 
+    tree_logit, 
+    lichen_logit
+  )
+  exp_logits <- exp(logits)
+  probs <- exp_logits / rowSums(exp_logits)
+  
+  # Set constant precision parameter for all sites
+  # This keeps the focus on mean compositional responses
+  precision <- exp(3)
+  
+  # Generate Dirichlet-distributed compositions
+  # Each site gets alpha parameters = expected proportions * precision
+  compositions <- matrix(NA, nrow = n_sites, ncol = 5)
+  for (i in 1:n_sites) {
+    alpha_params <- probs[i, ] * precision
+    compositions[i, ] <- brms::rdirichlet(1, alpha_params)
+  }
+  
+  # Add small offset and renormalize to ensure no exact zeros
+  # Dirichlet distribution requires all components > 0
+  offset <- 0.001
+  compositions <- compositions + offset
+  compositions <- compositions / rowSums(compositions)
+  
+  # Return structured data frame with environmental predictors and compositions
+  data.frame(
+    site_id = 1:n_sites,
+    elevation = elevation,
+    temperature = temperature, 
+    grass = compositions[, 1],
+    forb = compositions[, 2],
+    shrub = compositions[, 3], 
+    tree = compositions[, 4],
+    lichen = compositions[, 5]
+  )
+}
+
+plant_data <- simulate_plant_community()
+
+# Define functional groups for consistent use across analysis
+functional_groups <- c("forb", "grass", "lichen", "shrub", "tree")
+```
+
+Let's verify our simulated compositions respect the fundamental constraint that proportions must sum to unity:
+```{r}
+# Verify compositions sum to 1 (within numerical precision)
+rowSums(plant_data[, functional_groups]) |> 
+  summary()
+```
+
+## Exploratory visualization
+
+These exploratory plots serve a crucial purpose before diving into modeling. The top panel shows how elevation and temperature covary in our simulated landscape—this realistic temperature lapse rate will affect how we interpret subsequent model results. The bottom panels reveal the raw compositional patterns that our Dirichlet regression will attempt to capture with smooth functions.
+
+```{r}
+# Visualize the environmental relationship between elevation and temperature
+# This shows the realistic temperature-elevation gradient we simulated
+p1 <- ggplot(
+  plant_data, 
+  aes(elevation, temperature)
+) +
+  geom_point(
+    alpha = 0.6, 
+    size = 2
+  ) +
+  geom_smooth(
+    method = "loess", 
+    se = TRUE, 
+    color = "darkred", 
+    fill = "darkred"
+  ) +
+  labs(
+    x = "Elevation (km)", 
+    y = "Temperature (°C)"
+  )
+
+# Reshape data to long format for plotting all functional groups together
+# This transformation allows us to visualize compositional changes efficiently
+plant_long <- plant_data |>
+  dplyr::select(
+    elevation, 
+    temperature, 
+    grass:lichen
+  ) |>
+  tidyr::pivot_longer(
+    grass:lichen, 
+    names_to = "functional_group", 
+    values_to = "proportion"
+  )
+
+# Visualize how community composition changes along elevation gradient
+# Each functional group shows distinct elevational preferences
+p2 <- ggplot(
+  plant_long, 
+  aes(
+    elevation, 
+    proportion, 
+    color = functional_group
+  )
+) +
+  geom_point(alpha = 0.4) +
+  geom_smooth(
+    method = "loess", 
+    se = FALSE, 
+    linewidth = 1
+  ) +
+  scale_color_viridis_d(name = "Functional\nGroup") +
+  lims(y = c(0, 1)) +
+  labs(
+    x = "Elevation (km)", 
+    y = "Relative abundance"
+  )
+
+# Visualize how community composition changes along temperature gradient
+# Temperature effects complement elevation patterns in shaping communities
+p3 <- ggplot(
+  plant_long, 
+  aes(
+    temperature, 
+    proportion, 
+    color = functional_group
+  )
+) +
+  geom_point(alpha = 0.4) +
+  geom_smooth(
+    method = "loess", 
+    se = FALSE, 
+    linewidth = 1
+  ) +
+  scale_color_viridis_d(name = "Functional\nGroup") +
+  lims(y = c(0, 1)) +
+  labs(
+    x = "Temperature (°C)", 
+    y = ""
+  )
+
+# Create a more compact legend with smaller text and tighter spacing
+p2_compact_legend <- p2 + 
+  theme(
+    legend.title = element_text(size = 9),
+    legend.text = element_text(size = 8),
+    legend.key.size = unit(0.8, "lines"),
+    legend.margin = margin(0, 0, 0, 0),
+    legend.box.margin = margin(0, 0, 0, 5)
+  )
+
+# Extract the compact legend
+legend <- cowplot::get_legend(p2_compact_legend)
+
+# Remove legends from both composition plots
+p2_no_legend <- p2 + theme(legend.position = "none")
+p3_no_legend <- p3 + theme(legend.position = "none")
+
+# Combine bottom plots first, then add legend
+bottom_row <- (p2_no_legend | p3_no_legend | legend) + 
+  patchwork::plot_layout(widths = c(9, 9, 2))
+
+# Combine top and bottom
+p1 / bottom_row
+```
+
+## Dirichlet regression with Gaussian processes
+
+Now comes the core modeling step: fitting Dirichlet regression with bivariate Gaussian process smooths. But first, let me explain why Gaussian processes are particularly well-suited for this ecological problem.
+
+Why choose Gaussian processes over other smoothing methods? Standard approaches like polynomial regression or splines make strong assumptions about functional form. Polynomials assume global relationships, while splines assume local smoothness within predefined knots. Gaussian processes, by contrast, are non-parametric: they let the data determine the appropriate level of smoothness at each point in covariate space. This flexibility is crucial for ecological data where relationships might be smooth in some regions (gradual transitions between communities) but abrupt in others (sharp ecotones at treelines).
+
+Traditional GPs face a computational challenge: they scale as O(n³) with sample size, making them impractical for datasets with more than 500 observations. The approximate Hilbert space Gaussian processes implemented in `brms` use basis function expansions that reduce this to O(n), enabling GP flexibility on realistic ecological datasets. This isn't just a computational nicety, it opens up sophisticated nonparametric modeling for the sample sizes we actually encounter in field studies.
+
+The compositional modeling advantage here is that we can model each functional group's response surface simultaneously while respecting compositional constraints. Unlike separate GAMs for each species that might predict impossible total abundances, Dirichlet regression with GPs ensures all predictions lie on the probability simplex.
+
+For the GP kernel, I use the exponential covariance function rather than the more common squared exponential (RBF) kernel. The exponential kernel is computationally more efficient in the Hilbert space approximation while still capturing smooth nonlinear relationships. This makes the difference between a model that fits in minutes versus hours for ecological datasets.
+
+```{r build-model, cache = TRUE, include = FALSE}
+# Prepare a response matrix for Dirichlet regression
+# Each row represents a site's complete community composition
+Y <- with(
+  plant_data, 
+  cbind(
+    forb, 
+    grass, 
+    lichen, 
+    shrub, 
+    tree
+  )
+)
+plant_data$Y <- Y
+
+# Verify no zeros exist (Dirichlet distribution requires positive values)
+# Our simulation ensures this, but it's good practice to check
+min(Y)
+
+# Specify model formula with bivariate Gaussian process smooth
+# k=10 basis functions provide good balance between flexibility and efficiency
+# c=5/4 sets the boundary factor for the approximation
+model_formula <- bf(
+  Y ~ gp(
+    elevation, 
+    temperature, 
+    k = 10, 
+    c = 5/4, 
+    cov = "exponential"
+  )
+)
+
+# Fit Dirichlet regression model using Stan via brms
+# This estimates separate GP surfaces for each functional group
+plant_model <- brm(
+  model_formula,
+  data = plant_data,
+  family = brms::dirichlet(),
+  chains = 4,
+  iter = 2000,
+  warmup = 1000,
+  cores = 4,
+  seed = 42,
+  backend = "cmdstanr",
+  silent = 2
+)
+```
+
+```{r, eval = FALSE}
+# Prepare response matrix for Dirichlet regression
+# Each row represents a site's complete community composition
+Y <- with(
+  plant_data, 
+  cbind(
+    grass, 
+    forb, 
+    shrub, 
+    tree, 
+    lichen
+  )
+)
+plant_data$Y <- Y
+
+# Verify no zeros exist (Dirichlet distribution requires positive values)
+# Our simulation ensures this, but it's good practice to check
+min(Y)
+
+# Specify model formula with bivariate Gaussian process smooth
+# k=10 basis functions provide good balance between flexibility and efficiency
+# c=5/4 sets the boundary factor for the approximation
+model_formula <- bf(
+  Y ~ gp(
+    elevation, 
+    temperature, 
+    k = 10, 
+    c = 5/4, 
+    cov = "exponential"
+  )
+)
+
+# Fit Dirichlet regression model using Stan via brms
+# This estimates separate GP surfaces for each functional group
+plant_model <- brm(
+  model_formula,
+  data = plant_data,
+  family = brms::dirichlet(),
+  chains = 4,
+  iter = 2000,
+  warmup = 1000,
+  cores = 4,
+  seed = 42,
+  backend = "cmdstanr",
+  silent = 2
+)
+```
+
+## Model predictions and effects
+
+With our fitted model, we can now extract predictions across environmental gradients to understand precisely how community composition responds to elevation and temperature. This is where we transition from model fitting to interpretation, and where understanding different types of posterior predictions becomes crucial.
+
+I use `posterior_epred()` rather than `posterior_predict()` because I want the expected values of the posterior predictive distribution, not new random draws from it. Andrew Heiss has an [excellent guide to visualizing different types of posteriors](https://www.andrewheiss.com/blog/2022/09/26/guide-visualizing-types-posteriors/) that explains these distinctions clearly. For compositional data, `posterior_epred()` gives us the model's best estimate of expected proportions at each environmental combination, while `posterior_predict()` would add additional Dirichlet sampling variation on top. Since we want to understand the underlying functional relationships rather than prediction intervals for new observations, `posterior_epred()` is the right choice.
+
+I'll create three complementary prediction scenarios: univariate effects along each environmental axis (holding the other at its mean), plus bivariate surfaces showing interactive effects. The prediction strategy here is key to interpretation. I create three different prediction grids that answer different ecological questions:
+
+```{r}
+# Create elevation gradient with temperature held at mean for marginal effects
+# This asks: "How does composition change with elevation at average temperature?"
+elev_grid <- data.frame(
+  elevation = seq(
+    min(plant_data$elevation), 
+    max(plant_data$elevation), 
+    length.out = 100
+  ),
+  temperature = mean(plant_data$temperature)
+)
+
+# Create temperature gradient with elevation held at mean for marginal effects
+# This asks: "How does composition change with temperature at average elevation?"
+temp_grid <- data.frame(
+  elevation = mean(plant_data$elevation),
+  temperature = seq(
+    min(plant_data$temperature), 
+    max(plant_data$temperature), 
+    length.out = 100
+  )
+)
+
+# Create bivariate prediction grid for interactive response surfaces
+# This asks: "How does composition vary across the full elevation-temperature space?"
+# Coarser 20x20 grid (400 points) balances detail with computational efficiency
+elev_seq <- seq(
+  min(plant_data$elevation), 
+  max(plant_data$elevation), 
+  length.out = 20
+)
+temp_seq <- seq(
+  min(plant_data$temperature), 
+  max(plant_data$temperature), 
+  length.out = 20
+)
+bivariate_grid <- expand.grid(
+  elevation = elev_seq, 
+  temperature = temp_seq
+)
+
+# Extract posterior predictions from fitted Dirichlet model
+# posterior_epred gives expected values (means) of predictive distribution
+# rather than new random samples, perfect for understanding relationships
+elev_post_pred <- posterior_epred(
+  plant_model, 
+  newdata = elev_grid, 
+  ndraws = 500
+)
+temp_post_pred <- posterior_epred(
+  plant_model, 
+  newdata = temp_grid, 
+  ndraws = 500
+)
+bivar_post_pred <- posterior_epred(
+  plant_model, 
+  newdata = bivariate_grid, 
+  ndraws = 500
+)
+```
+
+Now I need to convert these posterior prediction arrays into something we can actually plot. The `posterior_epred` function returns a three-dimensional array: 500 posterior draws × 100 prediction points × 5 functional groups. This represents our uncertainty about expected proportions at each environmental combination.
+
+```{r}
+# Function to calculate summary statistics from posterior prediction draws
+# This converts arrays of posterior samples into plottable summaries
+calc_pred_summary <- function(post_draws, grid_data) {
+  n_cats <- dim(post_draws)[3]
+  
+  # Validate dimensions match expected functional groups
+  # This catches potential mismatches between model and data
+  if (n_cats != length(functional_groups)) {
+    stop(
+      "Number of categories in posterior draws (", n_cats, 
+      ") doesn't match functional groups (", length(functional_groups), ")"
+    )
+  }
+  
+  result <- grid_data
+  
+  # Calculate summary statistics for each functional group
+  # Mean captures central tendency, quantiles provide uncertainty
+  for (i in seq_along(functional_groups)) {
+    cat_name <- functional_groups[i]
+    cat_draws <- post_draws[, , i]
+    
+    # Calculate posterior mean and 95% credible intervals efficiently
+    # This summarizes 500 posterior draws into point estimates + uncertainty
+    stats <- apply(
+      cat_draws, 
+      2, 
+      function(x) {
+        c(
+          mean = mean(x), 
+          lower = quantile(x, 0.025, names = FALSE),
+          upper = quantile(x, 0.975, names = FALSE)
+        )
+      }
+    )
+    
+    # Assign summary statistics to result dataframe with clear naming
+    result[[paste0(cat_name, "_mean")]] <- stats["mean", ]
+    result[[paste0(cat_name, "_lower")]] <- stats["lower", ]
+    result[[paste0(cat_name, "_upper")]] <- stats["upper", ]
+  }
+  
+  return(result)
+}
+
+# Apply summary function to convert posterior arrays to dataframes
+elev_summary <- calc_pred_summary(elev_post_pred, elev_grid)
+temp_summary <- calc_pred_summary(temp_post_pred, temp_grid)
+bivar_summary <- calc_pred_summary(bivar_post_pred, bivariate_grid)
+```
+
+## Marginal effects: univariate environmental responses
+
+Marginal effects plots reveal how each functional group responds to single environmental gradients while holding other variables constant. These plots answer questions like "How does community composition change as I walk up an elevation transect at average temperature?" The ribbons around each line represent our uncertainty about these relationships. Wider ribbons indicate less confidence, typically where we have fewer data points or the GP is interpolating across larger gaps.
+
+```{r}
+# Function to create marginal effects plots for any environmental variable
+# This unified approach ensures consistent styling across all visualizations
+create_marginal_plot <- function(pred_data, x_var, x_label) {
+  # Reshape prediction data from wide to long format for ggplot
+  # Extract only the focal variable and all functional group statistics
+  plot_data <- pred_data |>
+    dplyr::select(
+      dplyr::all_of(x_var), 
+      dplyr::matches(
+        paste0(
+          "(", 
+          paste(functional_groups, collapse = "|"), 
+          ")_(mean|lower|upper)$"
+        )
+      )
+    ) |>
+    tidyr::pivot_longer(
+      cols = -dplyr::all_of(x_var),
+      names_to = c("functional_group", "stat"),
+      names_pattern = "(.+)_(mean|lower|upper)$",
+      values_to = "value"
+    ) |>
+    tidyr::pivot_wider(
+      names_from = stat, 
+      values_from = value
+    )
+  
+  # Create ggplot with ribbon for uncertainty and line for mean response
+  # Consistent styling across all marginal effects plots
+  ggplot(
+    plot_data, 
+    aes(
+      x = .data[[x_var]], 
+      y = mean, 
+      color = functional_group, 
+      fill = functional_group
+    )
+  ) +
+    geom_ribbon(
+      aes(
+        ymin = lower, 
+        ymax = upper
+      ), 
+      alpha = 0.2, 
+      color = NA
+    ) +
+    geom_line(linewidth = 1.2) +
+    scale_color_viridis_d(
+      name = "Functional\nGroup", 
+      option = "D"
+    ) +
+    scale_fill_viridis_d(
+      name = "Functional\nGroup", 
+      option = "D"
+    ) +
+    labs(
+      x = x_label, 
+      y = "Predicted Proportion"
+    ) +
+    theme(legend.position = "right")
+}
+
+# Generate marginal effects plots
+p_elevation <- create_marginal_plot(
+  elev_summary, 
+  "elevation", 
+  "Elevation (km)"
+)
+p_temperature <- create_marginal_plot(
+  temp_summary, 
+  "temperature", 
+  "Temperature (°C)"
+)
+
+# Display elevation effects
+p_elevation
+```
+
+```{r}
+# Display temperature effects
+p_temperature
+```
+
+These marginal effects reveal clear ecological zonation patterns. The elevation responses show grasses peaking around 1.5km elevation, consistent with montane grassland ecology. Trees decline steadily with elevation from maximum abundance at low elevations, capturing realistic treeline dynamics. Lichens show the opposite pattern, with minimal presence below 2km but increasing dramatically at high elevations where harsh conditions exclude other functional groups.
+
+The temperature responses show equally complex patterns. Lichens dominate at the coldest temperatures (~8°C), decline at moderate temperatures, then increase again toward warmer conditions, creating a bimodal response. Grasses show a complex multimodal temperature response with peaks around 11°C and 20°C. Trees exhibit a strong positive response to warming, reaching maximum abundance around 25°C. Forbs and shrubs remain relatively stable across temperature gradients.
+
+## Visualizing predicted communities with waffle plots
+
+Before diving into complex bivariate surfaces, let's visualize what these predicted communities actually look like at specific elevations. Waffle plots provide an intuitive representation where each square represents an individual plant, making abstract proportions concrete and interpretable.
+
+```{r}
+# Prepare data for multiple elevations
+elev_values <- c(1.2, 1.6, 2.0, 2.4, 2.8, 3.2)
+total_plants <- 50
+
+# Build waffle data for all elevations
+all_waffle_data <- NULL
+
+for (elev in elev_values) {
+  # Prepare prediction point at mean temperature
+  pred_point <- data.frame(
+    elevation = elev,
+    temperature = mean(plant_data$temperature)
+  )
+  
+  # Get predictions
+  pred <- posterior_epred(
+    plant_model, 
+    newdata = pred_point, 
+    ndraws = 100
+  )
+  
+  # Calculate mean proportions
+  mean_props <- apply(pred[, 1, ], 2, mean)
+  
+  # Convert to counts ensuring sum equals total_plants
+  counts <- round(mean_props * total_plants)
+  if (sum(counts) != total_plants) {
+    diff <- total_plants - sum(counts)
+    max_idx <- which.max(counts)
+    counts[max_idx] <- counts[max_idx] + diff
+  }
+  
+  # Create expanded data for this elevation (one row per plant)
+  for (i in seq_along(functional_groups)) {
+    if (counts[i] > 0) {
+      elev_data <- data.frame(
+        elevation = factor(
+          paste0(elev, "km"), 
+          levels = paste0(elev_values, "km")
+        ),
+        functional_group = factor(
+          functional_groups[i], 
+          levels = c("forb", "grass", "lichen", "shrub", "tree")
+        ),
+        count = rep(1, counts[i])
+      )
+      all_waffle_data <- rbind(all_waffle_data, elev_data)
+    }
+  }
+}
+
+# Create faceted waffle plot
+all_waffle_data |>
+  ggplot(
+    aes(
+      fill = functional_group, 
+      values = count
+    )
+  ) +
+  waffle::geom_waffle(
+    n_rows = 10,
+    size = 0.3,
+    colour = "white",
+    flip = TRUE,
+    make_proportional = FALSE
+  ) +
+  facet_wrap(
+    ~ elevation, 
+    nrow = 2
+  ) +
+  scale_fill_viridis_d(
+    name = "Functional Group",
+    option = "D"
+  ) +
+  coord_equal() +
+  theme_minimal(base_size = 15, base_family = 'serif') +
+  theme(
+    legend.position = "bottom",
+    legend.direction = "horizontal",
+    strip.background = element_blank(),
+    panel.grid = element_blank(),
+    panel.background = element_blank(),
+    axis.text = element_blank(),
+    axis.title = element_blank(),
+    axis.ticks = element_blank()
+  ) +
+  guides(
+    fill = guide_legend(
+      nrow = 1,
+      title.position = "top",
+      title.hjust = 0.5
+    )
+  )
+```
+
+These waffle plots make the compositional changes tangible. At low elevations (1.2km), grasses (blue squares) dominate with trees (yellow) as codominants and small amounts of forbs (purple). Moving upslope to 1.6km, grasses remain dominant but trees and shrubs (green) become more prominent. At 2.0km, we see the beginning of the major transition as lichens (teal) start appearing significantly alongside the still-dominant grasses. By 2.4km, lichens become the dominant functional group with grasses remaining substantial. At the highest elevation (3.2km), lichens overwhelmingly dominate the alpine community. Each square represents an individual plant out of 50 total, so readers can literally count how community composition shifts from grass-tree lowlands to lichen-dominated alpine zones, much more intuitive than abstract proportions.
+
+## Bivariate surfaces: capturing environmental interactions
+
+While marginal effects are useful, they miss a crucial aspect of ecological reality: environmental variables interact. Temperature and elevation don't operate independently. Their combined effects often differ from what we'd predict by simply adding their separate influences. Bivariate response surfaces reveal these interactions by showing how functional groups respond across the full environmental space.
+
+```{r}
+# Function to create bivariate response surface for focal functional group
+# Shows how group abundance varies across both environmental dimensions
+create_bivariate_plot <- function(pred_data, focal_group = "grass") {
+  # Validate that focal group is one of the modeled functional groups
+  if (!focal_group %in% functional_groups) {
+    stop(
+      "focal_group must be one of: ", 
+      paste(functional_groups, collapse = ", ")
+    )
+  }
+  
+  # Construct column name and legend title for focal group
+  col_name <- paste0(focal_group, "_mean")
+  legend_title <- stringr::str_to_title(
+    paste(focal_group, "\nProportion")
+  )
+  
+  # Create response surface plot with raster and contour overlay
+  ggplot(
+    pred_data, 
+    aes(
+      x = elevation, 
+      y = temperature
+    )
+  ) +
+    geom_raster(
+      aes(fill = .data[[col_name]]), 
+      interpolate = TRUE
+    ) +
+    geom_contour(
+      aes(z = .data[[col_name]]), 
+      color = "white", 
+      alpha = 0.6, 
+      size = 0.3
+    ) +
+    scale_fill_viridis_c(
+      name = legend_title, 
+      option = "plasma"
+    ) +
+    labs(
+      x = "Elevation (km)", 
+      y = "Temperature (°C)"
+    )
+}
+
+# Generate bivariate surface plots for key functional groups
+p_bivariate_grass <- create_bivariate_plot(
+  bivar_summary, 
+  "grass"
+)
+p_bivariate_tree <- create_bivariate_plot(
+  bivar_summary, 
+  "tree"
+)
+
+# Display grass response surface
+p_bivariate_grass
+```
+
+```{r}
+# Display tree response surface
+p_bivariate_tree
+```
+
+These bivariate surfaces reveal interactions that marginal plots miss entirely. The grass surface shows a clear "sweet spot" around 1.2-1.4km elevation and 12-15°C temperature, not just peak abundance at mid-elevation, but specifically at this elevation-temperature combination. The tree surface demonstrates highest abundances at the lowest elevations (1.0km) combined with the warmest temperatures (25°C), with tree proportions declining steeply as both elevation increases and temperatures cool, perfectly capturing treeline ecology.
+
+## Model validation: checking our compositional residuals
+
+Before diving into ecological interpretation, let's validate that our Dirichlet regression actually captures the patterns in our data. This step is crucial but often skipped in compositional analyses. I'll show you how to compute proper residuals for compositional data and why traditional approaches fail.
+
+Computing residuals for compositional data isn't straightforward. You can't just subtract predicted from observed proportions because this ignores the constraint that components sum to unity and the unique variance structure of the Dirichlet distribution. Following [Maier's approach in the DirichletReg package](https://github.com/maiermarco/DirichletReg), we need to account for both the mean-variance relationship and the precision parameter.
+
+The key insight is that for Dirichlet regression, the variance of each component depends on both its expected proportion μ and the overall precision φ:
+
+$$\text{Var}(Y_k) = \frac{\mu_k(1-\mu_k)}{1+\phi}$$
+
+This formula captures two important features: components with intermediate proportions (μ ≈ 0.5) have higher variance than those near 0 or 1, and higher precision φ reduces variance across all components. Traditional Pearson residuals ignore this structure entirely.
+
+```{r}
+# Extract fitted values from our Dirichlet model
+# brms returns a 3D array: [sites, statistics, components]
+fitted_values <- fitted(plant_model)
+mu <- fitted_values[, "Estimate", ]  # Extract just the expected proportions
+
+# Extract precision parameter from posterior samples
+# In brms, phi controls the Dirichlet precision
+phi_samples <- as_draws_df(plant_model) |>
+  dplyr::select(dplyr::contains("phi"))
+phi_mean <- mean(phi_samples[[1]])
+
+# Observed compositions as matrix
+Y <- as.matrix(plant_data[, functional_groups])
+
+# Calculate proper Dirichlet variance structure
+# This accounts for both mean-variance relationship AND precision
+V <- mu * (1 - mu) / (1 + phi_mean)
+
+# Standardized residuals: (observed - expected) / sqrt(variance)
+# These should be approximately normal if our model fits well
+pearson_residuals <- (Y - mu) / sqrt(V)
+```
+
+Now let's examine whether our residuals show problematic patterns. Well-behaved residuals should be roughly normal and show no systematic trends across environmental gradients. If we see strong patterns, it suggests our model is missing important relationships.
+
+```{r}
+# Create Q-Q plots to check if standardized residuals are approximately normal
+# Reshape residuals to long format for easy plotting
+residual_long <- pearson_residuals |>
+  as.data.frame() |>
+  dplyr::mutate(site_id = 1:nrow(pearson_residuals)) |>
+  tidyr::pivot_longer(
+    cols = -site_id,
+    names_to = "functional_group",
+    values_to = "residual"
+  )
+
+# Q-Q plot comparing residuals to theoretical normal distribution
+ggplot(
+  residual_long,
+  aes(sample = residual, color = functional_group)
+) +
+  stat_qq(alpha = 0.6) +
+  stat_qq_line() +
+  facet_wrap(~ functional_group, scales = "free") +
+  scale_color_viridis_d(name = "Functional\nGroup") +
+  labs(
+    x = "Theoretical quantiles",
+    y = "Sample quantiles"
+  ) +
+  theme(legend.position = "none")
+```
+
+These Q-Q plots reveal how well our model captures the data structure for each functional group. Points should roughly follow the diagonal line if residuals are normally distributed. What we see here is largely reassuring: most functional groups show reasonably normal residual behavior, though some groups like forbs and lichens exhibit moderate deviations from normality in the tails.
+
+These moderate deviations aren't necessarily problematic. They likely reflect the ecological reality that some sites have genuinely unusual community compositions that any model would struggle to predict perfectly. The Gaussian process smooths are doing well at capturing the main compositional patterns while the Dirichlet structure ensures all predictions respect compositional constraints.
+
+Compare this to what happens with naive approaches that ignore compositional constraints. If we fit separate binomial models for each functional group, we often get predicted total abundances that exceed 100%—a mathematical impossibility that reveals fundamental model misspecification. Our Dirichlet approach automatically prevents such nonsensical predictions while providing flexible nonlinear responses through Gaussian processes.
+
+## Model interpretation and ecological insights
+
+The Dirichlet regression successfully captures the complex, nonlinear relationships between environmental gradients and plant community composition. What makes this particularly satisfying is how the model recovers the ecological patterns we built into our simulation while respecting compositional constraints.
+
+What's particularly elegant about this approach is how the compositional constraint enforcement works seamlessly. Unlike separate binomial models that could predict impossible total abundances exceeding 100%, our Dirichlet regression automatically ensures all predictions sum to unity. This isn't just a statistical nicety, it reflects the biological reality that plant communities partition available space and resources.
+
+The approximate Hilbert space Gaussian processes deserve special mention here. Traditional GP methods would be computationally prohibitive for this dataset size, but the Hilbert space approximation maintains the flexibility to capture nonlinear responses while scaling to realistic sample sizes.
+
+## Take-home messages
+
+Dirichlet regression with Gaussian process smooths offers a principled framework for compositional data that:
+
+- Respects the mathematical constraints of compositional data
+- Models dependencies between components naturally  
+- Provides flexible, nonlinear relationships via Gaussian processes
+- Scales computationally via approximate Hilbert space methods
+- Generates predictions that automatically satisfy compositional constraints
+
+For data scientists working with compositional data, whether ecological communities, market shares, time allocation, or survey responses, this framework offers a principled alternative to problematic approaches. The combination of Dirichlet regression with approximate Gaussian processes provides both statistical rigor and computational tractability. Most importantly, it generates predictions that respect the mathematical structure of your data, avoiding the impossible predictions that plague naive approaches.
+
+I'd encourage you to try this approach on your own compositional datasets. The `brms` package makes implementation remarkably straightforward, and the computational efficiency of approximate GPs means you can fit these models on realistic dataset sizes without specialized hardware. The investment in learning this framework pays dividends in more reliable predictions and deeper insights into how your compositions respond to predictors.  Plus, you'll never again have to explain to a collaborator why your separate logistic regressions predict that 130% of survey respondents chose option A. If you're new to Bayesian modeling in ecology, I cover [getting started with mvgam and brms for ecological data](https://ecogambler.netlify.app/talk/) in many of my talks.
+
+## Further reading
+
+The following papers and resources offer useful material for working with compositional data analysis and Gaussian processes
+
+Aitchison, J. (1986). [The Statistical Analysis of Compositional Data](https://books.google.com/books/about/The_Statistical_Analysis_of_Compositiona.html?id=b_2YQgAACAAJ). _Chapman and Hall_, London.
+
+van den Boogaart, K. G., & Tolosana-Delgado, R. (2013). [Analyzing compositional data with R](https://doi.org/10.1007/978-3-642-36809-7). _Springer_.
+
+Bürkner, P. C. (2017). [brms: An R package for Bayesian multilevel models using Stan](https://doi.org/10.18637/jss.v080.i01). _Journal of Statistical Software_, 80(1), 1-28.
+
+Bürkner, P. C. (2018). [Advanced Bayesian multilevel modeling with the R package brms](https://doi.org/10.32614/RJ-2018-017). _The R Journal_, 10(1), 395-411.
+
+Hijazi, R. H., & Jernigan, R. W. (2009). [Modelling compositional data using Dirichlet regression models](https://www.researchgate.net/publication/228576713_Modelling_compositional_data_using_Dirichlet_regression_models). _Journal of Applied Probability & Statistics_, 4(1), 77-91.
+
+Maier, M. J. (2014). [DirichletReg: Dirichlet regression for compositional data in R](https://epub.wu.ac.at/4077/). _Research Report Series_, Department of Statistics and Mathematics, 125.
+
+Rasmussen, C. E., & Williams, C. K. I. (2006). [Gaussian processes for machine learning](http://gaussianprocess.org/gpml/). _MIT Press_.
+
+Riutort-Mayol, G., Bürkner, P. C., Andersen, M. R., Solin, A., & Vehtari, A. (2023). [Practical Hilbert space approximate Bayesian Gaussian processes for probabilistic programming](https://doi.org/10.1007/s11222-022-10167-2). _Statistics and Computing_, 33(1), 17.
+
+Thorson, J. T., Ianelli, J. N., Larsen, E. A., Ries, L., Scheuerell, M. D., Szuwalski, C., & Zipkin, E. F. (2016). [Joint dynamic species distribution models: a tool for community ordination and spatio-temporal monitoring](https://doi.org/10.1111/geb.12464). _Global Ecology and Biogeography_, 25(9), 1144-1158.
+
+Warton, D. I., Blanchet, F. G., O'Hara, R. B., Ovaskainen, O., Taskinen, S., Walker, S. C., & Hui, F. K. (2015). [So many variables: joint modeling in community ecology](https://doi.org/10.1016/j.tree.2015.09.007). _Trends in Ecology & Evolution_, 30(12), 766-779.

@@ -1,0 +1,1177 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr"><head>
+  
+                           
+     
+
+
+<meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="generator" content="Hugo 0.123.8">
+<title>State-Space Vector Autoregressions in mvgam | GAMbler</title>
+
+
+<meta property="twitter:site" content="@twitter = &#34;nj_clark&#34;">
+<meta property="twitter:creator" content="@twitter = &#34;nj_clark&#34;">
+
+
+
+
+
+
+
+  
+    
+  
+<meta name="description" content="Vector Autoregressions (VAR models), also known as Multivariate Autoregressions (MAR models), offer a way to model delayed and contemporaneous interactions among sets of multiple time series. These models are widely used in econometrics and psychology, among other fields, where they can be analyzed to ask many interesting questions about potential causality or stability. But software to fit these models to real-world time series, which often present as non-Gaussian counts, proportions or even binary observations with measurement error, is lacking. Here I show how to fit VARs in a State-Space format, and how to interrogate the models to ask meaningful questions about interactions and stability, using the mvgam package in R.">
+
+
+<meta property="og:site_name" content="GAMbler">
+<meta property="og:title" content="State-Space Vector Autoregressions in mvgam | GAMbler">
+<meta property="og:description" content="Vector Autoregressions (VAR models), also known as Multivariate Autoregressions (MAR models), offer a way to model delayed and contemporaneous interactions among sets of multiple time series. These models are widely used in econometrics and psychology, among other fields, where they can be analyzed to ask many interesting questions about potential causality or stability. But software to fit these models to real-world time series, which often present as non-Gaussian counts, proportions or even binary observations with measurement error, is lacking. Here I show how to fit VARs in a State-Space format, and how to interrogate the models to ask meaningful questions about interactions and stability, using the mvgam package in R." />
+<meta property="og:type" content="page" />
+<meta property="og:url" content="https://ecogambler.netlify.app/blog/vector-autoregressions/" />
+<meta property="og:locale" content="en">
+
+
+
+
+    
+        <meta property="og:image" content="https://ecogambler.netlify.app/blog/vector-autoregressions/featured.png" >
+        <meta property="twitter:card" content="summary_large_image">
+        <meta name="twitter:image" content="https://ecogambler.netlify.app/blog/vector-autoregressions/featured.png" >
+    
+    
+  <meta itemprop="name" content="State-Space Vector Autoregressions in mvgam">
+<meta itemprop="description" content="Vector Autoregressions (VAR models), also known in the ecological literature as Multivariate Autoregressions (MAR models), are a class of Dynamic Linear Models that offer a principled way to model both delayed and contemporaneous interactions among sets of multiple time series. These models are widely used in econometrics and psychology, among other fields, where they can be analyzed to ask many interesting questions about potential causality, cascading temporal interaction effects or community stability."><meta itemprop="datePublished" content="2024-09-06T00:00:00+00:00" />
+<meta itemprop="dateModified" content="2024-09-06T00:00:00+00:00" />
+<meta itemprop="wordCount" content="5566"><meta itemprop="image" content="https://ecogambler.netlify.app/blog/vector-autoregressions/featured.png" />
+<meta itemprop="keywords" content="rstats,mvgam,tutorial,forecasting,time-series," />
+  
+  <!--[if IE]><script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script><![endif]-->
+  <link rel="shortcut icon" href="/img/header_logo.ico" type="image/x-icon">
+  <link rel="icon" href="/img/header_logo.ico" type="image/x-icon">
+  
+  
+  <link rel="stylesheet" href="/style.main.min.13ba2c07d7acc52c13dbb9003240e2adf360a5d73e1392ede873916180ee1701.css" integrity="sha256-E7osB9esxSwT27kAMkDirfNgpdc&#43;E5Lt6HORYYDuFwE=" media="screen">
+  
+  
+  <script src="/panelset.min.ed1ac24b6e16f4e2481e3d1d098ae66f5bc77438aef619e6e266d8ac5b00dc72.js" type="text/javascript"></script>
+  
+  
+  <script src="/main.min.7c7401b27b903bdc8736f72a2f739f7602bf606c451e8cb5e7fab2bf6b4af582.js" type="text/javascript"></script>
+</head>
+<body>
+      <div class="grid-container single-sidebar">
+<header class="site-header pt4 pb2 mb4 bb b--transparent ph5 headroom z-max" role="banner">
+  <nav class="site-nav db dt-l w-100" role="navigation">
+    <a class="site-brand db dtc-l v-mid link no-underline w-100 w-33-l tc tl-l" href="https://ecogambler.netlify.app/" title="Home">
+      <img src="/img/header_logo.png" class="dib db-l h2 w-auto" alt="GAMbler">
+    </a>
+    <div class="site-links db dtc-l v-mid w-100 w-47-l tc tr-l mt3 mt0-l ttu tracked">
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 active" href="/blog/" title="Blog">Blog</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/project/" title="Project Portfolio">Software</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/talk/" title="Talks">Talks &amp; Workshops</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/opportunities/" title="Opportunities">Opportunities</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/archives/" title="Archive">Archive</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/blogroll/" title="Blogroll">Blogroll</a>
+      
+      
+    </div>
+  </nav>
+</header>
+
+<main class="page-main pa4" role="main">
+  <section class="page-content mw7 center">
+    <article class="post-content pa0 pr3-l">
+      <header class="post-header">
+        <h1 class="f1 lh-solid measure-narrow mb3 fw4">State-Space Vector Autoregressions in mvgam</h1>
+        
+        <p class="f6 measure lh-copy mv1">By Nicholas Clark in <a href="https://ecogambler.netlify.app/categories/rstats">rstats</a>  <a href="https://ecogambler.netlify.app/categories/time-series">time-series</a>  <a href="https://ecogambler.netlify.app/categories/mvgam">mvgam</a> </p>
+        <p class="f7 db mv0 ttu">September 6, 2024</p>
+      </header>
+      <section class="post-body pt5 pb4">
+        <p>
+<a href="https://otexts.com/fpp3/VAR.html" target="_blank" rel="noopener">Vector Autoregressions (VAR models)</a>, also known in the ecological literature as 
+<a href="https://atsa-es.github.io/MARSS/" target="_blank" rel="noopener">Multivariate Autoregressions (MAR models)</a>, are a class of Dynamic Linear Models that offer a principled way to model both delayed and contemporaneous interactions among sets of multiple time series. These models are widely used in econometrics and psychology, among other fields, where they can be analyzed to ask many interesting questions about 
+<a href="https://www.jstor.org/stable/2951647" target="_blank" rel="noopener">potential causality</a>, 
+<a href="https://www.r-econometrics.com/timeseries/irf/" target="_blank" rel="noopener">cascading temporal interaction effects</a> or 
+<a href="https://esajournals.onlinelibrary.wiley.com/doi/abs/10.1890/0012-9615%282003%29073%5B0301%3AECSAEI%5D2.0.CO%3B2" target="_blank" rel="noopener">community stability</a>. A VAR(1) model, where temporal interactions among series can take place at a lag of one time step, is defined as:</p>
+<p><code>$$y_t \sim{MVNormal}(\alpha + A * y_{t-1}, \Sigma)$$</code></p>
+<p>Where:</p>
+<ul>
+<li><code>\(y_t\)</code> is a vector of time series observations at time <code>\(t\)</code></li>
+<li><code>\(\alpha\)</code> is a vector of constants capturing the long-term means of each series in <code>\(y\)</code></li>
+<li><code>\(A\)</code> is a matrix of autoregressive coefficients estimating lagged dependence and cross-dependence between the elements of <code>\(y\)</code></li>
+<li><code>\(\Sigma\)</code> determines the spread (or flexibility) of the process and any contemporaneous correlations among time series errors</li>
+</ul>
+<p>Many R packages exist to estimate parameters of VARs, including the 
+<a href="https://cran.r-project.org/web/packages/vars/index.html" target="_blank" rel="noopener"><code>vars</code></a> and 
+<a href="https://bsvars.github.io/bsvars/" target="_blank" rel="noopener"><code>bsvars</code></a> packages. However, as we can see from the model description above, the traditional VAR model makes two big assumptions: first, this model assumes that the time series being analyzed do not show any measurement error. This assumption may hold for certain types of time series that can be nearly perfectly measured, such as sales of items in a store with accurate digital sale tracking. But it is likely to be broken for the majority of series that are measured with imperfect detectors or with time-varying effort. This can be resolved if we instead refer to a 
+<a href="chrome-extension://efaidnbmnnnibpcajpcglclefindmkaj/https://www.cs.unc.edu/~welch/kalman/media/pdf/Kalman1960.pdf">State-Space</a> representation of the model:</p>
+<br>
+<p><img src="https://raw.githubusercontent.com/nicholasjclark/mvgam/refs/heads/master/vignettes/SS_model.svg" alt="Illustration of a basic State-Space model, which assumes that  a latent dynamic process (X) can evolve independently from the way we take observations (Y) of that process"></p>
+<br>
+<p>A State-Space model is convenient for dealing with many types of real-world time series because they can readily handle observation error, missing values and a broad range of dependency structures. For example, we can modify the VAR(1) described above to a State-Space representation using:</p>
+<p><code>$$y_t \sim{MVNormal}(\alpha + x_t, \Sigma_{obs})$$</code>
+<code>$$x_t \sim{MVNormal}(A * x_{t-1}, \Sigma_{process})$$</code>
+Where the observation time series <code>\(y_t\)</code> are now considered to be noisy observations of some latent <code>\(process\)</code> (labelled as <code>\(x_t\)</code>) and it is this <code>\(process\)</code> that evolves as a Vector Autoregression. The advantage of this model is that we can separately estimate process and observation errors (modelled using the two <code>\(\Sigma\)</code> matrices). This type of formulation is available using the 
+<a href="https://atsa-es.github.io/MARSS/" target="_blank" rel="noopener"><code>MARSS</code></a> package, which has a wonderfully detailed 
+<a href="chrome-extension://efaidnbmnnnibpcajpcglclefindmkaj/https://cran.r-project.org/web/packages/MARSS/vignettes/UserGuide.pdf">list of worked examples</a> to showcase how flexible and useful these models are.</p>
+<p>But the above approach does not address the second major limitation of traditional VARS, which is that they assume that the observation series can be captured with a Gaussian observation model. This makes it difficult to fit VARs to many real-world time series such as counts of multiple species over time, time series of non-negative rates or proportions of customers that responded to a set of surveys. It turns out that this limitation is a much bigger issue when it comes to fitting VARs to real-world data. At the time of writing I could not find a single R package that makes these models accessible, apart from my 
+<a href="https://nicholasjclark.github.io/mvgam/" target="_blank" rel="noopener"><code>mvgam</code></a> package. Given that the question of how to fit time series models to non-Gaussian observations comes up 
+<a href="https://stats.stackexchange.com/questions/161617/software-or-workarounds-for-vector-autoregression-on-count-data" target="_blank" rel="noopener">again</a> and 
+<a href="https://stats.stackexchange.com/questions/47204/how-to-regress-a-time-series-of-proportions" target="_blank" rel="noopener">again</a> and 
+<a href="https://stats.stackexchange.com/questions/244660/modeling-multivariate-time-series-count-data-in-r" target="_blank" rel="noopener">again</a> (and 
+<a href="https://stats.stackexchange.com/questions/70182/time-series-dynamic-poisson-regression" target="_blank" rel="noopener">again</a>), often with unsatisfying answers, this post will demonstrate how the 
+<a href="https://nicholasjclark.github.io/mvgam/" target="_blank" rel="noopener"><code>mvgam</code></a> package can fill this gap. Herein I will show how the package can be used to fit complex multivariate autoregressive models to non-Gaussian time series and how to interrogate the models to ask insightful questions about temporal interactions, variance decompositions and community stability.</p>
+
+
+
+
+<h2 id="environment-setup">Environment setup
+  <a href="#environment-setup"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>This tutorial relies on the following packages (note that 
+<a href="https://github.com/nicholasjclark/mvgam/tree/master" target="_blank" rel="noopener"><code>mvgam</code> version 1.1.3 or higher</a> is required to carry out these analyses):</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(mvgam)           <span style="color:#998;font-style:italic"># Fit, interrogate and forecast DGAMs</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(tidyverse)       <span style="color:#998;font-style:italic"># Tidy and flexible data manipulation</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(ggplot2)         <span style="color:#998;font-style:italic"># Flexible plotting</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(tidybayes)       <span style="color:#998;font-style:italic"># Graceful plotting of Bayesian posterior estimates</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(farver)          <span style="color:#998;font-style:italic"># Colour space manipulations</span>
+</span></span></code></pre></div><p>I also define a few plotting utilities to streamline my analysis workflow</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">theme_set</span>(<span style="color:#900;font-weight:bold">theme_classic</span>(base_size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">15</span>,
+</span></span><span style="display:flex;"><span>                        base_family <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;serif&#39;</span>))
+</span></span><span style="display:flex;"><span>myhist <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">function</span>(<span style="color:#000;font-weight:bold">...</span>){
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_histogram</span>(col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>,
+</span></span><span style="display:flex;"><span>                 fill <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;#B97C7C&#39;</span>, <span style="color:#000;font-weight:bold">...</span>)
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>hist_theme <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">function</span>(){
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">theme</span>(axis.line.y <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">element_blank</span>(),
+</span></span><span style="display:flex;"><span>        axis.ticks.y <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">element_blank</span>(),
+</span></span><span style="display:flex;"><span>        axis.text.y <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">element_blank</span>())
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div>
+
+
+
+<h2 id="load-manipulate-and-plot-the-data">Load, manipulate and plot the data
+  <a href="#load-manipulate-and-plot-the-data"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>We will work with a set of annual American kestrel (<em>Falco sparverius</em>) abundance time series, which represent adjusted annual counts of this species taken in three adjacent regions of British Columbia, Canada. These data were collected annually, corrected for changes in observer coverage and detectability, and logged. They can be accessed in the 
+<a href="https://atsa-es.github.io/MARSS/" target="_blank" rel="noopener"><code>MARSS</code></a> package</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">load</span>(<span style="color:#900;font-weight:bold">url</span>(<span style="color:#d14">&#39;https://github.com/atsa-es/MARSS/raw/master/data/kestrel.rda&#39;</span>))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">head</span>(kestrel)
+</span></span></code></pre></div><pre tabindex="0"><code>##      Year British.Columbia Alberta Saskatchewan
+## [1,] 1969            0.754   0.460        0.000
+## [2,] 1970            0.673   0.899        0.192
+## [3,] 1971            0.734   1.133        0.280
+## [4,] 1972            0.589   0.528        0.386
+## [5,] 1973            1.405   0.789        0.451
+## [6,] 1974            0.624   0.528        0.234
+</code></pre><p>Arrange the data into a <code>data.frame</code> that spreads the time series observations into a &rsquo;long&rsquo; format, 
+<a href="https://nicholasjclark.github.io/mvgam/articles/data_in_mvgam.html" target="_blank" rel="noopener">which is required for <code>mvgam</code> modelling</a></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>regions <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;BC&#34;</span>,
+</span></span><span style="display:flex;"><span>             <span style="color:#d14">&#34;Alb&#34;</span>,
+</span></span><span style="display:flex;"><span>             <span style="color:#d14">&#34;Sask&#34;</span>)
+</span></span><span style="display:flex;"><span>model_data <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">do.call</span>(rbind,
+</span></span><span style="display:flex;"><span>                      <span style="color:#900;font-weight:bold">lapply</span>(<span style="color:#900;font-weight:bold">seq_along</span>(regions),
+</span></span><span style="display:flex;"><span>                             <span style="color:#000;font-weight:bold">function</span>(x){
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">data.frame</span>(year <span style="color:#000;font-weight:bold">=</span> kestrel[, <span style="color:#099">1</span>],
+</span></span><span style="display:flex;"><span>             <span style="color:#998;font-style:italic"># Reverse the logging so that we deal directly </span>
+</span></span><span style="display:flex;"><span>             <span style="color:#998;font-style:italic"># with the detection-adjusted counts</span>
+</span></span><span style="display:flex;"><span>             adj_count <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">exp</span>(kestrel[, <span style="color:#099">1</span> <span style="color:#000;font-weight:bold">+</span> x]),
+</span></span><span style="display:flex;"><span>             region <span style="color:#000;font-weight:bold">=</span> regions[x])})) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Add series and time indicators for mvgam modelling</span>
+</span></span><span style="display:flex;"><span>  dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">mutate</span>(series <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">as.factor</span>(region),
+</span></span><span style="display:flex;"><span>                time <span style="color:#000;font-weight:bold">=</span> year)
+</span></span></code></pre></div><p>Inspect the time series data structure</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">head</span>(model_data)
+</span></span></code></pre></div><pre tabindex="0"><code>##   year adj_count region series time
+## 1 1969  2.125485     BC     BC 1969
+## 2 1970  1.960109     BC     BC 1970
+## 3 1971  2.083398     BC     BC 1971
+## 4 1972  1.802185     BC     BC 1972
+## 5 1973  4.075527     BC     BC 1973
+## 6 1974  1.866379     BC     BC 1974
+</code></pre><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">glimpse</span>(model_data)
+</span></span></code></pre></div><pre tabindex="0"><code>## Rows: 120
+## Columns: 5
+## $ year      &lt;dbl&gt; 1969, 1970, 1971, 1972, 1973, 1974, 1975, 1976, 1977, 1978, …
+## $ adj_count &lt;dbl&gt; 2.125485, 1.960109, 2.083398, 1.802185, 4.075527, 1.866379, …
+## $ region    &lt;chr&gt; &#34;BC&#34;, &#34;BC&#34;, &#34;BC&#34;, &#34;BC&#34;, &#34;BC&#34;, &#34;BC&#34;, &#34;BC&#34;, &#34;BC&#34;, &#34;BC&#34;, &#34;BC&#34;, …
+## $ series    &lt;fct&gt; BC, BC, BC, BC, BC, BC, BC, BC, BC, BC, BC, BC, BC, BC, BC, …
+## $ time      &lt;dbl&gt; 1969, 1970, 1971, 1972, 1973, 1974, 1975, 1976, 1977, 1978, …
+</code></pre><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">levels</span>(model_data<span style="color:#000;font-weight:bold">$</span>series)
+</span></span></code></pre></div><pre tabindex="0"><code>## [1] &#34;Alb&#34;  &#34;BC&#34;   &#34;Sask&#34;
+</code></pre><p>Plot all three the time series together using <code>mvgam</code>&rsquo;s <code>plot_mvgam_series()</code></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot_mvgam_series</span>(data <span style="color:#000;font-weight:bold">=</span> model_data,
+</span></span><span style="display:flex;"><span>                  y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;adj_count&#39;</span>,
+</span></span><span style="display:flex;"><span>                  series <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;all&#39;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/vector-autoregressions/index_files/figure-html/unnamed-chunk-8-1.png" alt="American kestrel adjusted count time series in R" width="60%" style="display: block; margin: auto;" />
+<p>Now plot some additional features, including the empirical CDF and estimated autocorrelation functions, for just one series at a time</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot_mvgam_series</span>(data <span style="color:#000;font-weight:bold">=</span> model_data,
+</span></span><span style="display:flex;"><span>                  y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;adj_count&#39;</span>,
+</span></span><span style="display:flex;"><span>                  series <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/vector-autoregressions/index_files/figure-html/unnamed-chunk-10-1.png" alt="American kestrel time series features in R" width="60%" style="display: block; margin: auto;" />
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot_mvgam_series</span>(data <span style="color:#000;font-weight:bold">=</span> model_data,
+</span></span><span style="display:flex;"><span>                  y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;adj_count&#39;</span>,
+</span></span><span style="display:flex;"><span>                  series <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/vector-autoregressions/index_files/figure-html/unnamed-chunk-12-1.png" alt="American kestrel time series features in R" width="60%" style="display: block; margin: auto;" />
+<p>These latter plots make it immediately apparent that our outcome variable, i.e. the adjusted counts of kestrels in each region over time, only takes on non-negative real numbers:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">ggplot</span>(model_data,
+</span></span><span style="display:flex;"><span>       <span style="color:#900;font-weight:bold">aes</span>(x <span style="color:#000;font-weight:bold">=</span> adj_count)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">myhist</span>() <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">labs</span>(x <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Adjusted count&#39;</span>, y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">hist_theme</span>()
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/vector-autoregressions/index_files/figure-html/unnamed-chunk-13-1.png" alt="Empirical distribution of American kestrel adjusted counts" width="60%" style="display: block; margin: auto;" />
+
+
+
+
+<h2 id="build-a-state-space-var1-model">Build a State-Space VAR(1) model
+  <a href="#build-a-state-space-var1-model"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>Fitting a multivariate time series model to these adjusted counts is not easy using existing R packages. We&rsquo;d almost certainly have to log-transform the outcome and hope that we don&rsquo;t lose too much inferential ability in doing so. But, 
+<a href="https://ecogambler.netlify.app/blog/autocorrelated-gams/" target="_blank" rel="noopener">as I&rsquo;ve shown in other blogposts on this site</a>, there is a better and simpler way to respect the nature of these observations using <code>mvgam</code>. Here we will consider a State-Space model that uses a latent Vector Autoregression as a VAR(1) process. This is done by taking advantage of two key features of the workhorse <code>mvgam()</code> function: First, we can use the <code>trend_formula</code> argument to specify that we want a State-Space model. And second, we can use the <code>trend_model</code> argument to specify that we want the latent process to evolve as a Vector Autoregression of order 1. The 
+<a href="https://github.com/nicholasjclark/mvgam/raw/master/misc/mvgam_cheatsheet.pdf" target="_blank" rel="noopener"><code>mvgam</code> cheatsheet</a> goes into some detail about how each of these arguments work, but your best bet is to read the extensive documentation in <code>?mvgam::mvgam</code> to fully understand how these models can be constructed. <code>mvgam</code> also takes advantage of 
+<a href="https://www.tandfonline.com/doi/full/10.1080/10618600.2022.2079648" target="_blank" rel="noopener">a major development in Bayesian VAR modelling, originally published by Sarah Heaps, that enforces stationarity through a principled prior on the autoregressive coefficients</a>. This is extremely helpful for ensuring that we find well-behaving models that don&rsquo;t give nonsensical and unwieldy forecasts where the forecast variance grows without bound. Given that the average counts of these series seems to vary across regions, we will also want to include region-level intercepts in the process model. And finally, given the nature of the response variable (non-negative real values), a suitable observation family would be the Gamma distribution. First we should inspect default prior distributions for the stochastic parameters involved in our model:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>def_priors <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">get_mvgam_priors</span>(adj_count <span style="color:#000;font-weight:bold">~</span> <span style="color:#099">-1</span>,
+</span></span><span style="display:flex;"><span>                               trend_formula <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">~</span> region,
+</span></span><span style="display:flex;"><span>                               trend_model <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">VAR</span>(cor <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>),
+</span></span><span style="display:flex;"><span>                               data <span style="color:#000;font-weight:bold">=</span> model_data,
+</span></span><span style="display:flex;"><span>                               family <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">Gamma</span>())
+</span></span><span style="display:flex;"><span>def_priors[, <span style="color:#099">3</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">4</span>]
+</span></span></code></pre></div><pre tabindex="0"><code>##                                           param_info
+## 1                                        (Intercept)
+## 2                                   process error sd
+## 3           diagonal autocorrelation population mean
+## 4       off-diagonal autocorrelation population mean
+## 5       diagonal autocorrelation population variance
+## 6   off-diagonal autocorrelation population variance
+## 7      shape1 for diagonal autocorrelation precision
+## 8  shape1 for off-diagonal autocorrelation precision
+## 9      shape2 for diagonal autocorrelation precision
+## 10 shape2 for off-diagonal autocorrelation precision
+## 11                             Gamma shape parameter
+## 12                         (Intercept) for the trend
+## 13                             regionBC fixed effect
+## 14                           regionSask fixed effect
+##                                      prior
+## 1    (Intercept) ~ student_t(3, 0.6, 2.5);
+## 2         sigma ~ inv_gamma(1.418, 0.452);
+## 3                               es[1] = 0;
+## 4                               es[2] = 0;
+## 5                     fs[1] = sqrt(0.455);
+## 6                     fs[2] = sqrt(0.455);
+## 7                           gs[1] = 1.365;
+## 8                           gs[2] = 1.365;
+## 9                        hs[1] = 0.071175;
+## 10                       hs[2] = 0.071175;
+## 11              shape ~ gamma(0.01, 0.01);
+## 12 (Intercept)_trend ~ student_t(3, 0, 2);
+## 13    regionBC_trend ~ student_t(3, 0, 2);
+## 14  regionSask_trend ~ student_t(3, 0, 2);
+</code></pre><p>The priors for regression coefficients (<code>(Intercept)_trend</code>, <code>regionBC_trend</code> and <code>regionsSask_trend</code>) and for the process variances (<code>sigma</code>, which represent the diagonals of the process error matrix <code>\(\Sigma_{process}\)</code>) are by default set to be quite vague. It is generally good practice to update these using domain knowledge if you want a model that is well-behaved and computationally efficient. Given that the adjusted counts are fairly small and that the Gamma distribution in <code>mvgam</code> uses a log-link function, we don&rsquo;t expect massive effect sizes in the linear predictor so a more suitable priors for the regression coefficients would be Standard Normal (i.e. <code>\(\beta \sim Normal(0, 1)\)</code>). We can also change the default half-T prior on the process variances to an Exponential prior that places less belief on extremely large variances. We will leave the priors for the Gamma shape parameter and for the autoregressive partial autocorrelations (which are described in detail by 
+<a href="https://www.tandfonline.com/doi/full/10.1080/10618600.2022.2079648" target="_blank" rel="noopener">Sarah Heaps in her wonderful VAR stationarity paper</a>) as default. So our first model to consider is:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>varmod <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">mvgam</span>(
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Observation formula, empty to only consider the Gamma observation process</span>
+</span></span><span style="display:flex;"><span>  formula <span style="color:#000;font-weight:bold">=</span> adj_count <span style="color:#000;font-weight:bold">~</span> <span style="color:#099">-1</span>,
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Process model formula that includes regional intercepts </span>
+</span></span><span style="display:flex;"><span>  trend_formula <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">~</span> region,
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># A VAR(1) dynamic process with fully parameterized covariance matrix Sigma</span>
+</span></span><span style="display:flex;"><span>  trend_model <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">VAR</span>(cor <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>),
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Modified prior distributions using brms::prior()</span>
+</span></span><span style="display:flex;"><span>  priors <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#900;font-weight:bold">prior</span>(<span style="color:#900;font-weight:bold">std_normal</span>(), class <span style="color:#000;font-weight:bold">=</span> Intercept_trend),
+</span></span><span style="display:flex;"><span>             <span style="color:#900;font-weight:bold">prior</span>(<span style="color:#900;font-weight:bold">std_normal</span>(), class <span style="color:#000;font-weight:bold">=</span> b),
+</span></span><span style="display:flex;"><span>             <span style="color:#900;font-weight:bold">prior</span>(<span style="color:#900;font-weight:bold">exponential</span>(<span style="color:#099">2.5</span>), class <span style="color:#000;font-weight:bold">=</span> sigma)),
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># The time series data in &#39;long&#39; format</span>
+</span></span><span style="display:flex;"><span>  data <span style="color:#000;font-weight:bold">=</span> model_data,
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># A Gamma observation family</span>
+</span></span><span style="display:flex;"><span>  family <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">Gamma</span>(),
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Forcing all three series to share the same Gamma shape parameter</span>
+</span></span><span style="display:flex;"><span>  share_obs_params <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>,
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Stan control arguments</span>
+</span></span><span style="display:flex;"><span>  adapt_delta <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.95</span>,
+</span></span><span style="display:flex;"><span>  burnin <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1000</span>,
+</span></span><span style="display:flex;"><span>  samples <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1000</span>,
+</span></span><span style="display:flex;"><span>  silent <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>)
+</span></span></code></pre></div>
+
+
+
+<h3 id="model-diagnostics-and-inferences">Model diagnostics and inferences
+  <a href="#model-diagnostics-and-inferences"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h3>
+<p>This model only takes a few seconds to fit four parallel Hamiltonian Monte Carlo chains, though we do get some minor warnings about a few Hamiltonian Monte Carlo divergences which I have mostly mitigated by setting <code>adapt_delta = 0.95</code>:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">summary</span>(varmod)
+</span></span></code></pre></div><pre tabindex="0"><code>## GAM observation formula:
+## adj_count ~ 1
+## 
+## GAM process formula:
+## ~region
+## 
+## Family:
+## Gamma
+## 
+## Link function:
+## log
+## 
+## Trend model:
+## VAR(cor = TRUE)
+## 
+## 
+## N process models:
+## 3 
+## 
+## N series:
+## 3 
+## 
+## N timepoints:
+## 40 
+## 
+## Status:
+## Fitted using Stan 
+## 4 chains, each with iter = 2000; warmup = 1000; thin = 1 
+## Total post-warmup draws = 4000
+## 
+## 
+## Observation shape parameter estimates:
+##       2.5% 50% 97.5% Rhat n_eff
+## shape   21  33    58    1   500
+## 
+## GAM observation model coefficient (beta) estimates:
+##             2.5% 50% 97.5% Rhat n_eff
+## (Intercept)    0   0     0  NaN   NaN
+## 
+## Process model VAR parameter estimates:
+##           2.5%    50% 97.5% Rhat n_eff
+## A[1,1]  0.0014  0.570  0.98 1.01   902
+## A[1,2] -0.5200 -0.040  0.26 1.01   701
+## A[1,3] -0.0930  0.560  2.10 1.00   407
+## A[2,1] -0.2300  0.310  1.30 1.01   753
+## A[2,2] -0.5100  0.420  0.85 1.01   545
+## A[2,3] -0.2900  0.690  2.80 1.00   505
+## A[3,1] -0.1000  0.110  0.55 1.00   880
+## A[3,2] -0.1800  0.033  0.23 1.01   586
+## A[3,3]  0.1400  0.650  1.10 1.01   713
+## 
+## Process error parameter estimates:
+##               2.5%      50% 97.5% Rhat n_eff
+## Sigma[1,1]  0.0045  0.02200 0.058 1.01   461
+## Sigma[1,2] -0.0077  0.00880 0.033 1.00  1465
+## Sigma[1,3] -0.0110 -0.00045 0.008 1.00  1207
+## Sigma[2,1] -0.0077  0.00880 0.033 1.00  1465
+## Sigma[2,2]  0.0180  0.04800 0.100 1.00   886
+## Sigma[2,3] -0.0062  0.00460 0.019 1.00  1399
+## Sigma[3,1] -0.0110 -0.00045 0.008 1.00  1207
+## Sigma[3,2] -0.0062  0.00460 0.019 1.00  1399
+## Sigma[3,3]  0.0012  0.00530 0.021 1.00   340
+## 
+## GAM process model coefficient (beta) estimates:
+##                    2.5%   50% 97.5% Rhat n_eff
+## (Intercept)_trend  0.40  0.70  0.95    1  1732
+## regionBC_trend    -0.12  0.15  0.37    1  2606
+## regionSask_trend  -0.54 -0.38 -0.21    1  1778
+## 
+## Stan MCMC diagnostics:
+## ✔ No issues with effective samples per iteration
+## ✔ Rhat looks good for all parameters
+## ✔ No issues with divergences
+## ✔ No issues with maximum tree depth
+## 
+## Samples were drawn using sampling(hmc). For each parameter, n_eff is a
+##   crude measure of effective sample size, and Rhat is the potential scale
+##   reduction factor on split MCMC chains (at convergence, Rhat = 1)
+## 
+## Use how_to_cite() to get started describing this model
+</code></pre><p>We can inspect posterior estimates for some of the key parameters using <code>bayesplot</code> functionality. For State-Space models, it is particularly recommended to inspect estimates for process and observation scale parameters (labelled as <code>sigma</code> and <code>shape</code> in the model&rsquo;s MCMC output):</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">mcmc_plot</span>(varmod,
+</span></span><span style="display:flex;"><span>          variable <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;sigma&#39;</span>,
+</span></span><span style="display:flex;"><span>          regex <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>,
+</span></span><span style="display:flex;"><span>          type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;trace&#39;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/vector-autoregressions/index_files/figure-html/unnamed-chunk-17-1.png" alt="mvgam posterior estimates using bayesplot" width="60%" style="display: block; margin: auto;" />
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">mcmc_plot</span>(varmod,
+</span></span><span style="display:flex;"><span>          variable <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;shape&#39;</span>,
+</span></span><span style="display:flex;"><span>          type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;trace&#39;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/vector-autoregressions/index_files/figure-html/unnamed-chunk-18-1.png" alt="mvgam posterior estimates using bayesplot" width="60%" style="display: block; margin: auto;" />
+<p>Looking at possible coupling between these estimates is also a good idea, which you can do with the <code>pairs()</code> function:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">pairs</span>(varmod,
+</span></span><span style="display:flex;"><span>      variable <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#39;shape&#39;</span>, <span style="color:#d14">&#39;sigma&#39;</span>),
+</span></span><span style="display:flex;"><span>      regex <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>,
+</span></span><span style="display:flex;"><span>      off_diag_args <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">list</span>(size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>,
+</span></span><span style="display:flex;"><span>                           alpha <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.5</span>))
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/vector-autoregressions/index_files/figure-html/unnamed-chunk-19-1.png" alt="mvgam posterior pairs plots" width="60%" style="display: block; margin: auto;" />
+<p>Overall these estimates are quite stable and well-behaved. We can also inspect estimates for any linear predictor effects (in both the process and observation models) using <code>conditional_effects()</code>, which makes use of the wonderful 
+<a href="https://marginaleffects.com/" target="_blank" rel="noopener"><code>marginaleffects</code></a> package (see 
+<a href="https://ecogambler.netlify.app/blog/interpreting-gams/" target="_blank" rel="noopener">this post on interpreting Generalized Additive Models using <code>marginaleffects</code></a> for a glimpse into the full power of this package). Since we only have the varying intercepts as regressors in our model, we only get one plot from this call:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">conditional_effects</span>(varmod)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/vector-autoregressions/index_files/figure-html/unnamed-chunk-20-1.png" alt="mvgam conditional_effects plots" width="60%" style="display: block; margin: auto;" />
+<p>By default <code>conditional_effects()</code> will return predictions on the response scale (i.e. considering the full uncertainty in posterior predictions). But we can also plot these on the link or expectation scales if we wish:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">conditional_effects</span>(varmod,
+</span></span><span style="display:flex;"><span>                    type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;link&#39;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/vector-autoregressions/index_files/figure-html/unnamed-chunk-21-1.png" alt="mvgam posterior pairs plots" width="60%" style="display: block; margin: auto;" />
+<p>Posterior predictive checks are also useful for interrogating a Bayesian model. <code>mvgam</code> offers multiple ways to do this. First we can compute unconditional posterior predictive checks, which integrate over the possible (stable) temporal states that <em>could have</em> been encountered for each series. In other words, these plots show us the types of predictions that we might make if we had no observations to inform the states of the latent VAR(1) process:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">pp_check</span>(varmod,
+</span></span><span style="display:flex;"><span>         type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;dens_overlay_grouped&#34;</span>,
+</span></span><span style="display:flex;"><span>         group <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;region&#34;</span>,
+</span></span><span style="display:flex;"><span>         ndraws <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">50</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/vector-autoregressions/index_files/figure-html/unnamed-chunk-22-1.png" alt="mvgam posterior predictive checks" width="60%" style="display: block; margin: auto;" />
+<p>Obviously these prediction densities are more variable than the actual observation densities. But the main shapes seem to have been reasonably well captured. <code>mvgam</code> can also create conditional posterior predictive checks, using the actual latent temporal states that were estimated when the model conditioned on the observed data:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">ppc</span>(varmod,
+</span></span><span style="display:flex;"><span>    series <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>,
+</span></span><span style="display:flex;"><span>    type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;density&#39;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/vector-autoregressions/index_files/figure-html/unnamed-chunk-24-1.png" alt="mvgam posterior predictive checks" width="60%" style="display: block; margin: auto;" />
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">ppc</span>(varmod,
+</span></span><span style="display:flex;"><span>    series <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>,
+</span></span><span style="display:flex;"><span>    type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;density&#39;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/vector-autoregressions/index_files/figure-html/unnamed-chunk-26-1.png" alt="mvgam posterior predictive checks" width="60%" style="display: block; margin: auto;" />
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">ppc</span>(varmod,
+</span></span><span style="display:flex;"><span>    series <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>,
+</span></span><span style="display:flex;"><span>    type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;density&#39;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/vector-autoregressions/index_files/figure-html/unnamed-chunk-28-1.png" alt="mvgam posterior predictive checks" width="60%" style="display: block; margin: auto;" />
+<p>These plots match the data more closely, which is expected when using a flexible autoregressive process to capture the unobserved dynamics. Next we can compute and plot probabilistic conditional hindcasts for each series:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>hcs <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">hindcast</span>(varmod)
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot</span>(hcs,
+</span></span><span style="display:flex;"><span>     series <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/vector-autoregressions/index_files/figure-html/unnamed-chunk-31-1.png" alt="mvgam probabilistic hindcasts" width="60%" style="display: block; margin: auto;" />
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot</span>(hcs,
+</span></span><span style="display:flex;"><span>     series <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/vector-autoregressions/index_files/figure-html/unnamed-chunk-33-1.png" alt="mvgam probabilistic hindcasts" width="60%" style="display: block; margin: auto;" />
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot</span>(hcs,
+</span></span><span style="display:flex;"><span>     series <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/vector-autoregressions/index_files/figure-html/unnamed-chunk-35-1.png" alt="mvgam probabilistic hindcasts" width="60%" style="display: block; margin: auto;" />
+
+
+
+
+<h3 id="model-expansion">Model expansion
+  <a href="#model-expansion"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h3>
+<p>Given the subtle variations in the shapes of these observed distributions for each series, there may be support for fitting an equivalent model that allows the Gamma shape parameters to vary among series. Let&rsquo;s fit a second model that allows this:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>varmod2 <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">mvgam</span>(
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic"># Observation formula, empty to only consider the Gamma observation process</span>
+</span></span><span style="display:flex;"><span>  formula <span style="color:#000;font-weight:bold">=</span> adj_count <span style="color:#000;font-weight:bold">~</span> <span style="color:#099">-1</span>,
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Process model formula that includes regional intercepts </span>
+</span></span><span style="display:flex;"><span>  trend_formula <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">~</span> region,
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># A VAR(1) dynamic process with fully parameterized covariance matrix Sigma</span>
+</span></span><span style="display:flex;"><span>  trend_model <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">VAR</span>(cor <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>),
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Modified prior distributions using brms::prior()</span>
+</span></span><span style="display:flex;"><span>  priors <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#900;font-weight:bold">prior</span>(<span style="color:#900;font-weight:bold">std_normal</span>(), class <span style="color:#000;font-weight:bold">=</span> Intercept_trend),
+</span></span><span style="display:flex;"><span>             <span style="color:#900;font-weight:bold">prior</span>(<span style="color:#900;font-weight:bold">std_normal</span>(), class <span style="color:#000;font-weight:bold">=</span> b),
+</span></span><span style="display:flex;"><span>             <span style="color:#900;font-weight:bold">prior</span>(<span style="color:#900;font-weight:bold">exponential</span>(<span style="color:#099">2.5</span>), class <span style="color:#000;font-weight:bold">=</span> sigma)),
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># The time series data in &#39;long&#39; format</span>
+</span></span><span style="display:flex;"><span>  data <span style="color:#000;font-weight:bold">=</span> model_data,
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># A Gamma observation family</span>
+</span></span><span style="display:flex;"><span>  family <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">Gamma</span>(),
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Varying Gamma shape parameters per series</span>
+</span></span><span style="display:flex;"><span>  share_obs_params <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">FALSE</span>,
+</span></span><span style="display:flex;"><span>  
+</span></span><span style="display:flex;"><span>  <span style="color:#998;font-style:italic"># Stan control arguments</span>
+</span></span><span style="display:flex;"><span>  adapt_delta <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.95</span>,
+</span></span><span style="display:flex;"><span>  burnin <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1000</span>,
+</span></span><span style="display:flex;"><span>  samples <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1000</span>,
+</span></span><span style="display:flex;"><span>  silent <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>
+</span></span><span style="display:flex;"><span>)
+</span></span></code></pre></div><p>This model also fits well and encounters few sampling issues</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">summary</span>(varmod2)
+</span></span></code></pre></div><pre tabindex="0"><code>## GAM observation formula:
+## adj_count ~ 1
+## 
+## GAM process formula:
+## ~region
+## 
+## Family:
+## Gamma
+## 
+## Link function:
+## log
+## 
+## Trend model:
+## VAR(cor = TRUE)
+## 
+## 
+## N process models:
+## 3 
+## 
+## N series:
+## 3 
+## 
+## N timepoints:
+## 40 
+## 
+## Status:
+## Fitted using Stan 
+## 4 chains, each with iter = 2000; warmup = 1000; thin = 1 
+## Total post-warmup draws = 4000
+## 
+## 
+## Observation shape parameter estimates:
+##          2.5% 50% 97.5% Rhat n_eff
+## shape[1]   12  26   120 1.01   371
+## shape[2]   13  35   190 1.01   301
+## shape[3]   21  39   100 1.00   493
+## 
+## GAM observation model coefficient (beta) estimates:
+##             2.5% 50% 97.5% Rhat n_eff
+## (Intercept)    0   0     0  NaN   NaN
+## 
+## Process model VAR parameter estimates:
+##          2.5%     50% 97.5% Rhat n_eff
+## A[1,1] -0.046  0.5600  1.00 1.00   899
+## A[1,2] -0.430 -0.0089  0.26 1.00  1147
+## A[1,3] -0.090  0.4200  1.60 1.01   796
+## A[2,1] -0.260  0.3900  2.30 1.01   376
+## A[2,2] -0.590  0.3800  0.85 1.01   495
+## A[2,3] -0.370  0.5600  2.60 1.01   704
+## A[3,1] -0.088  0.1700  1.10 1.01   312
+## A[3,2] -0.210  0.0440  0.28 1.00   741
+## A[3,3] -0.035  0.5700  0.98 1.00   693
+## 
+## Process error parameter estimates:
+##               2.5%      50%  97.5% Rhat n_eff
+## Sigma[1,1]  0.0020  0.01800 0.0630 1.03   210
+## Sigma[1,2] -0.0078  0.00800 0.0320 1.00   930
+## Sigma[1,3] -0.0120 -0.00025 0.0083 1.00   938
+## Sigma[2,1] -0.0078  0.00800 0.0320 1.00   930
+## Sigma[2,2]  0.0180  0.05200 0.1100 1.00   673
+## Sigma[2,3] -0.0074  0.00440 0.0200 1.00  1326
+## Sigma[3,1] -0.0120 -0.00025 0.0083 1.00   938
+## Sigma[3,2] -0.0074  0.00440 0.0200 1.00  1326
+## Sigma[3,3]  0.0017  0.00740 0.0280 1.01   321
+## 
+## GAM process model coefficient (beta) estimates:
+##                    2.5%   50% 97.5% Rhat n_eff
+## (Intercept)_trend  0.38  0.71  0.93    1  1358
+## regionBC_trend    -0.12  0.14  0.34    1  2081
+## regionSask_trend  -0.54 -0.40 -0.21    1  1216
+## 
+## Stan MCMC diagnostics:
+## ✔ No issues with effective samples per iteration
+## ✔ Rhat looks good for all parameters
+## ✔ No issues with divergences
+## ✔ No issues with maximum tree depth
+## 
+## Samples were drawn using sampling(hmc). For each parameter, n_eff is a
+##   crude measure of effective sample size, and Rhat is the potential scale
+##   reduction factor on split MCMC chains (at convergence, Rhat = 1)
+## 
+## Use how_to_cite() to get started describing this model
+</code></pre><p>But now we have three shape parameters to inspect:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">mcmc_plot</span>(varmod2,
+</span></span><span style="display:flex;"><span>          variable <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;shape&#39;</span>,
+</span></span><span style="display:flex;"><span>          regex <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>,
+</span></span><span style="display:flex;"><span>          type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;trace&#39;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/vector-autoregressions/index_files/figure-html/unnamed-chunk-38-1.png" alt="mvgam posterior estimates using bayesplot" width="60%" style="display: block; margin: auto;" />
+<p>The unconditional posterior predictive checks look slightly better for the first and third series (<code>'Alb'</code> and <code>'Sask</code>&rsquo;):</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">pp_check</span>(varmod2,
+</span></span><span style="display:flex;"><span>         type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;dens_overlay_grouped&#34;</span>,
+</span></span><span style="display:flex;"><span>         group <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;region&#34;</span>,
+</span></span><span style="display:flex;"><span>         ndraws <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">50</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/vector-autoregressions/index_files/figure-html/unnamed-chunk-39-1.png" alt="mvgam posterior predictive checks" width="60%" style="display: block; margin: auto;" />
+<p>And so do the probabilistic conditional hindcasts:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>hcs <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">hindcast</span>(varmod2)
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot</span>(hcs,
+</span></span><span style="display:flex;"><span>     series <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/vector-autoregressions/index_files/figure-html/unnamed-chunk-42-1.png" alt="mvgam probabilistic hindcasts" width="60%" style="display: block; margin: auto;" />
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot</span>(hcs,
+</span></span><span style="display:flex;"><span>     series <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/vector-autoregressions/index_files/figure-html/unnamed-chunk-44-1.png" alt="mvgam probabilistic hindcasts" width="60%" style="display: block; margin: auto;" />
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot</span>(hcs,
+</span></span><span style="display:flex;"><span>     series <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/vector-autoregressions/index_files/figure-html/unnamed-chunk-46-1.png" alt="mvgam probabilistic hindcasts" width="60%" style="display: block; margin: auto;" />
+
+
+
+
+<h3 id="model-comparison-with-loo_compare">Model comparison with <code>loo_compare()</code>
+  <a href="#model-comparison-with-loo_compare"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h3>
+<p>The plots for the second model look <em>slightly</em> better for some of the series, but of course this is a more complex model so we may expect that. Generally we may want to select among these two competing models, and the approximate leave-one-out cross-validation routines provided by the 
+<a href="https://mc-stan.org/loo/" target="_blank" rel="noopener"><code>loo</code></a> package allow us to do this. We simply call <code>loo_compare()</code> and feed in the set of models that we&rsquo;d like to compare:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">loo_compare</span>(varmod, varmod2)
+</span></span></code></pre></div><pre tabindex="0"><code>##         elpd_diff se_diff
+## varmod2       0.0     0.0
+## varmod       -3.6     1.9
+</code></pre><p>The second model has slightly but consistently higher leave-one-out expected log predictive densities than the first model, so it appears to be slightly favoured. But of course we may wish to use other forms of model comparison, such as 
+<a href="https://nicholasjclark.github.io/mvgam/articles/forecast_evaluation.html" target="_blank" rel="noopener">computing proper scoring rules for out-of-sample probabilistic forecasts</a>. But for simplicity we will stick with the second model for further interrogation.</p>
+
+
+
+
+<h2 id="interrogating-var1-models-in-mvgam">Interrogating VAR(1) models in <code>mvgam</code>
+  <a href="#interrogating-var1-models-in-mvgam"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>There are <em>many</em> useful questions that can be approached using VAR models, which I eluded to at the beginning of this post. <code>mvgam</code> has support for a growing number of investigations that can be performed using built-in functions, and this section will highlight some of those functionalities.</p>
+
+
+
+
+<h3 id="inspecting-ar-coefficient-and-covariance-estimates">Inspecting AR coefficient and covariance estimates
+  <a href="#inspecting-ar-coefficient-and-covariance-estimates"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h3>
+<p>One of the first things we might want to do with a VAR(1) model is to inspect the <code>\(A\)</code> matrix, which includes the autoregressive coefficients that estimate lagged dependence and cross-dependence between the elements of the latent process model. By default <code>bayesplot</code> will plot these in the wrong order, so a bit of rearranging of the parameter estimates is needed to show the full matrix of estimates:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>A_pars <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">matrix</span>(<span style="color:#000;font-weight:bold">NA</span>, nrow <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>, ncol <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>)
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">for</span>(i <span style="color:#000;font-weight:bold">in</span> <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">3</span>){
+</span></span><span style="display:flex;"><span>  <span style="color:#000;font-weight:bold">for</span>(j <span style="color:#000;font-weight:bold">in</span> <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">3</span>){
+</span></span><span style="display:flex;"><span>    A_pars[i, j] <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">paste0</span>(<span style="color:#d14">&#39;A[&#39;</span>, i, <span style="color:#d14">&#39;,&#39;</span>, j, <span style="color:#d14">&#39;]&#39;</span>)
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">mcmc_plot</span>(varmod2,
+</span></span><span style="display:flex;"><span>          variable <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">as.vector</span>(<span style="color:#900;font-weight:bold">t</span>(A_pars)),
+</span></span><span style="display:flex;"><span>          type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;hist&#39;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_vline</span>(xintercept <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0</span>,
+</span></span><span style="display:flex;"><span>             col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>,
+</span></span><span style="display:flex;"><span>             linewidth <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_vline</span>(xintercept <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0</span>,
+</span></span><span style="display:flex;"><span>             linewidth <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/vector-autoregressions/index_files/figure-html/unnamed-chunk-49-1.png" alt="mvgam vector autoregressive coefficient inspection" width="60%" style="display: block; margin: auto;" />
+<p>This plot makes it clear that there is broad posterior support for positive interactions among the three latent processes. For example, the estimates in <code>A[2,3]</code> capture how an <em>increase</em> in the process for series 3 (<code>'Sask'</code>) at time <code>\(t\)</code> is expected to impact the process for series 2 (<code>'BC'</code>) at time  <code>\(t+1\)</code>. This might make biological sense as it could be possible that increasing populations in one region lead to subsequent increases in other regions due to dispersal events.</p>
+<p>We might also want to look at evidence for contemporaneous associations among these processes, which are captured in the covariance matrix <code>\(\Sigma_{process}\)</code>. The same rearrangement of parameters is needed to get these in the right order:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>Sigma_pars <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">matrix</span>(<span style="color:#000;font-weight:bold">NA</span>, nrow <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>, ncol <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>)
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">for</span>(i <span style="color:#000;font-weight:bold">in</span> <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">3</span>){
+</span></span><span style="display:flex;"><span>  <span style="color:#000;font-weight:bold">for</span>(j <span style="color:#000;font-weight:bold">in</span> <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span><span style="color:#099">3</span>){
+</span></span><span style="display:flex;"><span>    Sigma_pars[i, j] <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">paste0</span>(<span style="color:#d14">&#39;Sigma[&#39;</span>, i, <span style="color:#d14">&#39;,&#39;</span>, j, <span style="color:#d14">&#39;]&#39;</span>)
+</span></span><span style="display:flex;"><span>  }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">mcmc_plot</span>(varmod2,
+</span></span><span style="display:flex;"><span>          variable <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">as.vector</span>(<span style="color:#900;font-weight:bold">t</span>(Sigma_pars)),
+</span></span><span style="display:flex;"><span>          type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;hist&#39;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_vline</span>(xintercept <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0</span>,
+</span></span><span style="display:flex;"><span>             col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>,
+</span></span><span style="display:flex;"><span>             linewidth <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_vline</span>(xintercept <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0</span>,
+</span></span><span style="display:flex;"><span>             linewidth <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/vector-autoregressions/index_files/figure-html/unnamed-chunk-50-1.png" alt="mvgam vector autoregressive covariance inspection" width="60%" style="display: block; margin: auto;" />
+<p>Again we see many positive covariances which suggests that these processes are not evolving independently, but are rather likely to be co-responding to some broader phenomena</p>
+
+
+
+
+<h3 id="impulse-response-functions">Impulse Response Functions
+  <a href="#impulse-response-functions"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h3>
+<p>Generalized or Orthogonalized Impulse Response Functions (IRFs) can be computed using the posterior estimates of Vector Autoregressive parameters from <code>mvgam</code> models fitted with <code>VAR()</code> trend models. This function runs a simulation whereby a positive &ldquo;shock&rdquo; is generated for a target process at time <code>\(t = 0\)</code>. All else remaining stable, it then monitors how each of the remaining processes in the latent VAR would be expected to respond over the forecast horizon <code>\(h\)</code>. The function computes IRFs for all processes in the object and returns them in an array that can be plotted using the <code>S3</code> <code>plot()</code> function. Here we will use the generalized IRF, which makes no assumptions about the order in which the series appear in the VAR process, and inspect how each process is expected to respond to a sudden, positive <em>pulse</em> from the other processes over a horizon of 12 years.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>irfs <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">irf</span>(varmod2,
+</span></span><span style="display:flex;"><span>            h <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">12</span>,
+</span></span><span style="display:flex;"><span>            orthogonal <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">FALSE</span>)
+</span></span></code></pre></div><div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot</span>(irfs,
+</span></span><span style="display:flex;"><span>     series <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/vector-autoregressions/index_files/figure-html/unnamed-chunk-53-1.png" alt="mvgam vector autoregressive impulse response functions" width="60%" style="display: block; margin: auto;" />
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot</span>(irfs,
+</span></span><span style="display:flex;"><span>     series <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/vector-autoregressions/index_files/figure-html/unnamed-chunk-55-1.png" alt="mvgam vector autoregressive impulse response functions" width="60%" style="display: block; margin: auto;" />
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot</span>(irfs,
+</span></span><span style="display:flex;"><span>     series <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/vector-autoregressions/index_files/figure-html/unnamed-chunk-57-1.png" alt="mvgam vector autoregressive impulse response functions" width="60%" style="display: block; margin: auto;" />
+<p>These plots make it clear that, if one region experienced a temporary pulse in the number of American kestrels, we&rsquo;d expect the remaining regions to show contemporaneous and/or subsequent increases over the following years. Moreover, we&rsquo;d expect the effects of this pulse to reverberate for many years, thanks to the strong positive dependencies that are shown among all three series.</p>
+
+
+
+
+<h3 id="forecast-error-variance-decompositions">Forecast Error Variance Decompositions
+  <a href="#forecast-error-variance-decompositions"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h3>
+<p>Using the same logic as above, we can inspect forecast error variance decompositions (FEVDs) for each process using the <code>fevd()</code> function. This type of analysis asks how orthogonal shocks to all process in the system contribute to the variance of forecast uncertainty for a focal process over increasing horizons. In other words, the proportion of the forecast variance of each latent time series can be attributed to the effects of the other series in the VAR proces. FEVDs are useful because some shocks may not be expected to cause variations in the short-term but may cause longer-term fluctuations</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>fevds <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">fevd</span>(varmod2, h <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">12</span>)
+</span></span></code></pre></div><p>The <code>S3</code> <code>plot()</code> function for these objects returns a <code>ggplot</code> object that shows the mean expected contribution to forecast error variance for each process in the VAR model:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot</span>(fevds) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">scale_fill_manual</span>(values <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;#DCBCBC&#34;</span>,
+</span></span><span style="display:flex;"><span>                               <span style="color:#d14">&#34;#A25050&#34;</span>,
+</span></span><span style="display:flex;"><span>                               <span style="color:#d14">&#34;#5C0000&#34;</span>))
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/vector-autoregressions/index_files/figure-html/unnamed-chunk-59-1.png" alt="mvgam vector autoregressive forecast error variance decompositions" width="60%" style="display: block; margin: auto;" />
+<p>This plot shows that the variance of forecast uncertainty for each process is initially dominated by contributions from that same process (i.e. self-dependent effects) but that effects from other processes become more important over increasing forecast horizons. Given what we saw from the IRF plots above, these long-term contributions from interactions among the processes makes sense.</p>
+
+
+
+
+<h3 id="community-stability-metrics">Community stability metrics
+  <a href="#community-stability-metrics"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h3>
+<p><code>mvgam</code> can also calculate a range of community stability metrics, which can be used to assess how important inter-series dependencies are to the variability of a multivariate system and to ask how systems are expected to respond to environmental perturbations. The <code>stability()</code> function computes a posterior distribution for the long-term stationary forecast distribution of the system, which
+has mean <code>\(\mu_{\infty}\)</code> and variance <code>\(\Sigma_{\infty}\)</code>, to then calculate the following quantities:</p>
+<ul>
+<li><code>prop_int</code>: Proportion of the volume of the stationary forecast distribution that is attributable to lagged interactions (i.e. how important are the autoregressive interaction coefficients in <code>\(A\)</code> for explaining the shape of the stationary forecast distribution?): <code>\(det(A)^2\)</code></li>
+<li><code>prop_int_adj</code>: Same as <code>prop_int</code> but scaled by the number of series <code>\(p\)</code> to facilitate direct comparisons among systems with different numbers of interacting variables: <code>\(det(A)^{2/p}\)</code></li>
+<li><code>prop_int_offdiag</code>: Sensitivity of <code>prop_int</code> to inter-series interactions (i.e. how important are the off-diagonals of the autoregressive coefficient matrix <code>\(A\)</code> for shaping <code>prop_int</code>?), calculated as the relative magnitude of the <em>off-diagonals</em> in the partial derivative matrix: <code>\([2~det(A) (A^{-1})^T]\)</code></li>
+<li><code>prop_int_diag</code>: Sensitivity of <code>prop_int</code> to intra-series interactions (i.e. how important are the
+diagonals of the autoregressive coefficient matrix <code>\(A\)</code> for shaping <code>prop_int</code>?), calculated as the
+relative magnitude of the <em>diagonals</em> in the partial derivative matrix: <code>\([2~det(A) (A^{-1})^T]\)</code></li>
+<li><code>prop_cov_offdiag</code>: Sensitivity of <code>\(\Sigma_{\infty}\)</code> to inter-series error correlations (i.e. how important are off-diagonal covariances in <code>\(\Sigma\)</code> for shaping <code>\(\Sigma_{\infty}\)</code>?), calculated as the relative magnitude of the <em>off-diagonals</em> in the partial derivative matrix: <code>\([2~det(\Sigma_{\infty}) (\Sigma_{\infty}^{-1})^T]\)</code></li>
+<li><code>prop_cov_diag</code>: Sensitivity of <code>\(\Sigma_{\infty}\)</code> to error variances (i.e. how important are diagonal variances in <code>\(\Sigma\)</code> for shaping <code>\(\Sigma_{\infty}\)</code>?), calculated as the relative magnitude of the <em>diagonals</em> in the partial derivative matrix: <code>\([2~det(\Sigma_{\infty}) (\Sigma_{\infty}^{-1})^T]\)</code></li>
+<li><code>reactivity</code>: A measure of the degree to which the system moves away from a stable equilibrium following a perturbation. Values <code>&gt; 0</code> suggest the system is reactive, whereby a perturbation of the system in one period can be amplified into the next period. If <code>\(\sigma_{max}(A)\)</code> is the largest singular value of <code>\(A\)</code>, then reactivity is defined as: <code>\(log\sigma_{max}(A)\)</code></li>
+<li><code>mean_return_rate</code>: Asymptotic (long-term) return rate of the mean of the transition distribution to the stationary mean, calculated using the largest eigenvalue of the matrix <code>\(A\)</code>: <code>\(max(\lambda_{A})\)</code>. Lower values suggest greater stability of the system</li>
+<li><code>var_return_rate</code>: Asymptotic (long-term) return rate of the variance of the transition distribution to the stationary variance: <code>\(max(\lambda_{A \otimes{A}})\)</code>. Again, lower values suggest greater stability of the system</li>
+</ul>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>metrics <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">stability</span>(varmod2)
+</span></span></code></pre></div><p>We can plot the posterior distribution of reactivity, which is 
+<a href="https://esajournals.onlinelibrary.wiley.com/doi/full/10.1890/13-0996.1" target="_blank" rel="noopener">perhaps the most commonly calculated metric of ecological community stability</a>, using <code>ggplot()</code>:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">ggplot</span>(metrics, <span style="color:#900;font-weight:bold">aes</span>(x <span style="color:#000;font-weight:bold">=</span> reactivity)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">myhist</span>() <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">labs</span>(x <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Reactivity&#39;</span>, y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_vline</span>(xintercept <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0</span>, col <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;white&#39;</span>, linewidth <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2.5</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_vline</span>(xintercept <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0</span>, linewidth <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1.5</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">hist_theme</span>()
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/vector-autoregressions/index_files/figure-html/unnamed-chunk-61-1.png" alt="mvgam vector autoregressive community reactivity estimates" width="60%" style="display: block; margin: auto;" />
+<p>This system is considered to be &ldquo;reactive&rdquo;, whereby this index of the community&rsquo;s short-term response to perturbations is mostly estimated to be <code>&gt;0</code>. Again this is not surprising, as both the <code>irf()</code> and <code>fevd()</code> plots show that the time series of adjusted counts in each region is highly dependent on time-lagged adjusted counts in other regions.</p>
+<p>Another useful question to ask from these metrics is what are the relative importances of the diagonals for determining the contributions of the <code>\(A\)</code> and <code>\(\Sigma\)</code> matrices to the shape of the stationary forecast distribution. In other words, we can decompose the contributions of these two matrices to the system&rsquo;s stochastic equilibrium to understand which components (i.e. the self-dependence vs the inter-dependence effects) seem to have the biggest influences on the variability of the system. What follows is some rather long-winded code that will calculate and plot these contributions, using some helpful example code provided by 
+<a href="https://www.mjskay.com/" target="_blank" rel="noopener">Matthew Kay</a>, maintainer of the 
+<a href="https://mjskay.github.io/tidybayes/" target="_blank" rel="noopener"><code>tidybayes</code></a> package</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Gather posterior estimates of relative contributions for each matrix</span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># into a tidy format for tidybayes plotting</span>
+</span></span><span style="display:flex;"><span>prop_df <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">rbind</span>(metrics <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>    dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">select</span>(prop_cov_diag,
+</span></span><span style="display:flex;"><span>                  prop_cov_offdiag) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>    dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">rename</span>(diagonals <span style="color:#000;font-weight:bold">=</span> prop_cov_diag,
+</span></span><span style="display:flex;"><span>                  off_diagonals <span style="color:#000;font-weight:bold">=</span> prop_cov_offdiag) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>    dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">mutate</span>(.draw <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span>dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">n</span>(),
+</span></span><span style="display:flex;"><span>                  group <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Process error (Sigma)&#39;</span>) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>    tidyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">pivot_longer</span>(<span style="color:#900;font-weight:bold">c</span>(diagonals, off_diagonals),
+</span></span><span style="display:flex;"><span>                        names_to <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Parameters&#39;</span>,
+</span></span><span style="display:flex;"><span>                        values_to <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;proportion&#39;</span>),
+</span></span><span style="display:flex;"><span>  metrics <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>    dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">select</span>(prop_int_diag,
+</span></span><span style="display:flex;"><span>                  prop_int_offdiag) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>    dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">rename</span>(diagonals <span style="color:#000;font-weight:bold">=</span> prop_int_diag,
+</span></span><span style="display:flex;"><span>                  off_diagonals <span style="color:#000;font-weight:bold">=</span> prop_int_offdiag) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>    dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">mutate</span>(.draw <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span><span style="color:#000;font-weight:bold">:</span>dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">n</span>(),
+</span></span><span style="display:flex;"><span>                  group <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Autoregressive coefs (A)&#39;</span>) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>    tidyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">pivot_longer</span>(<span style="color:#900;font-weight:bold">c</span>(diagonals, off_diagonals),
+</span></span><span style="display:flex;"><span>                        names_to <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Parameters&#39;</span>,
+</span></span><span style="display:flex;"><span>                        values_to <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;proportion&#39;</span>))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Calculate blurred color maps to graphically represent uncertainty</span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># in these contributions</span>
+</span></span><span style="display:flex;"><span>p <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">seq</span>(<span style="color:#099">0</span>, <span style="color:#099">1</span> <span style="color:#000;font-weight:bold">-</span> .Machine<span style="color:#000;font-weight:bold">$</span>double.eps, length.out <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">200</span>)
+</span></span><span style="display:flex;"><span>df_curves <span style="color:#000;font-weight:bold">&lt;-</span> prop_df <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">mutate</span>(cumulative_proportion <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">cumsum</span>(proportion),
+</span></span><span style="display:flex;"><span>                .by <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(.draw, group)) <span style="color:#000;font-weight:bold">|&gt;</span>
+</span></span><span style="display:flex;"><span>  dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">reframe</span>(
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">`P</span>(value)` <span style="color:#000;font-weight:bold">=</span> (<span style="color:#099">1</span> <span style="color:#000;font-weight:bold">-</span> <span style="color:#900;font-weight:bold">ecdf</span>(cumulative_proportion)(p)) <span style="color:#000;font-weight:bold">*</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#900;font-weight:bold">ecdf</span>(cumulative_proportion <span style="color:#000;font-weight:bold">-</span> proportion)(p),
+</span></span><span style="display:flex;"><span>    proportion <span style="color:#000;font-weight:bold">=</span> p,
+</span></span><span style="display:flex;"><span>    .by <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(group, Parameters))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"># Set the colours and their labels</span>
+</span></span><span style="display:flex;"><span>fill_scale <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">scale_fill_manual</span>(values <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;lightgrey&#34;</span>, <span style="color:#d14">&#34;#A25050&#34;</span>))
+</span></span><span style="display:flex;"><span>fill_scale<span style="color:#000;font-weight:bold">$</span><span style="color:#900;font-weight:bold">train</span>(<span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;diagonals&#34;</span>, <span style="color:#d14">&#34;off_diagonals&#34;</span>))
+</span></span></code></pre></div><p>Now we can plot these relative contributions in a way that aims to represent their associated posterior uncertainties</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>df_curves <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">summarise</span>(color <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">encode_colour</span>(<span style="color:#900;font-weight:bold">`P</span>(value)` <span style="color:#000;font-weight:bold">%*%</span>
+</span></span><span style="display:flex;"><span>                            <span style="color:#900;font-weight:bold">decode_colour</span>(fill_scale<span style="color:#000;font-weight:bold">$</span><span style="color:#900;font-weight:bold">map</span>(Parameters),
+</span></span><span style="display:flex;"><span>                                          to <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;oklab&#34;</span>),
+</span></span><span style="display:flex;"><span>                          from <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;oklab&#34;</span>),
+</span></span><span style="display:flex;"><span>    .by <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(group,
+</span></span><span style="display:flex;"><span>            proportion)) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">ggplot</span>() <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_blank</span>(<span style="color:#900;font-weight:bold">aes</span>(fill <span style="color:#000;font-weight:bold">=</span> Parameters),
+</span></span><span style="display:flex;"><span>             data <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">data.frame</span>(Parameters <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;diagonals&#34;</span>,
+</span></span><span style="display:flex;"><span>                                              <span style="color:#d14">&#34;off_diagonals&#34;</span>))) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_slab</span>(<span style="color:#900;font-weight:bold">aes</span>(y <span style="color:#000;font-weight:bold">=</span> proportion,
+</span></span><span style="display:flex;"><span>                x <span style="color:#000;font-weight:bold">=</span> group,
+</span></span><span style="display:flex;"><span>                fill <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">I</span>(color),
+</span></span><span style="display:flex;"><span>                group <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">NA</span>),
+</span></span><span style="display:flex;"><span>    thickness <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>,
+</span></span><span style="display:flex;"><span>    fill_type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;auto&#34;</span>,
+</span></span><span style="display:flex;"><span>    side <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;both&#34;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">stat_pointinterval</span>(
+</span></span><span style="display:flex;"><span>    <span style="color:#900;font-weight:bold">aes</span>(x <span style="color:#000;font-weight:bold">=</span> group,
+</span></span><span style="display:flex;"><span>        y <span style="color:#000;font-weight:bold">=</span> proportion,
+</span></span><span style="display:flex;"><span>        group <span style="color:#000;font-weight:bold">=</span> Parameters),
+</span></span><span style="display:flex;"><span>    data <span style="color:#000;font-weight:bold">=</span> prop_df <span style="color:#000;font-weight:bold">|&gt;</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#900;font-weight:bold">mutate</span>(proportion <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">cumsum</span>(proportion),
+</span></span><span style="display:flex;"><span>             .by <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(.draw, group)) <span style="color:#000;font-weight:bold">|&gt;</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#900;font-weight:bold">filter</span>(Parameters <span style="color:#000;font-weight:bold">!=</span> <span style="color:#d14">&#34;off_diagonals&#34;</span>)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  fill_scale <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">scale_y_continuous</span>(limits <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#099">0</span>, <span style="color:#099">1</span>)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">coord_cartesian</span>(expand <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">FALSE</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">labs</span>(x <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;&#39;</span>,
+</span></span><span style="display:flex;"><span>       y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Contribution to stationary distribution&#39;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/vector-autoregressions/index_files/figure-html/unnamed-chunk-63-1.png" alt="mvgam vector autoregressive community reactivity estimates" width="60%" style="display: block; margin: auto;" />
+<p>And there we have it. This plot demonstrates that, within the contribution of the <code>\(A\)</code> matrix to the stable distribution, the off-diagonals (i.e. the lagged autoregressive interaction effects) play a sizable role. However, within the contribution of the <code>\(\Sigma\)</code> matrix to the stable distribution, the diagonals (i.e. the process variances) are much more important than are the off-diagonal covariances. This gives us some insights into the relative importances of lagged vs contemporaneous &ldquo;interactions&rdquo; and can hopefully facilitate more in-depth ecological analyses.</p>
+<p>Also, although we haven&rsquo;t covered it in this example, there is of course no reason why you cannot include complex covariate effects in either the process or observation models. Indeed, <code>mvgam()</code> can readily handle a wide range of effects including multidimensional penalized smooth functions, Gaussian Process functions, monotonic smooth functions, 
+<a href="https://ecogambler.netlify.app/blog/distributed-lags-mgcv/" target="_blank" rel="noopener">distributed lag nonlinear effects</a>, seasonality and 
+<a href="https://ecogambler.netlify.app/blog/time-varying-seasonality/" target="_blank" rel="noopener">time-varying seasonality</a>, and hierarchical effects. It is also easy to generate probabilistic forecasts from these models, which you can learn more about by reading the 
+<a href="https://nicholasjclark.github.io/mvgam/articles/forecast_evaluation.html" target="_blank" rel="noopener">forecast and forecast evaluation vignette</a>. These options should hopefully make <code>mvgam</code> a very attractive resource for tackling real-world multivariate time series when we do not wish to ignore important drivers or use time series transformations that make both inference and prediction difficult. Thanks for your time!</p>
+
+
+
+
+<h2 id="further-reading">Further reading
+  <a href="#further-reading"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>The following papers and resources offer useful material about Vector Autoregressive models and Dynamic GAMs for time series modeling / forecasting</p>
+<p>Hampton, S. E., Holmes, E. E., Scheef, L. P., Scheuerell, M. D., Katz, S. L., Pendleton, D. E., &amp; Ward, E. J. (2013). 
+<a href="https://esajournals.onlinelibrary.wiley.com/doi/full/10.1890/13-0996.1" target="_blank" rel="noopener">Quantifying effects of abiotic and biotic drivers on community dynamics with multivariate autoregressive (MAR) models</a>. <em>Ecology</em>, 94(12), 2663-2669.</p>
+<p>Hannaford, N. E., Heaps, S. E., Nye, T. M., Curtis, T. P., Allen, B., Golightly, A., &amp; Wilkinson, D. J. (2023). 
+<a href="https://www.sciencedirect.com/science/article/pii/S0167947322002390" target="_blank" rel="noopener">A sparse Bayesian hierarchical vector autoregressive model for microbial dynamics in a wastewater treatment plant</a>. <em>Computational Statistics &amp; Data Analysis</em>, 179, 107659.</p>
+<p>Heaps, S. E. (2023). 
+<a href="https://www.tandfonline.com/doi/full/10.1080/10618600.2022.2079648" target="_blank" rel="noopener">Enforcing stationarity through the prior in vector autoregressions</a>. <em>Journal of Computational and Graphical Statistics</em>, 32(1), 74-83.</p>
+<p>Karunarathna, K. A. N. K., Wells, K., &amp; Clark, N. J. (2024). 
+<a href="https://www.sciencedirect.com/science/article/pii/S0304380024000371" target="_blank" rel="noopener">Modelling nonlinear responses of a desert rodent species to environmental change with hierarchical dynamic generalized additive models</a>. <em>Ecological Modelling</em>, 490, 110648.</p>
+<p>Lütkepohl, H (2006). 
+<a href="https://link.springer.com/book/10.1007/978-3-540-27752-1" target="_blank" rel="noopener">New introduction to multiple time series analysis</a>. Springer, New York.</p>
+<p>Pesaran, P. H., &amp; Yongcheol, S. (1998). 
+<a href="https://www.sciencedirect.com/science/article/pii/S0165176597002140" target="_blank" rel="noopener">Generalized impulse response analysis in linear multivariate models</a> <em>Economics Letters</em> 58: 17-29.</p>
+
+      </section>
+      <footer class="post-footer">
+        <div class="post-pagination dt w-100 mt4 mb2">
+  
+  
+    <a class="prev dtc pr2 tl v-top fw6"
+    href="https://ecogambler.netlify.app/blog/clv-prediction/">&larr; GAMs for Customer Lifetime Value (CLV) prediction</a>
+  
+  
+  
+    <a class="next dtc pl2 tr v-top fw6"
+    href="https://ecogambler.netlify.app/blog/time-varying-seasonality/">Incorporating time-varying seasonality in forecast models &rarr;</a>
+  
+</div>
+
+      </footer>
+    </article>
+    
+      
+<div class="post-comments pa0 pa4-l mt4">
+  
+  <script src="https://utteranc.es/client.js"
+          repo="apreshill/apero"
+          issue-term="pathname"
+          theme="boxy-light"
+          label="comments :crystal_ball:"
+          crossorigin="anonymous"
+          async
+          type="text/javascript">
+  </script>
+  
+</div>
+
+    
+  </section>
+</main>
+<aside class="page-sidebar" role="complementary">
+                         
+ 
+
+
+                       
+ 
+
+
+
+
+
+
+
+
+
+
+
+  <img src="/blog/sidebar-listing.jpg" class="db ma0">
+
+
+<div class="blog-info ph4 pt4 pb4 pb0-l">
+  
+
+  <h1 class="f3">GAMbler</h1>
+  <p class="f6 lh-copy measure">A blog on (somewhat) interesting and (hopefully) useful tips for ecological modeling, with (perhaps too much) emphasis on Generalized Additive Models.</p>
+  <p class="f7 measure lh-copy i mh0-l">Written by Nicholas Clark (n.clark&rsquo;at&rsquo;uq.edu.au)</p>
+
+
+  
+  <div class="dib bt bw1 b--black-10">
+    
+      <small class="db f7 pt3"><a href="/blog/" class="dib fw7 ttu">View recent posts</a></small>
+    
+    
+    
+    
+  </div>
+
+
+</div>
+
+
+  
+  <details open class="f6 fw7 input-reset">
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Posted on:</dt>
+    <dd class="fw5 ml0">September 6, 2024</dd>
+  </dl>
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Length:</dt>
+    <dd class="fw5 ml0">27 minute read, 5566 words</dd>
+  </dl>
+  
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Categories:</dt>
+    <dd class="fw5 ml0"> <a href="https://ecogambler.netlify.app/categories/rstats">rstats</a>  <a href="https://ecogambler.netlify.app/categories/time-series">time-series</a>  <a href="https://ecogambler.netlify.app/categories/mvgam">mvgam</a> </dd>
+  </dl>
+  
+  
+  
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Tags:</dt>
+    <dd class="fw5 ml0"> <a href="https://ecogambler.netlify.app/tags/rstats">rstats</a>  <a href="https://ecogambler.netlify.app/tags/mvgam">mvgam</a>  <a href="https://ecogambler.netlify.app/tags/tutorial">tutorial</a>  <a href="https://ecogambler.netlify.app/tags/forecasting">forecasting</a>  <a href="https://ecogambler.netlify.app/tags/time-series">time-series</a> </dd>
+  </dl>
+  
+  <dl class="f6 lh-copy">
+    <dt class="fw7">See Also:</dt>
+    
+    <dd class="fw5 ml0"><a href="/blog/emergency-department-shiny/">Building an Interactive Emergency Department Dashboard with Shiny</a></dd>
+    
+    <dd class="fw5 ml0"><a href="/blog/plant-community-dirichlet/">Compositional modeling of plant communities with Dirichlet regression</a></dd>
+    
+    <dd class="fw5 ml0"><a href="/blog/clv-prediction/">GAMs for Customer Lifetime Value (CLV) prediction</a></dd>
+    
+  </dl>
+</details>
+
+                           
+  
+  
+  
+ <nav id="TableOfContents" class="sticky ph4 pb4 pt6" role="navigation"> 
+   <h2 class="mv0 f5 fw7 ttu tracked dib">On this page</h2> 
+     <nav id="TableOfContents">
+  <ul>
+    <li><a href="#environment-setup">Environment setup</a></li>
+    <li><a href="#load-manipulate-and-plot-the-data">Load, manipulate and plot the data</a></li>
+    <li><a href="#build-a-state-space-var1-model">Build a State-Space VAR(1) model</a></li>
+    <li><a href="#interrogating-var1-models-in-mvgam">Interrogating VAR(1) models in <code>mvgam</code></a></li>
+    <li><a href="#further-reading">Further reading</a></li>
+  </ul>
+</nav> 
+ </nav> 
+  
+
+</aside>
+<footer class="site-footer pv4 bt b--transparent ph5" role="contentinfo">
+  <nav class="db dt-l w-100">
+    <p class="site-copyright f7 db dtc-l v-mid w-100 w-33-l tc tl-l pv2 pv0-l mv0 lh-copy">
+      © Nicholas J Clark (2024)
+      <span class="middot-divider"></span>
+      Made with <span xmlns:dct="http://purl.org/dc/terms/" property="dct:title"><a xmlns:dct="http://purl.org/dc/terms/" href="https://github.com/hugo-apero/" rel="dct:source">Hugo Apéro</a></span>.
+      <br />
+      
+Based on <span xmlns:dct="http://purl.org/dc/terms/" property="dct:title"><a xmlns:dct="http://purl.org/dc/terms/" href="https://github.com/formspree/blogophonic-hugo" rel="dct:source">Blogophonic</a></span> by <a xmlns:cc="http://creativecommons.org/ns#" href="https://formspree.io" property="cc:attributionName" rel="cc:attributionURL">Formspree</a>.
+    </p>
+    
+    <div class="site-social-links db dtc-l v-mid w-100 w-33-l tc pv2 pv0-l mv0">
+      <div class="social-icon-links" aria-hidden="true">
+  
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://github.com/nicholasjclark" title="github" target="_blank" rel="me noopener">
+      <i class="fab fa-github fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://www.youtube.com/@NJ_Clark" title="youtube" target="_blank" rel="me noopener">
+      <i class="fab fa-youtube fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://bsky.app/profile/njclark.bsky.social" title="mixcloud" target="_blank" rel="me noopener">
+      <i class="fab fa-mixcloud fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://orcid.org/0000-0001-7131-3301" title="orcid" target="_blank" rel="me noopener">
+      <i class="ai ai-orcid fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://scholar.google.com.au/citations?user=5bO9uxEAAAAJ&amp;hl=en" title="google-scholar" target="_blank" rel="me noopener">
+      <i class="ai ai-google-scholar fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="/blog/index.xml" title="rss" >
+      <i class="fas fa-rss fa-lg fa-fw"></i>
+    </a>
+  
+</div>
+
+    </div>
+    
+    <div class="site-links f6 db dtc-l v-mid w-100 w-67-l tc tr-l pv2 pv0-l mv0">
+      
+      <a class="dib pv1 ph2 link" href="/license/" title="License">License</a>
+      
+      <a class="dib pv1 ph2 link" href="/contributors/" title="Contributors">Collaborators</a>
+      
+    </div>
+  </nav>
+  
+    <script>
+
+    var i, text, code, codes = document.getElementsByTagName('code');
+    for (let i = 0; i < codes.length;) {
+      code = codes[i];
+      if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+        text = code.textContent;
+        if (/^\$[^$]/.test(text) && /[^$]\$$/.test(text)) {
+          text = text.replace(/^\$/, '\\(').replace(/\$$/, '\\)');
+          code.textContent = text;
+        }
+        if (/^\\\((.|\s)+\\\)$/.test(text) ||
+            /^\\\[(.|\s)+\\\]$/.test(text) ||
+            /^\$(.|\s)+\$$/.test(text) ||
+            /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+          code.outerHTML = code.innerHTML;  
+          continue;
+        }
+      }
+      i++;
+    }
+</script>
+
+  
+    
+    
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/katex.min.css" integrity="sha384-RZU/ijkSsFbcmivfdRBQDtwuwVqK7GMOw6IMvKyeWL2K5UAlyp6WonmB8m7Jd0Hn" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/katex.min.js" integrity="sha384-pK1WpvzWVBQiP0/GjnvRxV4mOb0oxFuyRxJlk6vVw146n3egcN5C925NCP7a7BY8" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/contrib/auto-render.min.js" integrity="sha384-vZTG03m+2yp6N6BNi5iM4rW4oIwk5DfcNdFfxkk9ZWpDriOkXX8voJBFrAO7MpVl" crossorigin="anonymous" onload="renderMathInElement(document.body);"></script>
+
+
+
+    
+  
+  
+</footer>
+
+      </div>
+    </body>
+</html>

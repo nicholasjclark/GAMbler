@@ -1,0 +1,28 @@
+{{ define "main" }}
+
+<div class="page-main pa4" role="main">
+  <div class="row">
+    <div class="col-lg-8 col-lg-offset-2 col-md-10 col-md-offset-1">
+      <main>
+      {{ .Content }}
+    
+    {{ $pages := where site.RegularPages "Type" "in" site.Params.mainSections }}
+    {{ range $pages.GroupByPublishDate "2006-01" }}
+    <h2 class="archive-year" id="{{.Key | urlize}}">{{.Key}}</h2>
+      <ul class="year-of-posts">
+        {{ range sort .Pages "PublishDate" "desc" }}
+      <li>
+        <p>
+        <time datetime="{{ .PublishDate.Format "2006-01-02T15:04:05-07:00" }}"></time>
+          {{ .PublishDate.Format "January 2" }}: <a href="{{.Permalink}}">{{.Title}} </a>
+            </p>
+            </li>
+            {{end}}
+          </ul>
+            {{end}}
+          </main>
+            </div>
+            </div>
+            </div>
+            
+            {{end}}

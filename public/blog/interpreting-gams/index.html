@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr"><head>
+  
+                           
+     
+
+
+<meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="generator" content="Hugo 0.123.8">
+<title>How to interpret and report nonlinear effects from Generalized Additive Models | GAMbler</title>
+
+
+<meta property="twitter:site" content="@twitter = &#34;nj_clark&#34;">
+<meta property="twitter:creator" content="@twitter = &#34;nj_clark&#34;">
+
+
+
+
+
+
+
+  
+    
+  
+<meta name="description" content="Generalized additive models (GAMs) are incredibly flexible tools that fit penalized regression splines to data. But interpreting nonlinear effects from GAMs is not as easy as interpreting linear models. In this post I provide 3 simple steps to help you understand and interpret nonlinear effects from GAMs using the mgcv R package.">
+
+
+<meta property="og:site_name" content="GAMbler">
+<meta property="og:title" content="How to interpret and report nonlinear effects from Generalized Additive Models | GAMbler">
+<meta property="og:description" content="Generalized additive models (GAMs) are incredibly flexible tools that fit penalized regression splines to data. But interpreting nonlinear effects from GAMs is not as easy as interpreting linear models. In this post I provide 3 simple steps to help you understand and interpret nonlinear effects from GAMs using the mgcv R package." />
+<meta property="og:type" content="page" />
+<meta property="og:url" content="https://ecogambler.netlify.app/blog/interpreting-gams/" />
+<meta property="og:locale" content="en">
+
+
+
+
+    
+        <meta property="og:image" content="https://ecogambler.netlify.app/blog/interpreting-gams/featured.png" >
+        <meta property="twitter:card" content="summary_large_image">
+        <meta name="twitter:image" content="https://ecogambler.netlify.app/blog/interpreting-gams/featured.png" >
+    
+    
+  <meta itemprop="name" content="How to interpret and report nonlinear effects from Generalized Additive Models">
+<meta itemprop="description" content="What are Generalized Additive Models (GAMs)? Generalized Additive Models (GAMs) are flexible tools that replace one or more predictors in a Generalized Linear Model (GLM) with smooth functions of predictors. These are helpful for learning arbitrarily complex, nonlinear relationships between predictors and conditional responses without needing a priori expectations about the shapes of these relationships. Rather, they are learned using penalized smoothing splines.
+How do these work? The secret is a basis expansion, which in lay terms means that the covariate (time, in this example) is evaluated at a smaller set of basis functions designed to cover the range of the observed covariate values."><meta itemprop="datePublished" content="2024-05-02T00:00:00+00:00" />
+<meta itemprop="dateModified" content="2024-05-02T00:00:00+00:00" />
+<meta itemprop="wordCount" content="5216"><meta itemprop="image" content="https://ecogambler.netlify.app/blog/interpreting-gams/featured.png" />
+<meta itemprop="keywords" content="rstats,mgcv,tutorial,marginaleffects,simulation," />
+  
+  <!--[if IE]><script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script><![endif]-->
+  <link rel="shortcut icon" href="/img/header_logo.ico" type="image/x-icon">
+  <link rel="icon" href="/img/header_logo.ico" type="image/x-icon">
+  
+  
+  <link rel="stylesheet" href="/style.main.min.13ba2c07d7acc52c13dbb9003240e2adf360a5d73e1392ede873916180ee1701.css" integrity="sha256-E7osB9esxSwT27kAMkDirfNgpdc&#43;E5Lt6HORYYDuFwE=" media="screen">
+  
+  
+  <script src="/panelset.min.ed1ac24b6e16f4e2481e3d1d098ae66f5bc77438aef619e6e266d8ac5b00dc72.js" type="text/javascript"></script>
+  
+  
+  <script src="/main.min.7c7401b27b903bdc8736f72a2f739f7602bf606c451e8cb5e7fab2bf6b4af582.js" type="text/javascript"></script>
+</head>
+<body>
+      <div class="grid-container single-sidebar">
+<header class="site-header pt4 pb2 mb4 bb b--transparent ph5 headroom z-max" role="banner">
+  <nav class="site-nav db dt-l w-100" role="navigation">
+    <a class="site-brand db dtc-l v-mid link no-underline w-100 w-33-l tc tl-l" href="https://ecogambler.netlify.app/" title="Home">
+      <img src="/img/header_logo.png" class="dib db-l h2 w-auto" alt="GAMbler">
+    </a>
+    <div class="site-links db dtc-l v-mid w-100 w-47-l tc tr-l mt3 mt0-l ttu tracked">
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 active" href="/blog/" title="Blog">Blog</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/project/" title="Project Portfolio">Software</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/talk/" title="Talks">Talks &amp; Workshops</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/opportunities/" title="Opportunities">Opportunities</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/archives/" title="Archive">Archive</a>
+      
+        
+        
+        
+      <a class="link f6 f5-l dib pv1 ph2 " href="/blogroll/" title="Blogroll">Blogroll</a>
+      
+      
+    </div>
+  </nav>
+</header>
+
+<main class="page-main pa4" role="main">
+  <section class="page-content mw7 center">
+    <article class="post-content pa0 pr3-l">
+      <header class="post-header">
+        <h1 class="f1 lh-solid measure-narrow mb3 fw4">How to interpret and report nonlinear effects from Generalized Additive Models</h1>
+        
+        <p class="f6 measure lh-copy mv1">By Nicholas Clark in <a href="https://ecogambler.netlify.app/categories/rstats">rstats</a>  <a href="https://ecogambler.netlify.app/categories/mgcv">mgcv</a> </p>
+        <p class="f7 db mv0 ttu">May 2, 2024</p>
+      </header>
+      <section class="post-body pt5 pb4">
+        
+
+
+
+<h2 id="what-are-generalized-additive-models-gams">What are Generalized Additive Models (GAMs)?
+  <a href="#what-are-generalized-additive-models-gams"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>Generalized Additive Models (GAMs) are flexible tools that replace one or more predictors in a Generalized Linear Model (GLM) with <em>smooth functions</em> of predictors. These are helpful for learning arbitrarily complex, nonlinear relationships between predictors and conditional responses without needing <em>a priori</em> expectations about the shapes of these relationships. Rather, they are learned using 
+<a href="https://ecogambler.netlify.app/blog/autocorrelated-gams/" target="_blank" rel="noopener"><em>penalized smoothing splines</em></a>.</p>
+<p><img src="smooth_only.gif" alt="Generalized Additive Models learn nonlinear effects from data using smoothing splines"></p>
+<p>How do these work? The secret is a <em>basis expansion</em>, which in lay terms means that the covariate (time, in this example) is evaluated at a smaller set of <em>basis functions</em> designed to cover the range of the observed covariate values. Below is one particular type of basis, called a cubic regression basis.</p>
+<p><img src="basis-functions-1.svg" alt="How basis functions can be used to build a smoothing spline in a GAM"></p>
+<p>Each basis function acts on its own local neighbourhood of the covariate. Once we have constructed the basis, we can estimate weights for each function. The weights allow the basis functions to have different impacts on the shape of the spline. They also give us a target for learning splines from data, as the weights act as the regression coefficients.</p>
+<p><img src="basis_weights.gif" alt="How basis functions can be used to build a smoothing spline in a GAM"></p>
+<p>There are many more types of basis expansions that can be used to form penalized smooths, including multidimensional smooths, spatial smooths or even monotonic smooths.</p>
+
+
+
+
+<h3 id="when-should-you-use-a-generalized-additive-model">When should you use a Generalized Additive Model?
+  <a href="#when-should-you-use-a-generalized-additive-model"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h3>
+<p>GAMs are incredibly useful for several reasons. Some of these include:</p>
+<ul>
+<li>You suspect there are nonlinear relationships among your response(s) and your predictor(s)</li>
+<li>You have no prior knowledge about what kind of shapes these relationships might take</li>
+<li>You are aware that high-order polynomials can capture nonlinear effects, but 
+<a href="https://www.youtube.com/watch?v=F0N4b7K_iYQ" target="_blank" rel="noopener">you know that these are extremely unwieldy and dangerous</a></li>
+<li>You&rsquo;d like to learn these shapes from your data without severe risks of overfitting</li>
+</ul>
+<p>But unfortunately, GAMs are often considered difficult to interpret (at least compared to simpler linear models). For better or worse, 
+<a href="https://academic.oup.com/aje/article/177/4/292/147738" target="_blank" rel="noopener">we as scientists are often trained to look first at summary outputs from regression models and try to interpret the coefficients, their standard errors and their approximate <em>p</em>-values directly</a>. I don&rsquo;t agree with this practice, but it is so ingrained in tradition that it isn&rsquo;t going away anytime soon. But this type of direct (dare I say, <em>lazy</em>?) interpretation is even more challenging when it comes to GAMs. This is because we can get summary statistics for tens or even hundreds of basis coefficients, none of which can be interpreted individually.</p>
+<p><img src="featured.png" alt="How do we interpret nonlinear effects from Generalized Additive Models (GAMs)?"></p>
+
+
+
+
+<h3 id="how-do-we-interpret-nonlinear-effects-from-generalized-additive-models-gams">How do we interpret nonlinear effects from Generalized Additive Models (GAMs)?
+  <a href="#how-do-we-interpret-nonlinear-effects-from-generalized-additive-models-gams"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h3>
+<p>I&rsquo;ve taught several workshops on GAMs and given many more seminars, and consistently this is the most common question I receive. In this post, I illustrate the challenges of smoothing spline interpretation, and I provide 3 pointers that you can follow to start understanding, interpreting and reporting nonlinear effects from GAMs. I will make use of the widely popular 
+<a href="https://cran.r-project.org/web/packages/mgcv/index.html" target="_blank" rel="noopener">the {<code>mgcv</code>} R package</a> for fitting GAMs to data. And I will show how the powerful 
+<a href="https://marginaleffects.com/" target="_blank" rel="noopener">{<code>marginaleffects</code>} R package</a> can be used to easily generate plots, summaries and hypothesis tests to help us interpret these models.</p>
+<p>Note however that this post emphasizes how to <em>interpret</em> fitted nonlinear functions. I will not talk about how to address statistical significance or how to select and build models. There are many other useful resources to guide these steps, most notably the help documentation in the {<code>mgcv</code>} package (starting with <code>?mgcv::gam.models</code>).</p>
+
+
+
+
+<h2 id="environment-setup-and-the-initial-gam-model">Environment setup and the initial GAM model
+  <a href="#environment-setup-and-the-initial-gam-model"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>This tutorial relies on the following packages:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(mgcv)            <span style="color:#998;font-style:italic"># Fit and interrogate GAMs</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(tidyverse)       <span style="color:#998;font-style:italic"># Tidy and flexible data manipulation</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(marginaleffects) <span style="color:#998;font-style:italic"># Compute conditional and marginal effects</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(ggplot2)         <span style="color:#998;font-style:italic"># Flexible plotting</span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">library</span>(patchwork)       <span style="color:#998;font-style:italic"># Combining ggplot objects</span>
+</span></span></code></pre></div><p>I&rsquo;ll also define a custom <code>ggplot2</code> theme</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">theme_set</span>(<span style="color:#900;font-weight:bold">theme_classic</span>(base_size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">12</span>, base_family <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;serif&#39;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>            <span style="color:#900;font-weight:bold">theme</span>(axis.line.x.bottom <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">element_line</span>(colour <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;black&#34;</span>,
+</span></span><span style="display:flex;"><span>                                                    size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>),
+</span></span><span style="display:flex;"><span>                  axis.line.y.left <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">element_line</span>(colour <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;black&#34;</span>,
+</span></span><span style="display:flex;"><span>                                                  size <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>),
+</span></span><span style="display:flex;"><span>                  panel.spacing <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">unit</span>(<span style="color:#099">0</span>, <span style="color:#d14">&#39;lines&#39;</span>),
+</span></span><span style="display:flex;"><span>                  legend.margin <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">margin</span>(<span style="color:#099">0</span>, <span style="color:#099">0</span>, <span style="color:#099">0</span>, <span style="color:#099">-15</span>)))
+</span></span></code></pre></div><p>Now I load the <code>CO2</code> data from the built-in datasets that are installed with R. These data contain measurements from an experiment on the cold tolerance of the grass species <em>Echinochloa crus-galli</em>, which you can read more about using <code>?CO2</code></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">data</span>(CO2, package <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;datasets&#34;</span>)
+</span></span></code></pre></div><p>Inspect the data structure and dimensions</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">glimpse</span>(CO2)
+</span></span></code></pre></div><pre tabindex="0"><code>## Rows: 84
+## Columns: 5
+## $ Plant     &lt;ord&gt; Qn1, Qn1, Qn1, Qn1, Qn1, Qn1, Qn1, Qn2, Qn2, Qn2, Qn2, Qn2, …
+## $ Type      &lt;fct&gt; Quebec, Quebec, Quebec, Quebec, Quebec, Quebec, Quebec, Queb…
+## $ Treatment &lt;fct&gt; nonchilled, nonchilled, nonchilled, nonchilled, nonchilled, …
+## $ conc      &lt;dbl&gt; 95, 175, 250, 350, 500, 675, 1000, 95, 175, 250, 350, 500, 6…
+## $ uptake    &lt;dbl&gt; 16.0, 30.4, 34.8, 37.2, 35.3, 39.2, 39.7, 13.6, 27.3, 37.1, …
+</code></pre><p>Now some manipulations for modeling</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>plant <span style="color:#000;font-weight:bold">&lt;-</span> CO2 <span style="color:#000;font-weight:bold">|&gt;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">as_tibble</span>() <span style="color:#000;font-weight:bold">|&gt;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">rename</span>(plant <span style="color:#000;font-weight:bold">=</span> Plant, type <span style="color:#000;font-weight:bold">=</span> Type, treatment <span style="color:#000;font-weight:bold">=</span> Treatment) <span style="color:#000;font-weight:bold">|&gt;</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">mutate</span>(plant <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">factor</span>(plant, ordered <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">FALSE</span>))
+</span></span></code></pre></div><p>I fit a Generalized Additive Model to these data, specifying a parametric interaction between <code>treatment</code> and <code>type</code> as well as random (hierarchical) intercepts for each <code>plant</code> and using Carbon Dioxide uptake (<code>uptake</code>) as the non-negative, real-valued response. The nonlinear part comes from a 
+<a href="https://fromthebottomoftheheap.net/2017/10/10/difference-splines-i/" target="_blank" rel="noopener"><em>factor smooth interaction</em></a> that allows a nonlinear effect of Carbon Dioxide concentration (<code>conc</code>) to vary for different levels of the cold treatment variable (<code>treatment</code>). Given the nature of the response, a <code>Gamma()</code> distribution is an appropriate observation model</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>model_1 <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">gam</span>(uptake <span style="color:#000;font-weight:bold">~</span> treatment <span style="color:#000;font-weight:bold">*</span> type <span style="color:#000;font-weight:bold">+</span> 
+</span></span><span style="display:flex;"><span>                <span style="color:#900;font-weight:bold">s</span>(plant, bs <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;re&#34;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>                <span style="color:#900;font-weight:bold">s</span>(conc, by <span style="color:#000;font-weight:bold">=</span> treatment, k <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">7</span>),
+</span></span><span style="display:flex;"><span>               data <span style="color:#000;font-weight:bold">=</span> plant, 
+</span></span><span style="display:flex;"><span>               method <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;REML&#34;</span>, 
+</span></span><span style="display:flex;"><span>               family <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">Gamma</span>(link <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;log&#34;</span>))
+</span></span></code></pre></div><p>Look at the sumary of this model</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">summary</span>(model_1)
+</span></span></code></pre></div><pre tabindex="0"><code>## 
+## Family: Gamma 
+## Link function: log 
+## 
+## Formula:
+## uptake ~ treatment * type + s(plant, bs = &#34;re&#34;) + s(conc, by = treatment, 
+##     k = 7)
+## 
+## Parametric coefficients:
+##                                  Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)                       3.51609    0.06376  55.143  &lt; 2e-16 ***
+## treatmentchilled                 -0.11321    0.09018  -1.255 0.213987    
+## typeMississippi                  -0.31196    0.09018  -3.459 0.000978 ***
+## treatmentchilled:typeMississippi -0.36041    0.12753  -2.826 0.006311 ** 
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Approximate significance of smooth terms:
+##                               edf Ref.df      F p-value    
+## s(plant)                    7.032   8.00  8.022  &lt;2e-16 ***
+## s(conc):treatmentnonchilled 5.193   5.68 83.888  &lt;2e-16 ***
+## s(conc):treatmentchilled    5.013   5.55 58.970  &lt;2e-16 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## R-sq.(adj) =  0.957   Deviance explained = 95.5%
+## -REML = 239.08  Scale est. = 0.010327  n = 84
+</code></pre><p>There seem to be lots of &ldquo;<em>significant</em>&rdquo; effects here, but how on Earth do we interpret these smooth terms? The summary gives no indication of the magnitude, direction or overall shape of these smooth effects. Nor do the coefficients, for that matter:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">coef</span>(model_1)
+</span></span></code></pre></div><pre tabindex="0"><code>##                      (Intercept)                 treatmentchilled 
+##                      3.516091294                     -0.113205794 
+##                  typeMississippi treatmentchilled:typeMississippi 
+##                     -0.311956077                     -0.360409395 
+##                       s(plant).1                       s(plant).2 
+##                     -0.041226486                     -0.015294663 
+##                       s(plant).3                       s(plant).4 
+##                      0.056521148                     -0.040103411 
+##                       s(plant).5                       s(plant).6 
+##                      0.026931174                      0.013172237 
+##                       s(plant).7                       s(plant).8 
+##                     -0.055925539                      0.049887951 
+##                       s(plant).9                      s(plant).10 
+##                      0.006037588                     -0.215582180 
+##                      s(plant).11                      s(plant).12 
+##                      0.097118479                      0.118463702 
+##    s(conc):treatmentnonchilled.1    s(conc):treatmentnonchilled.2 
+##                      5.232322869                      1.133239546 
+##    s(conc):treatmentnonchilled.3    s(conc):treatmentnonchilled.4 
+##                     -1.904830565                      0.129187847 
+##    s(conc):treatmentnonchilled.5    s(conc):treatmentnonchilled.6 
+##                      0.236060128                      1.202602610 
+##       s(conc):treatmentchilled.1       s(conc):treatmentchilled.2 
+##                      3.690591324                      2.117499952 
+##       s(conc):treatmentchilled.3       s(conc):treatmentchilled.4 
+##                     -2.367697749                      0.063467378 
+##       s(conc):treatmentchilled.5       s(conc):treatmentchilled.6 
+##                      0.236541597                      0.967747793
+</code></pre><p>The coefficients labelled <code>s(conc):treatmentnonchilled</code> and <code>s(conc):treatmentchilled</code> are the basis function weights that control the shape of these splines. But without having a full understanding of what these basis functions look like and how they act collectively to form the spline, we are fairly lost for interpretation.</p>
+<p>Now I will walk through 3 steps that you can use to help with interpreting and reporting nonlinear effects from GAMs. These steps are by no means exhaustive, but given the</p>
+
+
+
+
+<h2 id="step-1-vizualising-gam-outputs">Step 1: Vizualising GAM outputs
+  <a href="#step-1-vizualising-gam-outputs"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>Visuals are by-far our best go-to tool for understanding GAMs. This is why the {<code>mgcv</code>} package has some simple but powerful plotting routines that we can apply directly to fitted <code>gam</code> objects. See <code>?mgcv::plot.gam</code> for more details about default plotting.</p>
+
+
+
+
+<h3 id="plotting-gam-effects-on-the-link-scale">Plotting GAM effects on the link scale
+  <a href="#plotting-gam-effects-on-the-link-scale"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h3>
+<p>The most common visualisattion that users make when working with GAMs are 
+<a href="https://noamross.github.io/gams-in-r-course/chapter2" target="_blank" rel="noopener"><em>partial effects</em> plots on the link scale</a>. Basically, these plots show the individual component effect of a smooth function on the link scale, conditional on all other terms in the model being set to zero. Because most smooth terms in {<code>mgcv</code>} are zero-centred to maintain identifiability, they are convenient to look at because we can immediately make some interpretations. For example, we can see the partial effect of the <code>conc</code> smooth for the <code>nonchilled treatment</code> by selecting the second smooth term in the model:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot</span>(model_1, select <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span>, shade <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(h <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0</span>, lty <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;dashed&#39;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/interpreting-gams/index_files/figure-html/unnamed-chunk-10-1.png" alt="How to interpret GAM partial effect plots in mgcv" width="60%" style="display: block; margin: auto;" />
+<p>This plot shows that, for the <code>nonchilled treatment</code>, the effect of <code>conc</code> on the linear predictor is mostly negative (below zero) for small values of <code>conc</code>, but it quickly becomes positive (above zero) for intermediate values of <code>conc</code>. It then begins to plateau at larger values of <code>conc</code>. We can also look at the effect for the other level of <code>treatment</code></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot</span>(model_1, select <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">3</span>, shade <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">abline</span>(h <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0</span>, lty <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;dashed&#39;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/interpreting-gams/index_files/figure-html/unnamed-chunk-11-1.png" alt="How to interpret GAM partial effect plots in mgcv" width="60%" style="display: block; margin: auto;" />
+<p>This plot looks broadly similar, but it is not identical to the <code>nonchilled treatment</code> effect.</p>
+<p>These plots are a good first step to interrogate GAMs, but they have several limitations:</p>
+<ol>
+<li>They only show what the model expects to see if <em>all other terms are dropped</em>. These are not helpful if we want to aggregate over multiple smooths (i.e. <em>What is the average smooth effect of <code>conc</code>?</em>) or in situations where covariates occur in multiple terms. For example, a formula such as: <code>y ~ s(rain) + s(temp) + s(year) + ti(rain, temp) + ti(rain, year) + ti(temp, year)</code> is perfectly allowed in <code>gam()</code> (and very useful in many contexts). But the effects of our predictors of interest are spread across multiple smooth functions and we cannot interpret these individually</li>
+<li>These plots are shown on the link scale, which can often translate nonlinearly into effects on the scale of interest (the response scale. For example we have a log link function in this <code>Gamma()</code> observation model, so the partial effects are not the same as what we&rsquo;d expect on the actual scale of <code>uptake</code></li>
+<li>We cannot ask more targeted questions using these plots, such as <em>How does the effect of <code>conc</code> differ among treatment groups?</em> or <em>How much more uptake would we expect if <code>conc</code> increased from 150 to 300 mL/L?</em></li>
+</ol>
+<p>For the remainder of this post, I&rsquo;ll switch over to making plots and summaries using the elegant {<code>marginaleffects</code>} package. It turns out that the functions available in this package make answering <em>all</em> of the above questions easy and seamless. Moreover, we could easily fit different kinds of models (i.e. GLMs, location-scale models, survival models etc&hellip;) to these same data and use <em>the exact same functions</em> for making model comparisons. To begin illustrating, I&rsquo;ll tackle the first point above by computing and plotting the average smooth effect of <code>conc</code> across all <code>treatment</code> levels. Again this plot is made on the link scale, but it is no longer zero-centred because the intercepts are taken into account</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot_predictions</span>(model_1, condition <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;conc&#39;</span>,
+</span></span><span style="display:flex;"><span>                 type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;link&#39;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">labs</span>(y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Linear predictor (link scale)&#34;</span>,
+</span></span><span style="display:flex;"><span>       title <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Average smooth effect of concentration&#34;</span>,
+</span></span><span style="display:flex;"><span>       subtitle <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Aggregated across treatments and types&#34;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/interpreting-gams/index_files/figure-html/unnamed-chunk-12-1.png" alt="How to interpret GAM partial effect plots using marginaleffects" width="60%" style="display: block; margin: auto;" />
+<p>Of course we can very readily split these plots by <code>treatment</code> and <code>type</code>:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot_predictions</span>(model_1, condition <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#39;conc&#39;</span>, <span style="color:#d14">&#39;treatment&#39;</span>, <span style="color:#d14">&#39;type&#39;</span>),
+</span></span><span style="display:flex;"><span>                 type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;link&#39;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#900;font-weight:bold">labs</span>(y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Linear predictor (link scale)&#34;</span>,
+</span></span><span style="display:flex;"><span>           title <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Average smooth effect of concentration&#34;</span>,
+</span></span><span style="display:flex;"><span>           subtitle <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Per treatment, per type&#34;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/interpreting-gams/index_files/figure-html/unnamed-chunk-13-1.png" alt="How to interpret GAM partial effect plots using marginaleffects" width="60%" style="display: block; margin: auto;" />
+<p>There are many more possibilities for making simple, one-line-of-code targeted plots using <code>plot_predictions()</code>. See <code>?marginaleffects::plot_predictions</code> for guidance. But we can do much more than plot conditional predictions using this framework. For example, 
+<a href="https://fromthebottomoftheheap.net/2014/05/15/identifying-periods-of-change-with-gams/" target="_blank" rel="noopener">we often want to understand how the <em>slope</em> of a fitted function changes across the range of a covariate</a>. We can calculate the slopes (i.e. the first derivatives) of our smooth functions using the <code>plot_slopes()</code> function, which conveniently has very similar arguments and structure to <code>plot_predictions()</code>:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot_slopes</span>(model_1, variables <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;conc&#39;</span>,
+</span></span><span style="display:flex;"><span>            condition <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#39;conc&#39;</span>, <span style="color:#d14">&#39;treatment&#39;</span>),
+</span></span><span style="display:flex;"><span>            type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;link&#39;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_hline</span>(yintercept <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0</span>, linetype <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;dashed&#39;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">labs</span>(y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;1st derivative of the linear predictor&#34;</span>,
+</span></span><span style="display:flex;"><span>       title <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Conditional slopes of the concentration effect&#34;</span>,
+</span></span><span style="display:flex;"><span>       subtitle <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Per treatment, per type&#34;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/interpreting-gams/index_files/figure-html/unnamed-chunk-14-1.png" alt="How to interpret GAM partial derivatives using marginaleffects" width="60%" style="display: block; margin: auto;" />
+<p>This plot makes it more clear that the slope is positive up until we hit <code>conc</code> values near 260, beyond which the function plateaus. Now we will tackle the second point above, which relates to probably the second-most common question users ask when working with GAMs in {<code>mgcv</code>}:</p>
+<p><strong>How do I plot smooth effects on the outcome scale?</strong></p>
+
+
+
+
+<h3 id="plotting-gam-effects-on-the-response-scale">Plotting GAM effects on the response scale
+  <a href="#plotting-gam-effects-on-the-response-scale"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h3>
+<p>In fact this is dead-simple with {<code>marginaleffects</code>}. We just change <code>type = 'response'</code> and away we go! Of course we now have options to show the observed values on these plots, which is something we might often want to do</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot_predictions</span>(model_1, condition <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;conc&#39;</span>, 
+</span></span><span style="display:flex;"><span>                 type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;response&#39;</span>, points <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.5</span>,
+</span></span><span style="display:flex;"><span>                 rug <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">labs</span>(y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Expected response&#34;</span>,
+</span></span><span style="display:flex;"><span>       title <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Average smooth effect of concentration&#34;</span>,
+</span></span><span style="display:flex;"><span>       subtitle <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Aggregated across treatments and types&#34;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/interpreting-gams/index_files/figure-html/unnamed-chunk-15-1.png" alt="How to interpret GAM partial effect plots on the response scale using marginaleffects" width="60%" style="display: block; margin: auto;" />
+<p>Here is the average smooth of <code>conc</code> once again, but this time on the scale of the response variable. The points and rugs show observed values, which makes it clear that a single effect of <code>conc</code> would not be enough to capture the heterogeneity in the data. Splitting by <code>treatment</code> and <code>type</code> again makes things more clear</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot_predictions</span>(model_1, condition <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#39;conc&#39;</span>, <span style="color:#d14">&#39;treatment&#39;</span>, <span style="color:#d14">&#39;type&#39;</span>),
+</span></span><span style="display:flex;"><span>                 type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;response&#39;</span>, points <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.5</span>,
+</span></span><span style="display:flex;"><span>                 rug <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>      <span style="color:#900;font-weight:bold">labs</span>(y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Expected response&#34;</span>,
+</span></span><span style="display:flex;"><span>           title <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Average smooth effect of concentration&#34;</span>,
+</span></span><span style="display:flex;"><span>           subtitle <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Per treatment, per type&#34;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/interpreting-gams/index_files/figure-html/unnamed-chunk-16-1.png" alt="How to interpret GAM partial effect plots on the response scale using marginaleffects" width="60%" style="display: block; margin: auto;" />
+<p>These types of plots give us more ability to interrogate and criticize our fitted models. Some questions you can start to ask when trying to interpret or report functions from GAMs include:</p>
+<ol>
+<li>Does the function reach an aysmptote anywhere over its range?</li>
+<li>Is the function highly wiggly, or does it appear smooth?</li>
+<li>Does the function appear to have multiple modes, and does this make sense?</li>
+<li>Are there large regions over which you have few data points, and does the function&rsquo;s uncertainty grow appropriately?</li>
+<li>Are there any points that look like outliers, which the function may be responding strongly to?</li>
+</ol>
+<p>And in case you were wondering, yes you can also plot slopes on the scale of the response:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot_slopes</span>(model_1, variables <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;conc&#39;</span>,
+</span></span><span style="display:flex;"><span>            condition <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#39;conc&#39;</span>, <span style="color:#d14">&#39;treatment&#39;</span>, <span style="color:#d14">&#39;type&#39;</span>),
+</span></span><span style="display:flex;"><span>            type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;response&#39;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_hline</span>(yintercept <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0</span>, linetype <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;dashed&#39;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">labs</span>(y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;1st derivative of the expected response&#34;</span>,
+</span></span><span style="display:flex;"><span>       title <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Conditional slopes of the concentration effect&#34;</span>,
+</span></span><span style="display:flex;"><span>       subtitle <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Per treatment, per type&#34;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/interpreting-gams/index_files/figure-html/unnamed-chunk-17-1.png" alt="How to interpret GAM partial derivatives on the response scale using marginaleffects" width="60%" style="display: block; margin: auto;" />
+<p>By now you may be wondering <em>where</em> these predictions are coming from. This brings me to the next tool in your arsenal for interpreting GAMs, simulation</p>
+
+
+
+
+<h2 id="step-2-simulating-from-fitted-gam-models">Step 2: Simulating from fitted GAM models
+  <a href="#step-2-simulating-from-fitted-gam-models"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>In a related blog post, 
+<a href="https://ecogambler.netlify.app/blog/simulating-data-r/" target="_blank" rel="noopener">I show how simulating data in R can be essential to understand models and their limitations</a>. This is especially applicable to GAMs because this simulation involves producing the 
+<a href="https://stat.ethz.ch/R-manual/R-devel/library/mgcv/html/predict.gam.html" target="_blank" rel="noopener"><em>linear predictor (i.e. design) matrix</em></a>. This matrix is what we get when our covariates are evaluated at their respective basis functions.</p>
+
+
+
+
+<h3 id="using-type--lpmatrix-to-understand-what-coefficients-mean-in-a-gam-model">Using <code>type = 'lpmatrix'</code> to understand what coefficients mean in a GAM model
+  <a href="#using-type--lpmatrix-to-understand-what-coefficients-mean-in-a-gam-model"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h3>
+<p>Generating the linear predictor matrix, which I&rsquo;ll refer to as <code>\(X_{lp}\)</code>, is simple in {<code>mgcv</code>}. We just use <code>predict.gam()</code> and set <code>type = 'lpmatrix'</code>. This can be done for <em>new</em> data or for the original data that were used to fit the model. Here is the latter:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>Xp <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">predict</span>(model_1, type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;lpmatrix&#39;</span>)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">dim</span>(Xp)
+</span></span></code></pre></div><pre tabindex="0"><code>## [1] 84 28
+</code></pre><p>You can see there are 84 rows in the matrix, corresponding to the 84 observations in our data. But we have 28 columns, many of which represent the basis functions for the two smooth terms in the model</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">colnames</span>(Xp)
+</span></span></code></pre></div><pre tabindex="0"><code>##  [1] &#34;(Intercept)&#34;                      &#34;treatmentchilled&#34;                
+##  [3] &#34;typeMississippi&#34;                  &#34;treatmentchilled:typeMississippi&#34;
+##  [5] &#34;s(plant).1&#34;                       &#34;s(plant).2&#34;                      
+##  [7] &#34;s(plant).3&#34;                       &#34;s(plant).4&#34;                      
+##  [9] &#34;s(plant).5&#34;                       &#34;s(plant).6&#34;                      
+## [11] &#34;s(plant).7&#34;                       &#34;s(plant).8&#34;                      
+## [13] &#34;s(plant).9&#34;                       &#34;s(plant).10&#34;                     
+## [15] &#34;s(plant).11&#34;                      &#34;s(plant).12&#34;                     
+## [17] &#34;s(conc):treatmentnonchilled.1&#34;    &#34;s(conc):treatmentnonchilled.2&#34;   
+## [19] &#34;s(conc):treatmentnonchilled.3&#34;    &#34;s(conc):treatmentnonchilled.4&#34;   
+## [21] &#34;s(conc):treatmentnonchilled.5&#34;    &#34;s(conc):treatmentnonchilled.6&#34;   
+## [23] &#34;s(conc):treatmentchilled.1&#34;       &#34;s(conc):treatmentchilled.2&#34;      
+## [25] &#34;s(conc):treatmentchilled.3&#34;       &#34;s(conc):treatmentchilled.4&#34;      
+## [27] &#34;s(conc):treatmentchilled.5&#34;       &#34;s(conc):treatmentchilled.6&#34;
+</code></pre><p>These correspond to the coefficients, <code>\(\beta\)</code>, that we extracted earlier from the fitted model</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>beta <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">coef</span>(model_1)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">all.equal</span>(<span style="color:#900;font-weight:bold">names</span>(beta), <span style="color:#900;font-weight:bold">colnames</span>(Xp))
+</span></span></code></pre></div><pre tabindex="0"><code>## [1] TRUE
+</code></pre><p>If we use linear algebra to cross-multiply these coefficients with the design matrix <code>\((X_{lp}\beta)\)</code> we get the predicted values on the link scale:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>preds <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">as.vector</span>(Xp <span style="color:#000;font-weight:bold">%*%</span> beta)
+</span></span></code></pre></div><p>Running these through the inverse link function (which is <code>exp()</code> in the case of our log link) gives us the fitted values from the model</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">all.equal</span>(<span style="color:#900;font-weight:bold">fitted</span>(model_1), <span style="color:#900;font-weight:bold">exp</span>(preds))
+</span></span></code></pre></div><pre tabindex="0"><code>## [1] TRUE
+</code></pre><p>As with the examples 
+<a href="https://ecogambler.netlify.app/blog/simulating-data-r/" target="_blank" rel="noopener">in my other blog post about simulation in R</a>, you can investigate uncertainties in these predictions by drawing <code>\(\beta\)</code> coefficients from the model&rsquo;s implied multivariate normal posterior distribution. But I won&rsquo;t cover that again here.</p>
+<p>This is all well and good, but it becomes much more useful when we supply <em>new</em> data to the <code>predict.gam()</code> function. For example, what might we predict if we had a new measurement for plant <code>Qn1</code> measured on <code>treatment = nonchilled</code> in <code>type = Mississippi</code> and with CO2 concentration <code>conc = 278</code>? This could be a targeted scenario that we are interested in:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>newXp <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">predict</span>(model_1, type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;lpmatrix&#39;</span>, 
+</span></span><span style="display:flex;"><span>                 newdata <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">data.frame</span>(plant <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Qn1&#39;</span>,
+</span></span><span style="display:flex;"><span>                                      treatment <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;nonchilled&#39;</span>,
+</span></span><span style="display:flex;"><span>                                      type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Mississippi&#39;</span>,
+</span></span><span style="display:flex;"><span>                                      conc <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">278</span>))
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">dim</span>(newXp)
+</span></span></code></pre></div><pre tabindex="0"><code>## [1]  1 28
+</code></pre><p>Here we have taken our relatively simple scenario and run it through all necessary basis evaluations to produce the design matrix. Generating expected <code>uptake</code> from this scenario is then as simple as:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">exp</span>(newXp <span style="color:#000;font-weight:bold">%*%</span> beta)
+</span></span></code></pre></div><pre tabindex="0"><code>##       [,1]
+## 1 27.56059
+</code></pre><p>It might be difficult to appreciate the power of this approach, but the possibilities to explore targeted scenarios are endless once you master these steps. For example, we can use these steps to see what the underlying basis functions for the effect of <code>conc</code> look like. Simply simulate a sequence of fake <code>conc</code> values to cover the range of the covariate and run those through the <code>predict.gam()</code> function (keeping the other covariates fixed to particular values):</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>conc_seq <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">seq</span>(from <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">min</span>(plant<span style="color:#000;font-weight:bold">$</span>conc), <span style="color:#900;font-weight:bold">max</span>(plant<span style="color:#000;font-weight:bold">$</span>conc), length.out <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">500</span>)
+</span></span><span style="display:flex;"><span>newdat <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">data.frame</span>(conc <span style="color:#000;font-weight:bold">=</span> conc_seq,
+</span></span><span style="display:flex;"><span>                     plant <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Qn1&#39;</span>,
+</span></span><span style="display:flex;"><span>                     treatment <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;nonchilled&#39;</span>,
+</span></span><span style="display:flex;"><span>                     type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Mississippi&#39;</span>)
+</span></span><span style="display:flex;"><span>newXp <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">predict</span>(model_1, type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;lpmatrix&#39;</span>, newdata <span style="color:#000;font-weight:bold">=</span> newdat)
+</span></span></code></pre></div><p>Find which coefficients belong to the first smooth of <code>conc</code></p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>conc_coefs <span style="color:#000;font-weight:bold">&lt;-</span> model_1<span style="color:#000;font-weight:bold">$</span>smooth[[2]]<span style="color:#000;font-weight:bold">$</span>first.para<span style="color:#000;font-weight:bold">:</span>model_1<span style="color:#000;font-weight:bold">$</span>smooth[[2]]<span style="color:#000;font-weight:bold">$</span>last.para
+</span></span><span style="display:flex;"><span>conc_coefs
+</span></span></code></pre></div><pre tabindex="0"><code>## [1] 17 18 19 20 21 22
+</code></pre><p>And now set all cells in the <code>\(X_{lp}\)</code> matrix that don&rsquo;t correspond to these coefficients to zero</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>newXp_adj <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">matrix</span>(<span style="color:#099">0</span>, ncol <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">NCOL</span>(newXp), nrow <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">NROW</span>(newXp))
+</span></span><span style="display:flex;"><span>newXp_adj[,conc_coefs] <span style="color:#000;font-weight:bold">&lt;-</span> newXp[, conc_coefs]
+</span></span></code></pre></div><p>Generate the predictions on the link scale and plot the functions</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>plot_dat <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">do.call</span>(rbind, <span style="color:#900;font-weight:bold">lapply</span>(<span style="color:#900;font-weight:bold">seq_along</span>(conc_coefs), <span style="color:#000;font-weight:bold">function</span>(basis){
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">data.frame</span>(basis_func <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">paste0</span>(<span style="color:#d14">&#39;bs&#39;</span>, basis),
+</span></span><span style="display:flex;"><span>             conc <span style="color:#000;font-weight:bold">=</span> conc_seq,
+</span></span><span style="display:flex;"><span>             value <span style="color:#000;font-weight:bold">=</span> newXp_adj[, conc_coefs[basis]] <span style="color:#000;font-weight:bold">*</span> beta[conc_coefs[basis]])
+</span></span><span style="display:flex;"><span>}))
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">ggplot</span>(plot_dat, <span style="color:#900;font-weight:bold">aes</span>(x <span style="color:#000;font-weight:bold">=</span> conc, y <span style="color:#000;font-weight:bold">=</span> value, col <span style="color:#000;font-weight:bold">=</span> basis_func)) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_line</span>(linewidth <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.75</span>) <span style="color:#000;font-weight:bold">+</span> <span style="color:#900;font-weight:bold">theme</span>(legend.position <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;none&#39;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">labs</span>(y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;Basis function value&#39;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/interpreting-gams/index_files/figure-html/unnamed-chunk-28-1.png" alt="Using simulations to understand basis functions in GAMs in mgcv" width="60%" style="display: block; margin: auto;" />
+<p>Essentially these steps are what we need to interrogate GAMs. But as you can see, it can be tedious to create the <code>newdata</code> object because we need to specify values for all of the covariates. Even the ones we aren&rsquo;t interested in (such as <code>plant</code> or <code>type</code> in the above example). This is where the automation from {<code>marginaleffects</code>} becomes so extraordinarily valuable. By using sophisticated rules to automatically set values for missing predictors, creating these <code>newdata</code> scenarios is effortless. The magic happens using the <code>datagrid()</code> function:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>newdat <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">datagrid</span>(conc <span style="color:#000;font-weight:bold">=</span> conc_seq, model <span style="color:#000;font-weight:bold">=</span> model_1)
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">head</span>(newdat)
+</span></span></code></pre></div><pre tabindex="0"><code>##    uptake  treatment   type plant      conc
+## 1 27.2131 nonchilled Quebec   Qn1  95.00000
+## 2 27.2131 nonchilled Quebec   Qn1  96.81363
+## 3 27.2131 nonchilled Quebec   Qn1  98.62725
+## 4 27.2131 nonchilled Quebec   Qn1 100.44088
+## 5 27.2131 nonchilled Quebec   Qn1 102.25451
+## 6 27.2131 nonchilled Quebec   Qn1 104.06814
+</code></pre><p>Here you can see that only the <code>conc</code> variable changes across rows, while all other variables are fixed. You can use <code>?marginaleffects::datagrid</code> to see what the default rules are for fixing these (and how you can change them if you wish). Combining {<code>mgcv</code>}&rsquo;s <code>predict.gam(..., type = 'lpmatrix')</code> and {<code>marginaleffects</code>}&rsquo;s <code>datagrid(...)</code> function gives you all the flexibility you need to ask targeted questions using fake data simulation. In fact, when you call <code>plot_predictions()</code> or <code>plot_slopes()</code>, behind the scenes is a clever run of calls to <code>datagrid()</code> to set up the design matrices.</p>
+
+
+
+
+<h3 id="sidenote-marginaleffects-works-for-many-model-classes">Sidenote: <code>marginaleffects</code> works for <em>many</em> model classes
+  <a href="#sidenote-marginaleffects-works-for-many-model-classes"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h3>
+<p>Obviously {<code>marginaleffects</code>} is incredibly useful for interrogating GAMs as it provides a clean, simple interface for understanding nonlinear effects. But in fact the power of this framework is much broader, as it can support a <em>huge</em> number of model classes in R (over 100 at the time of writing). This makes model comparison an absolute breeze. For example, let&rsquo;s fit a GLM with some wacky polynomial interaction effects to the same data (Please note I&rsquo;m not advocating for this model. No. It is a <em>bad</em> model)</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>model_2 <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">glm</span>(uptake <span style="color:#000;font-weight:bold">~</span> treatment <span style="color:#000;font-weight:bold">*</span> type <span style="color:#000;font-weight:bold">+</span> 
+</span></span><span style="display:flex;"><span>                 <span style="color:#900;font-weight:bold">poly</span>(conc, <span style="color:#099">4</span>) <span style="color:#000;font-weight:bold">*</span> treatment <span style="color:#000;font-weight:bold">+</span> plant,
+</span></span><span style="display:flex;"><span>               data <span style="color:#000;font-weight:bold">=</span> plant, 
+</span></span><span style="display:flex;"><span>               family <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">Gamma</span>(link <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;log&#34;</span>))
+</span></span></code></pre></div><p>And we can remake one of the plots of the concentration effect from the GAM that we made earlier</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot_predictions</span>(model_1, condition <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#39;conc&#39;</span>, <span style="color:#d14">&#39;treatment&#39;</span>, <span style="color:#d14">&#39;type&#39;</span>),
+</span></span><span style="display:flex;"><span>                 type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;response&#39;</span>, points <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.5</span>,
+</span></span><span style="display:flex;"><span>                 rug <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">labs</span>(y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Expected response&#34;</span>,
+</span></span><span style="display:flex;"><span>       title <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Average smooth effect of concentration&#34;</span>,
+</span></span><span style="display:flex;"><span>       subtitle <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Per treatment, per type&#34;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/interpreting-gams/index_files/figure-html/unnamed-chunk-31-1.png" alt="Visualising complex nonlinear interactions using marginaleffects and mgcv" width="60%" style="display: block; margin: auto;" />
+<p>We can produce the exact same plot, but now with the GLM. Notice how not a single character in the call to <code>plot_predictions()</code> has to change apart from the model argument</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot_predictions</span>(model_2, condition <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#39;conc&#39;</span>, <span style="color:#d14">&#39;treatment&#39;</span>, <span style="color:#d14">&#39;type&#39;</span>),
+</span></span><span style="display:flex;"><span>                 type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;response&#39;</span>, points <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0.5</span>,
+</span></span><span style="display:flex;"><span>                 rug <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">TRUE</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">labs</span>(y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Expected response&#34;</span>,
+</span></span><span style="display:flex;"><span>       title <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Average smooth effect of concentration&#34;</span>,
+</span></span><span style="display:flex;"><span>       subtitle <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Per treatment, per type&#34;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/interpreting-gams/index_files/figure-html/unnamed-chunk-32-1.png" alt="Visualising complex nonlinear interactions using marginaleffects and mgcv" width="60%" style="display: block; margin: auto;" />
+<p>Ok but how do we go beyond these relatively &ldquo;simple&rdquo; plots to ask more direct questions from our models?</p>
+
+
+
+
+<h2 id="step-3-making-useful-comparisons-with-gams">Step 3: Making useful comparisons with GAMs
+  <a href="#step-3-making-useful-comparisons-with-gams"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>In their recent book 
+<a href="https://avehtari.github.io/ROS-Examples/" target="_blank" rel="noopener">Regression and Other Stories</a>, authors Gelman, Hill and Vehtari advocate that regression outputs should be interpreted as <em>comparisons</em>. This is helpful because most of our models are descriptive rather than emulations of some causal assumptions we might have about the data-generating process. But it also helps to give us ideas about how we can use regression models to compare different scenarios and ask the model what it thinks might be plausible.</p>
+
+
+
+
+<h3 id="difference-smooths-how-does-a-smooth-effect-vary-among-groups">Difference smooths: how does a smooth effect vary among groups?
+  <a href="#difference-smooths-how-does-a-smooth-effect-vary-among-groups"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h3>
+<p>
+<a href="https://stats.stackexchange.com/questions/642947/interpretation-of-effect-of-factor-by-smooths-in-gam" target="_blank" rel="noopener">A recent post on Cross Validated on computing differences among smooths in factor-smooth interactions</a> (which partly motivated this post) provides useful context to help showcase the power of {<code>marginaleffects</code>} for making comparisons in GAMs. The user was interested in fitting the same type of GAM that I fit above (including a factor-smooth interaction) to understand how nonlinear effects vary among factor levels. The question is straightforward enough, but it turns out this can be challenging to calculate by hand. But fortunately we have the family of <code>comparisons()</code> functions from {<code>marginaleffects</code>} to help. These are designed to <em>compare</em> predictions among different scenarios to compute differences, calculate ratios or run any user-specified function (i.e. changes in log odds or elasticities, if we so wish). See <code>?marginaleffects::comparisons</code> for more guidance.</p>
+<p>As an example, we can calculate the average expected difference in <code>uptake</code> values between treatments by aggregating over <code>type</code> and <code>conc</code>. This gives us the &ldquo;global&rdquo; effect of <code>treatment</code>, irrespective of <code>type</code> or <code>conc</code> values and can be a useful summary measure</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">avg_comparisons</span>(model_1, newdata <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">datagrid</span>(conc <span style="color:#000;font-weight:bold">=</span> conc_seq,
+</span></span><span style="display:flex;"><span>                                            treatment <span style="color:#000;font-weight:bold">=</span> unique,
+</span></span><span style="display:flex;"><span>                                            type <span style="color:#000;font-weight:bold">=</span> unique),
+</span></span><span style="display:flex;"><span>                variables <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;treatment&#34;</span>,
+</span></span><span style="display:flex;"><span>                by <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;type&#34;</span>)
+</span></span></code></pre></div><pre tabindex="0"><code>## 
+##       Term                         Contrast        type Estimate Std. Error
+##  treatment mean(chilled) - mean(nonchilled) Quebec         -4.76       3.04
+##  treatment mean(chilled) - mean(nonchilled) Mississippi   -10.71       2.20
+##      z Pr(&gt;|z|)    S 2.5 % 97.5 %
+##  -1.57    0.117  3.1 -10.7   1.19
+##  -4.87   &lt;0.001 19.8 -15.0  -6.40
+## 
+## Columns: term, contrast, type, estimate, std.error, statistic, p.value, s.value, conf.low, conf.high, predicted_lo, predicted_hi, predicted 
+## Type:  response
+</code></pre><p>Here we can see that, on the scale of the response, the average difference among treatments is stronger for <code>type = Mississippi</code> than for <code>type = Quebec</code>. This contrast comes with an estimated effect size and <em>p</em>-value, which you can read more about in <code>?marginaleffects::comparisons</code></p>
+<p>Alternatively, we can target the original poster&rsquo;s estimand of interest: what is the average difference between treatments across a sequence of <code>conc</code> values (i.e. what is the difference among the smooths?)</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">avg_comparisons</span>(model_1, newdata <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">datagrid</span>(conc <span style="color:#000;font-weight:bold">=</span> conc_seq,
+</span></span><span style="display:flex;"><span>                                            treatment <span style="color:#000;font-weight:bold">=</span> unique,
+</span></span><span style="display:flex;"><span>                                            type <span style="color:#000;font-weight:bold">=</span> unique),
+</span></span><span style="display:flex;"><span>                variables <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;treatment&#34;</span>,
+</span></span><span style="display:flex;"><span>                by <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;conc&#34;</span>, <span style="color:#d14">&#34;type&#34;</span>))
+</span></span></code></pre></div><pre tabindex="0"><code>## 
+##       Term                         Contrast   conc        type Estimate
+##  treatment mean(chilled) - mean(nonchilled)   95.0 Quebec         0.413
+##  treatment mean(chilled) - mean(nonchilled)   95.0 Mississippi   -3.114
+##  treatment mean(chilled) - mean(nonchilled)   96.8 Quebec         0.373
+##  treatment mean(chilled) - mean(nonchilled)   96.8 Mississippi   -3.183
+##  treatment mean(chilled) - mean(nonchilled)   98.6 Quebec         0.332
+##  Std. Error      z Pr(&gt;|z|)   S  2.5 % 97.5 %
+##        1.60  0.258  0.79644 0.3  -2.73   3.55
+##        1.02 -3.057  0.00224 8.8  -5.11  -1.12
+##        1.61  0.232  0.81662 0.3  -2.78   3.53
+##        1.03 -3.102  0.00192 9.0  -5.19  -1.17
+##        1.62  0.205  0.83731 0.3  -2.84   3.51
+## --- 990 rows omitted. See ?print.marginaleffects --- 
+##  treatment mean(chilled) - mean(nonchilled)  996.4 Mississippi  -11.426
+##  treatment mean(chilled) - mean(nonchilled)  998.2 Quebec        -4.436
+##  treatment mean(chilled) - mean(nonchilled)  998.2 Mississippi  -11.427
+##  treatment mean(chilled) - mean(nonchilled) 1000.0 Quebec        -4.435
+##  treatment mean(chilled) - mean(nonchilled) 1000.0 Mississippi  -11.428
+##  Std. Error      z Pr(&gt;|z|)    S  2.5 % 97.5 %
+##        2.75 -4.156  &lt; 0.001 14.9 -16.81  -6.04
+##        3.97 -1.119  0.26334  1.9 -12.21   3.34
+##        2.76 -4.147  &lt; 0.001 14.9 -16.83  -6.03
+##        3.98 -1.115  0.26467  1.9 -12.23   3.36
+##        2.76 -4.138  &lt; 0.001 14.8 -16.84  -6.02
+## Columns: term, contrast, conc, type, estimate, std.error, statistic, p.value, s.value, conf.low, conf.high, predicted_lo, predicted_hi, predicted 
+## Type:  response
+</code></pre><p>This gives us the expected difference among the two smooths for a broad sequence of <code>conc</code> values. It is extremely useful because it already takes into account any variation in intercepts or other effects where <code>treatment</code> or <code>conc</code> might show up in the model. Of course looking at a returned <code>tibble</code> with 1,000 rows is not very helpful, so we can plot these differences instead:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">plot_comparisons</span>(model_1, newdata <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">datagrid</span>(conc <span style="color:#000;font-weight:bold">=</span> conc_seq,
+</span></span><span style="display:flex;"><span>                                            treatment <span style="color:#000;font-weight:bold">=</span> unique,
+</span></span><span style="display:flex;"><span>                                            type <span style="color:#000;font-weight:bold">=</span> unique),
+</span></span><span style="display:flex;"><span>                 variables <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;treatment&#34;</span>,
+</span></span><span style="display:flex;"><span>                 by <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;conc&#34;</span>, <span style="color:#d14">&#34;type&#34;</span>),
+</span></span><span style="display:flex;"><span>                 type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;link&#39;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">geom_hline</span>(yintercept <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0</span>, linetype <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;dashed&#39;</span>) <span style="color:#000;font-weight:bold">+</span>
+</span></span><span style="display:flex;"><span>  <span style="color:#900;font-weight:bold">labs</span>(y <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Estimated difference&#34;</span>,
+</span></span><span style="display:flex;"><span>       title <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Difference between treatment levels&#34;</span>,
+</span></span><span style="display:flex;"><span>       subtitle <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;Chilled - nonchilled, per type&#34;</span>)
+</span></span></code></pre></div><img src="https://ecogambler.netlify.app/blog/interpreting-gams/index_files/figure-html/unnamed-chunk-35-1.png" alt="Plotting model comparisons using marginaleffects and mgcv" width="60%" style="display: block; margin: auto;" />
+<p>We can also ask questions such as <em>At what values of <code>conc</code> does the nonlinear slope grow the fastest?</em>. This kind of question is extremely useful in time series modeling, for example if we wanted to know when a population trend was increasing (or decreasing) the fastest. Supplying a custom function to the <code>comparisons()</code> function achieves this for us:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span>max_growth <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">function</span>(hi, lo, x) {
+</span></span><span style="display:flex;"><span>    dydx <span style="color:#000;font-weight:bold">&lt;-</span> (hi <span style="color:#000;font-weight:bold">-</span> lo) <span style="color:#000;font-weight:bold">/</span> <span style="color:#099">1e-6</span>
+</span></span><span style="display:flex;"><span>    dydx_max <span style="color:#000;font-weight:bold">&lt;-</span> <span style="color:#900;font-weight:bold">max</span>(dydx)
+</span></span><span style="display:flex;"><span>    x[dydx <span style="color:#000;font-weight:bold">==</span> dydx_max][1]
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#900;font-weight:bold">comparisons</span>(model_1,
+</span></span><span style="display:flex;"><span>            newdata <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">datagrid</span>(conc <span style="color:#000;font-weight:bold">=</span> conc_seq,
+</span></span><span style="display:flex;"><span>                               treatment <span style="color:#000;font-weight:bold">=</span> unique,
+</span></span><span style="display:flex;"><span>                               type <span style="color:#000;font-weight:bold">=</span> unique),
+</span></span><span style="display:flex;"><span>  variables <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">list</span>(<span style="color:#d14">&#34;conc&#34;</span> <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1e-6</span>),
+</span></span><span style="display:flex;"><span>  vcov <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">FALSE</span>,
+</span></span><span style="display:flex;"><span>  by <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;treatment&#34;</span>,
+</span></span><span style="display:flex;"><span>  comparison <span style="color:#000;font-weight:bold">=</span> max_growth)
+</span></span></code></pre></div><pre tabindex="0"><code>## 
+##  Term Contrast  treatment Estimate
+##  conc   +1e-06 nonchilled      157
+##  conc   +1e-06 chilled         151
+## 
+## Columns: term, contrast, treatment, estimate 
+## Type:  response
+</code></pre><p>Here we can see that, for both treatments, the slope of the nonlinear effect appears to be increasing most rapidly near values of <code>conc = 155</code>.</p>
+<p>Or we can ask <em>At what values of <code>conc</code> does the slope differ significantly from zero?</em>. By once again aggregating over <code>type</code> and computing first derivatives across a range of <code>conc</code> values, we can use the <code>hypotheses()</code> function which, by default, asks if a quantity is significantly different from zero:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-r" data-lang="r"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">hypotheses</span>(<span style="color:#900;font-weight:bold">slopes</span>(model_1,
+</span></span><span style="display:flex;"><span>       newdata <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">datagrid</span>(conc <span style="color:#000;font-weight:bold">=</span> conc_seq,
+</span></span><span style="display:flex;"><span>                          treatment <span style="color:#000;font-weight:bold">=</span> unique,
+</span></span><span style="display:flex;"><span>                          type <span style="color:#000;font-weight:bold">=</span> unique),
+</span></span><span style="display:flex;"><span>       variables <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;conc&#34;</span>,
+</span></span><span style="display:flex;"><span>       by <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">c</span>(<span style="color:#d14">&#34;conc&#34;</span>, <span style="color:#d14">&#34;treatment&#34;</span>),
+</span></span><span style="display:flex;"><span>       type <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#39;link&#39;</span>)) <span style="color:#000;font-weight:bold">%&gt;%</span>
+</span></span><span style="display:flex;"><span>  dplyr<span style="color:#000;font-weight:bold">::</span><span style="color:#900;font-weight:bold">filter</span>(p.value <span style="color:#000;font-weight:bold">&lt;=</span> <span style="color:#099">0.05</span>)
+</span></span></code></pre></div><pre tabindex="0"><code>## 
+##  Term    Contrast  conc  treatment Estimate Std. Error    z Pr(&gt;|z|)    S
+##  conc mean(dY/dX)  95.0 nonchilled  0.00809   0.000876 9.23   &lt;0.001 65.0
+##  conc mean(dY/dX)  95.0 chilled     0.00647   0.000829 7.80   &lt;0.001 47.2
+##  conc mean(dY/dX)  96.8 nonchilled  0.00809   0.000875 9.24   &lt;0.001 65.1
+##  conc mean(dY/dX)  96.8 chilled     0.00647   0.000829 7.81   &lt;0.001 47.3
+##  conc mean(dY/dX)  98.6 nonchilled  0.00808   0.000874 9.25   &lt;0.001 65.2
+##     2.5 %  97.5 %
+##  6.37e-03 0.00980
+##  4.84e-03 0.00809
+##  6.37e-03 0.00980
+##  4.84e-03 0.00809
+##  6.37e-03 0.00980
+## --- 196 rows omitted. See ?print.marginaleffects --- 
+##  conc mean(dY/dX) 278.2 nonchilled  0.00127   0.000503 2.53   0.0114 6.5
+##  conc mean(dY/dX) 280.0 nonchilled  0.00122   0.000511 2.39   0.0168 5.9
+##  conc mean(dY/dX) 281.8 nonchilled  0.00117   0.000521 2.25   0.0242 5.4
+##  conc mean(dY/dX) 283.6 nonchilled  0.00113   0.000535 2.10   0.0355 4.8
+##  conc mean(dY/dX) 285.4 nonchilled  0.00108   0.000547 1.97   0.0484 4.4
+##     2.5 %  97.5 %
+##  2.87e-04 0.00226
+##  2.21e-04 0.00222
+##  1.53e-04 0.00219
+##  7.67e-05 0.00218
+##  7.52e-06 0.00215
+## Columns: term, contrast, conc, treatment, estimate, std.error, statistic, p.value, s.value, conf.low, conf.high, predicted_lo, predicted_hi, predicted 
+## Type:  link
+</code></pre><p>Sometimes we might want more specific hypotheses, and these are often readily achievable using {<code>marginaleffects</code>}. See for example 
+<a href="https://stats.stackexchange.com/questions/634907/get-unbiased-derivative-from-gam/643454#643454" target="_blank" rel="noopener">this post on Cross Validated looking into biases of slope estimates from GAMs</a>.</p>
+
+
+
+
+<h2 id="how-do-i-report-effects-from-gams-in-scientific-publications">How do I report effects from GAMs in scientific publications?
+  <a href="#how-do-i-report-effects-from-gams-in-scientific-publications"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>Hopefully that rundown gives you some helpful tools and tips to interrogate your GAMs. I haven&rsquo;t dived into multidimensional smooths in this post, but in principle the workflow doesn&rsquo;t need to change much. You just need to be specific about the types of comparisons you want to make and let {<code>marginaleffects</code>} turn the inference crank. I&rsquo;ll sum up by attempting to tackle another one of the most common questions I get asked about GAMs: how do I report these things? Here are a few points that I think are valuable for reporting nonlinear effects of GAMs in scientific communications:</p>
+<ol>
+<li>Avoid reliance on <em>p</em>-values and statistical significance. Discretizing these effects into some arbitrary binary classification does nothing but throw out valuable information</li>
+<li>Focus on how these effects influence expected change <em>on the scale of the outcome</em>. We use GAMs and GLMs because we want to model real things in the world that aren&rsquo;t Gaussian, so we use link functions that are often nonlinear. Interpreting effects on the scale of the linear predictor is hard for everyone</li>
+<li>Use simulations to understand what your model thinks is plausible, and fully describe (and justify) your simulation strategy</li>
+<li>Make comparisons against different models (i.e. polynomial, linear) to get a sense for how sensitive your conclusions are to the choice of functional form</li>
+</ol>
+<p>Thanks very much for your time!</p>
+
+
+
+
+<h2 id="further-reading">Further reading
+  <a href="#further-reading"><svg class="anchor-symbol" aria-hidden="true" height="26" width="26" viewBox="0 0 22 22" xmlns="http://www.w3.org/2000/svg">
+      <path d="M0 0h24v24H0z" fill="currentColor"></path>
+      <path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7c-2.76.0-5 2.24-5 5s2.24 5 5 5h4v-1.9H7c-1.71.0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71.0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4c2.76.0 5-2.24 5-5s-2.24-5-5-5z"></path>
+    </svg></a>
+</h2>
+<p>The following papers and resources offer useful material for working with and interrogating GAMs</p>
+<p>Christensen, E. M., Simpson, G. L., &amp; Ernest, S. M. (2019). 
+<a href="https://royalsocietypublishing.org/doi/full/10.1098/rspb.2019.2269" target="_blank" rel="noopener">Established rodent community delays recovery of dominant competitor following experimental disturbance</a>. <em>Proceedings of the Royal Society B</em>, 286(1917), 20192269.</p>
+<p>Clark, N. J., Ernest, S. K. M., Senyondo, H., Simonis, J. L., White, E. P., Yennis, G. M., &amp; Karunarathna, K. A. N. K. (2023). 
+<a href="https://ecoevorxiv.org/repository/view/5143/" target="_blank" rel="noopener">Multi-species dependencies improve forecasts of population dynamics in a long-term monitoring study</a>. <em>Biorxiv</em>, doi: 
+<a href="https://doi.org/10.32942/X2TS34" target="_blank" rel="noopener">https://doi.org/10.32942/X2TS34</a>.</p>
+<p>Karunarathna, K. A. N. K., Wells, K., &amp; Clark, N. J. (2024). 
+<a href="https://www.sciencedirect.com/science/article/pii/S0304380024000371" target="_blank" rel="noopener">Modelling nonlinear responses of a desert rodent species to environmental change with hierarchical dynamic generalized additive models</a>. <em>Ecological Modelling</em>, 490, 110648.</p>
+<p>Pedersen, E. J., Miller, D. L., Simpson, G. L., &amp; Ross, N. (2019). 
+<a href="https://peerj.com/articles/6876/" target="_blank" rel="noopener">Hierarchical generalized additive models in ecology: an introduction with mgcv</a>. <em>PeerJ</em>, 7, e6876.</p>
+<p>Ross, N. (2019). 
+<a href="https://noamross.github.io/gams-in-r-course/" target="_blank" rel="noopener">GAMs in R: a free interactive course using mgcv</a></p>
+<p>Simpson, G. L. (2018). 
+<a href="https://www.frontiersin.org/articles/10.3389/fevo.2018.00149/full" target="_blank" rel="noopener">Modelling palaeoecological time series using generalised additive models</a>. <em>Frontiers in Ecology and Evolution</em>, 6, 149.</p>
+
+      </section>
+      <footer class="post-footer">
+        <div class="post-pagination dt w-100 mt4 mb2">
+  
+  
+    <a class="prev dtc pr2 tl v-top fw6"
+    href="https://ecogambler.netlify.app/blog/mvgam-on-cran/">&larr; First release of mvgam(v1.1.0) to CRAN</a>
+  
+  
+  
+    <a class="next dtc pl2 tr v-top fw6"
+    href="https://ecogambler.netlify.app/blog/simulating-data-r/">Simulating data for model exploration in R &rarr;</a>
+  
+</div>
+
+      </footer>
+    </article>
+    
+      
+<div class="post-comments pa0 pa4-l mt4">
+  
+  <script src="https://utteranc.es/client.js"
+          repo="apreshill/apero"
+          issue-term="pathname"
+          theme="boxy-light"
+          label="comments :crystal_ball:"
+          crossorigin="anonymous"
+          async
+          type="text/javascript">
+  </script>
+  
+</div>
+
+    
+  </section>
+</main>
+<aside class="page-sidebar" role="complementary">
+                         
+ 
+
+
+                       
+ 
+
+
+
+
+
+
+
+
+
+
+
+  <img src="/blog/sidebar-listing.jpg" class="db ma0">
+
+
+<div class="blog-info ph4 pt4 pb4 pb0-l">
+  
+
+  <h1 class="f3">GAMbler</h1>
+  <p class="f6 lh-copy measure">A blog on (somewhat) interesting and (hopefully) useful tips for ecological modeling, with (perhaps too much) emphasis on Generalized Additive Models.</p>
+  <p class="f7 measure lh-copy i mh0-l">Written by Nicholas Clark (n.clark&rsquo;at&rsquo;uq.edu.au)</p>
+
+
+  
+  <div class="dib bt bw1 b--black-10">
+    
+      <small class="db f7 pt3"><a href="/blog/" class="dib fw7 ttu">View recent posts</a></small>
+    
+    
+    
+    
+  </div>
+
+
+</div>
+
+
+  
+  <details open class="f6 fw7 input-reset">
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Posted on:</dt>
+    <dd class="fw5 ml0">May 2, 2024</dd>
+  </dl>
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Length:</dt>
+    <dd class="fw5 ml0">25 minute read, 5216 words</dd>
+  </dl>
+  
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Categories:</dt>
+    <dd class="fw5 ml0"> <a href="https://ecogambler.netlify.app/categories/rstats">rstats</a>  <a href="https://ecogambler.netlify.app/categories/mgcv">mgcv</a> </dd>
+  </dl>
+  
+  
+  
+  <dl class="f6 lh-copy">
+    <dt class="fw7">Tags:</dt>
+    <dd class="fw5 ml0"> <a href="https://ecogambler.netlify.app/tags/rstats">rstats</a>  <a href="https://ecogambler.netlify.app/tags/mgcv">mgcv</a>  <a href="https://ecogambler.netlify.app/tags/tutorial">tutorial</a>  <a href="https://ecogambler.netlify.app/tags/marginaleffects">marginaleffects</a>  <a href="https://ecogambler.netlify.app/tags/simulation">simulation</a> </dd>
+  </dl>
+  
+  <dl class="f6 lh-copy">
+    <dt class="fw7">See Also:</dt>
+    
+    <dd class="fw5 ml0"><a href="/blog/emergency-department-shiny/">Building an Interactive Emergency Department Dashboard with Shiny</a></dd>
+    
+    <dd class="fw5 ml0"><a href="/blog/plant-community-dirichlet/">Compositional modeling of plant communities with Dirichlet regression</a></dd>
+    
+    <dd class="fw5 ml0"><a href="/blog/clv-prediction/">GAMs for Customer Lifetime Value (CLV) prediction</a></dd>
+    
+  </dl>
+</details>
+
+                           
+  
+  
+  
+ <nav id="TableOfContents" class="sticky ph4 pb4 pt6" role="navigation"> 
+   <h2 class="mv0 f5 fw7 ttu tracked dib">On this page</h2> 
+     <nav id="TableOfContents">
+  <ul>
+    <li><a href="#what-are-generalized-additive-models-gams">What are Generalized Additive Models (GAMs)?</a></li>
+    <li><a href="#environment-setup-and-the-initial-gam-model">Environment setup and the initial GAM model</a></li>
+    <li><a href="#step-1-vizualising-gam-outputs">Step 1: Vizualising GAM outputs</a></li>
+    <li><a href="#step-2-simulating-from-fitted-gam-models">Step 2: Simulating from fitted GAM models</a></li>
+    <li><a href="#step-3-making-useful-comparisons-with-gams">Step 3: Making useful comparisons with GAMs</a></li>
+    <li><a href="#how-do-i-report-effects-from-gams-in-scientific-publications">How do I report effects from GAMs in scientific publications?</a></li>
+    <li><a href="#further-reading">Further reading</a></li>
+  </ul>
+</nav> 
+ </nav> 
+  
+
+</aside>
+<footer class="site-footer pv4 bt b--transparent ph5" role="contentinfo">
+  <nav class="db dt-l w-100">
+    <p class="site-copyright f7 db dtc-l v-mid w-100 w-33-l tc tl-l pv2 pv0-l mv0 lh-copy">
+      © Nicholas J Clark (2024)
+      <span class="middot-divider"></span>
+      Made with <span xmlns:dct="http://purl.org/dc/terms/" property="dct:title"><a xmlns:dct="http://purl.org/dc/terms/" href="https://github.com/hugo-apero/" rel="dct:source">Hugo Apéro</a></span>.
+      <br />
+      
+Based on <span xmlns:dct="http://purl.org/dc/terms/" property="dct:title"><a xmlns:dct="http://purl.org/dc/terms/" href="https://github.com/formspree/blogophonic-hugo" rel="dct:source">Blogophonic</a></span> by <a xmlns:cc="http://creativecommons.org/ns#" href="https://formspree.io" property="cc:attributionName" rel="cc:attributionURL">Formspree</a>.
+    </p>
+    
+    <div class="site-social-links db dtc-l v-mid w-100 w-33-l tc pv2 pv0-l mv0">
+      <div class="social-icon-links" aria-hidden="true">
+  
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://github.com/nicholasjclark" title="github" target="_blank" rel="me noopener">
+      <i class="fab fa-github fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://www.youtube.com/@NJ_Clark" title="youtube" target="_blank" rel="me noopener">
+      <i class="fab fa-youtube fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://bsky.app/profile/njclark.bsky.social" title="mixcloud" target="_blank" rel="me noopener">
+      <i class="fab fa-mixcloud fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://orcid.org/0000-0001-7131-3301" title="orcid" target="_blank" rel="me noopener">
+      <i class="ai ai-orcid fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="https://scholar.google.com.au/citations?user=5bO9uxEAAAAJ&amp;hl=en" title="google-scholar" target="_blank" rel="me noopener">
+      <i class="ai ai-google-scholar fa-lg fa-fw"></i>
+    </a>
+  
+    
+    
+    
+      
+    
+    
+    
+    
+    
+      
+    
+    <a class="link dib h1 w1 ml0 mr2 f6 o-90 glow" href="/blog/index.xml" title="rss" >
+      <i class="fas fa-rss fa-lg fa-fw"></i>
+    </a>
+  
+</div>
+
+    </div>
+    
+    <div class="site-links f6 db dtc-l v-mid w-100 w-67-l tc tr-l pv2 pv0-l mv0">
+      
+      <a class="dib pv1 ph2 link" href="/license/" title="License">License</a>
+      
+      <a class="dib pv1 ph2 link" href="/contributors/" title="Contributors">Collaborators</a>
+      
+    </div>
+  </nav>
+  
+    <script>
+
+    var i, text, code, codes = document.getElementsByTagName('code');
+    for (let i = 0; i < codes.length;) {
+      code = codes[i];
+      if (code.parentNode.tagName !== 'PRE' && code.childElementCount === 0) {
+        text = code.textContent;
+        if (/^\$[^$]/.test(text) && /[^$]\$$/.test(text)) {
+          text = text.replace(/^\$/, '\\(').replace(/\$$/, '\\)');
+          code.textContent = text;
+        }
+        if (/^\\\((.|\s)+\\\)$/.test(text) ||
+            /^\\\[(.|\s)+\\\]$/.test(text) ||
+            /^\$(.|\s)+\$$/.test(text) ||
+            /^\\begin\{([^}]+)\}(.|\s)+\\end\{[^}]+\}$/.test(text)) {
+          code.outerHTML = code.innerHTML;  
+          continue;
+        }
+      }
+      i++;
+    }
+</script>
+
+  
+    
+    
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/katex.min.css" integrity="sha384-RZU/ijkSsFbcmivfdRBQDtwuwVqK7GMOw6IMvKyeWL2K5UAlyp6WonmB8m7Jd0Hn" crossorigin="anonymous">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/katex.min.js" integrity="sha384-pK1WpvzWVBQiP0/GjnvRxV4mOb0oxFuyRxJlk6vVw146n3egcN5C925NCP7a7BY8" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.13.13/dist/contrib/auto-render.min.js" integrity="sha384-vZTG03m+2yp6N6BNi5iM4rW4oIwk5DfcNdFfxkk9ZWpDriOkXX8voJBFrAO7MpVl" crossorigin="anonymous" onload="renderMathInElement(document.body);"></script>
+
+
+
+    
+  
+  
+</footer>
+
+      </div>
+    </body>
+</html>
