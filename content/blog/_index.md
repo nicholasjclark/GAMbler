@@ -16,7 +16,7 @@ sidebar:
   title: GAMbler
   description: |
     A blog on (somewhat) interesting and (hopefully) useful tips for ecological modeling, with (perhaps too much) emphasis on Generalized Additive Models.
-  author: "Nicholas Clark (n.clark'at'uq.edu.au)"
+  author: "Nicholas Clark (nicholas.j.clark1214'at'gmail.com)"
   text_link_label: Subscribe via RSS
   text_link_url: /index.xml
   categories_link: true
