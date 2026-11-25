@@ -1,0 +1,124 @@
+{{ $permalink := .Permalink }}
+{{ $page := . }}                           <!--save current page-->
+{{ $section := $page.CurrentSection }}     <!--save branch section-->
+
+<!--meta tags-->
+<meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+{{ hugo.Generator }}
+
+<!--titles: the home page takes the site's long title; a page named
+after the site takes its own name once-->
+{{ $title := "" }}
+{{ if .IsHome }}
+  {{ $title = site.Params.homeTitle | default site.Title }}
+{{ else if eq .Title site.Title }}
+  {{ $title = printf "%s | %s" (site.Params.blogTitle | default .Title) site.Params.author_name }}
+{{ else }}
+  {{ $title = printf "%s | %s" .Title site.Title }}
+{{ end }}
+<title>{{ $title }}</title>
+<link rel="canonical" href="{{ .Permalink }}">
+
+{{ with site.Params.twitter }}
+<meta name="twitter:site" content="@{{ . }}">
+<meta name="twitter:creator" content="@{{ . }}">
+{{ end }}
+
+<!--default sharing image-->
+{{- $site_card := printf "%s" site.Params.sharing_image | absURL }}
+
+<!--descriptions: a page's own `description` first, then its subtitle
+or excerpt, then the site's-->
+{{ $desc := "" }}
+{{ if .Params.description }}
+  {{ $desc = .Params.description }}
+{{ else if .Params.subtitle }}
+  {{ $desc = .Params.subtitle }}
+{{ else if .Params.excerpt }}
+  {{ $desc = .Params.excerpt }}
+{{ else }}
+  {{ $desc = site.Params.description }}
+{{ end }}
+{{ $desc = $desc | markdownify | plainify | htmlUnescape | chomp }}
+<meta name="description" content="{{ $desc }}">
+
+<!--opengraph tags-->
+<meta property="og:site_name" content="{{ site.Title }}">
+<meta property="og:title" content="{{ $title }}">
+<meta property="og:description" content="{{ $desc }}" />
+<meta property="og:type" content="{{ if .IsPage }}article{{ else }}website{{ end }}" />
+<meta property="og:url" content="{{ .Permalink }}" />
+<meta property="og:locale" content="{{ site.LanguageCode | default "en" }}">
+{{ if .IsPage }}
+  {{ with .PublishDate }}<meta property="article:published_time" content="{{ .Format "2006-01-02T15:04:05Z07:00" }}">{{ end }}
+  {{ with .Lastmod }}<meta property="article:modified_time" content="{{ .Format "2006-01-02T15:04:05Z07:00" }}">{{ end }}
+  {{ range .Params.tags }}<meta property="article:tag" content="{{ . }}">{{ end }}
+{{ end }}
+
+<!--sharing images: front matter `images`, then the bundle's featured
+or hex image, then the section's sidebar image, then the site card-->
+{{ $card := "" }}
+{{ with $.Params.images }}
+  {{ $image := index . 0 }}
+  {{ if findRE "^(/|https?://)" $image }}
+    {{ $card = $image | absURL }}
+  {{ else }}
+    {{ $card = printf "%s%s" $permalink $image }}
+  {{ end }}
+  {{/* The home page names its image relative to the site root */}}
+  {{ if $.IsHome }}{{ $card = $image | absURL }}{{ end }}
+{{ end }}
+{{ $summary := false }}
+{{ if not $card }}
+  {{ $images := $page.Resources.ByType "image" }}
+  {{ $leaf := $images.GetMatch "*feature*" }}
+  {{ $hex := $images.GetMatch "*hex*" }}
+  {{ $found := cond (ne $hex nil) $hex $leaf }}
+  {{ $branch := ($section.Resources.ByType "image").GetMatch "*sidebar*" }}
+  {{ $found = cond (ne $found nil) $found $branch }}
+  {{ with $found }}{{ $card = .Permalink }}{{ end }}
+  {{ $summary = ne $hex nil }}
+{{ end }}
+{{ $card = $card | default $site_card }}
+<meta property="og:image" content="{{ $card }}">
+<meta name="twitter:card" content="{{ if $summary }}summary{{ else }}summary_large_image{{ end }}">
+<meta name="twitter:image" content="{{ $card }}">
+
+<!--structured data: the author on every page, each post as a
+BlogPosting-->
+{{ $author := dict
+  "@type" "Person"
+  "name" site.Params.author_name
+  "url" site.BaseURL
+  "sameAs" site.Params.sameAs
+}}
+{{ if .IsHome }}
+  {{ $ld := dict
+    "@context" "https://schema.org"
+    "@type" "WebSite"
+    "name" site.Title
+    "url" site.BaseURL
+    "description" $desc
+    "author" $author
+  }}
+  <script type="application/ld+json">{{ $ld | jsonify | safeJS }}</script>
+{{ else if and .IsPage (eq .Section "blog") }}
+  {{ $ld := dict
+    "@context" "https://schema.org"
+    "@type" "BlogPosting"
+    "headline" .Title
+    "description" $desc
+    "url" .Permalink
+    "mainEntityOfPage" .Permalink
+    "image" $card
+    "datePublished" (.PublishDate.Format "2006-01-02T15:04:05Z07:00")
+    "dateModified" (.Lastmod.Format "2006-01-02T15:04:05Z07:00")
+    "keywords" (delimit (.Params.tags | default slice) ", ")
+    "wordCount" .WordCount
+    "author" $author
+    "publisher" $author
+  }}
+  <script type="application/ld+json">{{ $ld | jsonify | safeJS }}</script>
+{{ end }}

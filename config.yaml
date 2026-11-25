@@ -5,6 +5,7 @@ title: GAMbler
 author: Nicholas Clark
 copyright: "© Nicholas J Clark (2024)" # set to override the auto generated copyright using org info and now year
 googleAnalytics: ''
+enableRobotsTXT: true
 disqusShortname: ''
 metaDataFormat: yaml
 footnoteReturnLinkContents: '&#8617;'
@@ -37,7 +38,17 @@ params:
   custom_theme: ''
   customheadingFontFamily: Fraunces
   customtextFontFamily: Commissioner
-  description: A modern, beautiful, and easily configurable blog theme for Hugo.
+  description: Tutorials and research notes on Generalized Additive Models, ecological time series, forecasting and Bayesian modelling in R, by Nicholas Clark.
+  homeTitle: "GAMbler | Nicholas Clark: GAMs, time series and ecological forecasting"
+  blogTitle: "Blog: GAMs, time series and ecological forecasting in R"
+  author_name: Nicholas Clark
+  sameAs:
+    - https://github.com/nicholasjclark
+    - https://www.linkedin.com/in/nicholasjoshuaclark/
+    - https://bsky.app/profile/njclark.bsky.social
+    - https://orcid.org/0000-0001-7131-3301
+    - https://scholar.google.com.au/citations?user=5bO9uxEAAAAJ
+    - https://www.youtube.com/@NJ_Clark
   favicon: /img/header_logo.ico
   headingFontFamily: sans-serif
   logo: /img/header_logo.png
@@ -57,6 +68,9 @@ params:
     - icon: github
       icon_pack: fab
       url: https://github.com/nicholasjclark
+    - icon: linkedin
+      icon_pack: fab
+      url: https://www.linkedin.com/in/nicholasjoshuaclark/
     - icon: youtube
       icon_pack: fab
       url: https://www.youtube.com/@NJ_Clark
@@ -76,11 +90,10 @@ params:
   socialInHeader: no
   textFontFamily: sans-serif
   theme: plum
-  twitter: twitter = "nj_clark"
   utterances:
     issue_term: pathname
     label: 'comments :crystal_ball:'
-    repo_name: apreshill/apero
+    repo_name: nicholasjclark/GAMbler
     theme: boxy-light
     use_utterances: yes
 taxonomies:
