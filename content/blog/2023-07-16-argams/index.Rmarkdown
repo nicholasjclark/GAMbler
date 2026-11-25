@@ -285,15 +285,15 @@ The content of this post relates to some concepts I introduced in a recent webin
 ## Wiggliness and autocorrelation
 A smoothing spline is composed of basis expansions whose coefficients, which must be estimated, control the functional relationship between a predictor variable and a conditional response. The size of the basis expansion limits the smooth’s potential complexity, with a larger set of basis functions allowing greater flexibility. 
   
-![How basis functions can be used to build a smoothing spline in a GAM](basis_weights.gif)
+![How basis functions can be used to build a smoothing spline in a GAM](/img/gams/basis_weights.webp)
 
 All we need to do once we've constructed the basis expansion is estimate the weights. This allows us to fit arbitrarily-shaped functions that can *learn* nonlinear relationships from data
   
-![Fitting a Generalized Additive Model to data in R](smooth_to_data.gif)
+![Fitting a Generalized Additive Model to data in R](/img/gams/smooth_to_data.webp)
   
 The smoothness of the spline is controlled by a [smoothing penalty](https://m-clark.github.io/generalized-additive-models/technical.html), which penalizes functions that are excessively wiggly. The animation below illustrates this process, where the penalty $\rho$ is chosen to maximise some penalized log(likelihood):
   
-![How a smoothing penalty leads to nonlinear effects in GAMs](penalty_spline.gif)
+![How a smoothing penalty leads to nonlinear effects in GAMs](/img/gams/penalty_spline.webp)
   
 Here I use an exaggerated example to show how a smooth tries to wiggle excessively, leading to overfitting. This can be done by fixing the smoothing penalty $λ$ in a GAM fit with {`mgcv`}'s `gam()` function in R. By fitting models with increasingly relaxed smooths, with $λ$ values approaching zero, we produce increasingly wiggly fits that tend toward fully unpenalized functions.
 ```{r, fig.alt = "Wiggliness and penalized smooths in mgcv"}

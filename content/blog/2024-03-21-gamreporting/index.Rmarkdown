@@ -32,7 +32,7 @@ knitr::opts_chunk$set(
 ## What are Generalized Additive Models (GAMs)?
 Generalized Additive Models (GAMs) are flexible tools that replace one or more predictors in a Generalized Linear Model (GLM) with *smooth functions* of predictors. These are helpful for learning arbitrarily complex, nonlinear relationships between predictors and conditional responses without needing *a priori* expectations about the shapes of these relationships. Rather, they are learned using [*penalized smoothing splines*](https://ecogambler.netlify.app/blog/autocorrelated-gams/).
   
-![Generalized Additive Models learn nonlinear effects from data using smoothing splines](smooth_only.gif)
+![Generalized Additive Models learn nonlinear effects from data using smoothing splines](/img/gams/smooth_only.webp)
   
 How do these work? The secret is a *basis expansion*, which in lay terms means that the covariate (time, in this example) is evaluated at a smaller set of *basis functions* designed to cover the range of the observed covariate values. Below is one particular type of basis, called a cubic regression basis.
   
@@ -40,7 +40,7 @@ How do these work? The secret is a *basis expansion*, which in lay terms means t
   
 Each basis function acts on its own local neighbourhood of the covariate. Once we have constructed the basis, we can estimate weights for each function. The weights allow the basis functions to have different impacts on the shape of the spline. They also give us a target for learning splines from data, as the weights act as the regression coefficients. 
   
-![How basis functions can be used to build a smoothing spline in a GAM](basis_weights.gif)
+![How basis functions can be used to build a smoothing spline in a GAM](/img/gams/basis_weights.webp)
 
 There are many more types of basis expansions that can be used to form penalized smooths, including multidimensional smooths, spatial smooths or even monotonic smooths. 
 

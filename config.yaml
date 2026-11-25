@@ -3,13 +3,15 @@ theme: hugo-apero
 languageCode: en
 title: GAMbler
 author: Nicholas Clark
-copyright: "© Nicholas J Clark (2024)" # set to override the auto generated copyright using org info and now year
 googleAnalytics: ''
 enableRobotsTXT: true
 disqusShortname: ''
 metaDataFormat: yaml
 footnoteReturnLinkContents: '&#8617;'
 paginate: 9
+services:
+  rss:
+    limit: 20
 # to allow for posting future events
 # see https://github.com/hugo-apero/hugo-apero/issues/82
 buildFuture: true
@@ -61,8 +63,7 @@ params:
   math:
     renderer: katex
   navallcaps: yes
-  orgLocal: Anywhere
-  orgName: RStudio
+  orgName: Nicholas J Clark
   sharing_image: "/img/header_logo.png"
   social:
     - icon: github
@@ -74,8 +75,9 @@ params:
     - icon: youtube
       icon_pack: fab
       url: https://www.youtube.com/@NJ_Clark
-    - icon: mixcloud
-      icon_pack: fab
+    - icon: bluesky
+      icon_pack: svg
+      name: Bluesky
       url: https://bsky.app/profile/njclark.bsky.social
     - icon: orcid
       icon_pack: ai
