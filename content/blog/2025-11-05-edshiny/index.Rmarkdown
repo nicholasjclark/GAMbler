@@ -5,7 +5,7 @@ subtitle: ""
 excerpt: "Emergency department data tells compelling stories about healthcare access and system pressure, but static visualizations often fail to capture the full complexity of spatiotemporal patterns. I demonstrate how to build an interactive Shiny dashboard step-by-step, starting with simple static plots and progressively adding features like reactive filtering, interactive maps, and population-adjusted trend analysis. Using NSW and ACT hospital emergency admissions data, we'll create a dashboard that allows real-time exploration of triage categories, hospital networks, and temporal trends while implementing performance optimizations and deployment strategies."
 slug: emergency-department-shiny
 date: 2025-11-05
-draft: false
+draft: true
 images:
 series:
 tags:
