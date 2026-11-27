@@ -1,0 +1,31 @@
+# GAMbler
+
+> GAMbler is the blog of Nicholas Clark, the author of the mvgam R package. Its posts are worked tutorials in R and Stan on Generalized Additive Models, time series, forecasting and ecological statistics. Each post holds runnable code with its output.
+
+The mvgam posts use mvgam 2.0, where `trend_formula` takes the latent process (for example `trend_formula = ~ AR()`). Code written for mvgam 1.x passes `trend_model` instead, which 2.0 refuses. The package documentation is at https://nicholasjclark.github.io/mvgam/ and its curated index for language models at https://nicholasjclark.github.io/mvgam/llms.txt.
+
+## mvgam
+
+- [mvgam 2.0 release post](https://ecogambler.netlify.app/blog/mvgam-2/): the formula interface, the latent processes, a first model and the changes from version 1
+- [State-Space vector autoregressions](https://ecogambler.netlify.app/blog/vector-autoregressions/): a VAR(1) with a Gamma observation model for kestrel abundance, interpreted through impulse responses and variance decompositions
+- [Time-varying seasonality](https://ecogambler.netlify.app/blog/time-varying-seasonality/): tensor products and Fourier terms for seasonal patterns that change over time
+- [Temporal autocorrelation in GAMs](https://ecogambler.netlify.app/blog/autocorrelated-gams/): why smooths of time extrapolate poorly, with latent autoregressive trends as the alternative
+- [Distributed lags](https://ecogambler.netlify.app/blog/distributed-lags-mgcv/): lagged and hierarchical lagged effects in mgcv and mvgam
+
+## GAMs and mgcv
+
+- [Interpreting and reporting nonlinear effects](https://ecogambler.netlify.app/blog/interpreting-gams/): summaries of GAM smooths with marginaleffects
+- [Phylogenetic smoothing](https://ecogambler.netlify.app/blog/phylogenetic-smooths-mgcv/): smooths over a phylogeny in mgcv
+- [GAMs for customer lifetime value](https://ecogambler.netlify.app/blog/clv-prediction/): forecasting customer value with GAMs
+- [Simulating data for model exploration](https://ecogambler.netlify.app/blog/simulating-data-r/): simulation as a way to check what a model recovers
+
+## Stan and brms
+
+- [Dirichlet regression for plant communities](https://ecogambler.netlify.app/blog/plant-community-dirichlet/): compositional models in brms
+- [Logistic regression with detection error](https://ecogambler.netlify.app/blog/stan-detection-error/): misclassified binary outcomes in Stan
+- [Geostatistical count data with distance matrices](https://ecogambler.netlify.app/blog/stan-discrete-geostatistical/): spatial count models in Stan
+
+## Optional
+
+- [All posts](https://ecogambler.netlify.app/blog/)
+- [mvgam package website](https://nicholasjclark.github.io/mvgam/)
