@@ -28,7 +28,7 @@
       {{ with $summary }}<p class="f6 lh-copy">{{ . | markdownify | emojify }}</p>{{ end }}
     <!--ensures section Params are respected-->
     <footer>
-      {{ if $root.Params.show_author_byline }}<p class="f7 db mv1">{{ if .Params.author }}By {{ .Params.author }}{{ end }}{{ with .Params.categories }} in{{ range . }} <a href="{{ "categories/" | absURL }}{{ . | urlize }}">{{ . }}</a> {{ end }}{{ end }}</p>{{ end }}
+      {{ if $root.Params.show_author_byline }}<p class="f7 db mv1">{{ if .Params.author }}By {{ .Params.author }}{{ end }}{{ with .Params.categories }} in{{ range . }} <a href="{{ "categories/" | absURL }}{{ . | urlize }}/">{{ . }}</a> {{ end }}{{ end }}</p>{{ end }}
       {{ if $root.Params.show_post_date }}<p class="f7 db mv1">{{ .PublishDate.Format "January 2, 2006" }}</p>{{ end }}
       {{ if and $root.Params.show_button_links .Params.links }}
           <p class="db pt1">

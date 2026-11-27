@@ -122,7 +122,7 @@ load(url('https://github.com/atsa-es/MARSS/raw/master/data/kestrel.rda'))
 head(kestrel)
 ```
 
-Arrange the data into a `data.frame` that spreads the time series observations into a 'long' format, [which is required for `mvgam` modelling](https://nicholasjclark.github.io/mvgam/articles/data_in_mvgam.html)
+Arrange the data into a `data.frame` that spreads the time series observations into a 'long' format, [which is required for `mvgam` modelling](https://nicholasjclark.github.io/mvgam/articles/data.html)
 ```{r}
 regions <- c("BC",
              "Alb",
@@ -629,6 +629,8 @@ And there we have it. This plot demonstrates that, within the contribution of th
 Also, although we haven't covered it in this example, there is of course no reason why you cannot include complex covariate effects in either the process or observation models. Indeed, `mvgam()` can readily handle a wide range of effects including multidimensional penalized smooth functions, Gaussian Process functions, monotonic smooth functions, [distributed lag nonlinear effects](https://ecogambler.netlify.app/blog/distributed-lags-mgcv/), seasonality and [time-varying seasonality](https://ecogambler.netlify.app/blog/time-varying-seasonality/), and hierarchical effects. It is also easy to generate probabilistic forecasts from these models, which you can learn more about by reading the [forecast and forecast evaluation vignette](https://nicholasjclark.github.io/mvgam/articles/forecast_evaluation.html). These options should hopefully make `mvgam` a very attractive resource for tackling real-world multivariate time series when we do not wish to ignore important drivers or use time series transformations that make both inference and prediction difficult. Thanks for your time!
 
 ## Further reading
+The `mvgam` website has two longer worked examples: [a State-Space VAR of Lake Washington plankton](https://nicholasjclark.github.io/mvgam/articles/var.html), with covariates and forecasts for a held-out year, and [hierarchical VARs](https://nicholasjclark.github.io/mvgam/articles/hierarchical_var.html), which fit one VAR per group of series.
+
 The following papers and resources offer useful material about Vector Autoregressive models and Dynamic GAMs for time series modeling / forecasting
   
 Hampton, S. E., Holmes, E. E., Scheef, L. P., Scheuerell, M. D., Katz, S. L., Pendleton, D. E., & Ward, E. J. (2013). [Quantifying effects of abiotic and biotic drivers on community dynamics with multivariate autoregressive (MAR) models](https://esajournals.onlinelibrary.wiley.com/doi/full/10.1890/13-0996.1). *Ecology*, 94(12), 2663-2669.  

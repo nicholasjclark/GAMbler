@@ -737,6 +737,8 @@ plot_slopes(mod5, variables = 'time', condition = 'time',
 There are many more options to capture temporal dynamics and nonlinear effects using dynamic GAMs. For example, my blog post on [distributed lag nonlinear models using mgcv and mvgam](https://ecogambler.netlify.app/blog/distributed-lags-mgcv/) gives some tips on how to fit lagged covariate effects in GAMs. [My research seminar and webinar page](https://ecogambler.netlify.app/talk/) also has some good resources and modeling ideas for time series analyses. But we'll leave those for later posts
 
 ## Further reading
+The [`mvgam` overview](https://nicholasjclark.github.io/mvgam/articles/mvgam_overview.html) on the package website introduces the observation and trend formulas through State-Space models of Portal rodent captures.
+
 The following papers and resources offer useful material about modeling time series with Generalized Additive Models
   
 Clark, N. J., Ernest, S. K. M., Senyondo, H., Simonis, J. L., White, E. P., Yennis, G. M., & Karunarathna, K. A. N. K. (2023). [Multi-species dependencies improve forecasts of population dynamics in a long-term monitoring study](https://ecoevorxiv.org/repository/view/5143/). *Biorxiv*, doi: [https://doi.org/10.32942/X2TS34](https://doi.org/10.32942/X2TS34).

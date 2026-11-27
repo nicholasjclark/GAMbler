@@ -409,6 +409,8 @@ This post has hopefully given you some ideas about useful modeling strategies fo
 
 
 ## Further reading
+The [`mvgam` overview](https://nicholasjclark.github.io/mvgam/articles/mvgam_overview.html) on the package website introduces the observation and trend formulas through State-Space models of Portal rodent captures.
+
 The following papers and resources offer useful material about Dynamic Harmonic Regression and using GAMs for time series modeling / forecasting
   
 Autin, M. A., & Edwards, D. [Nonparametric harmonic regression for estuarine water quality data](https://onlinelibrary.wiley.com/doi/abs/10.1002/env.1013) *Environmetrics* 21.6 (2010): 588-605.
