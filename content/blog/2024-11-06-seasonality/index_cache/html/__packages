@@ -1,13 +1,9 @@
-nlme
-mgcv
 Rcpp
 brms
-marginaleffects
-insight
 mvgam
 forecast
 dplyr
 ggplot2
-gratia
+marginaleffects
 patchwork
 janitor

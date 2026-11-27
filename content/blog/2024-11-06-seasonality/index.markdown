@@ -22,6 +22,8 @@ layout: single-sidebar
 ---
 
 
+*Updated in November 2026: the code now needs `mvgam` 2.0 or higher. The [package website](https://nicholasjclark.github.io/mvgam/) explains how to install it and what changed.*
+
 Seasonality is very common in real-world time series. Many series vary in periodic, regular ways. For example, ice cream sales tend to be higher in warmer holiday months, while counts of migratory birds fluctuate strongly around the annual migration cycle. Because of how pervasive seasonality is, many time series and forecasting methods have been developed specifically to deal with this feature. For example, [Seasonal ARIMA (SARIMA) models](https://otexts.com/fpp3/seasonal-arima.html) use differencing at seasonal lags to model seasonality in addition to other autoregressive features. Many types of [Exponential Smoothing models](https://otexts.com/fpp3/ets.html) can also capture seasonality by propagating separate seasonal states in State-Space form. These methods are extremely useful for modeling real-valued time series and generating reasonable forecasts, and they can both readily handle time-varying seasonal patterns. But when it comes to regression-based models ([which can do a *much* better job capturing relevant features of the data, such as overdispersion, boundedness, missingness or zero-inflation](https://ecogambler.netlify.app/blog/mvgam-on-cran/)), options for capturing seasonality, and time-varying seasonality, are more limited. The purpose of this brief post is to highlight one strategy for capturing seasonality, and time-varying seasonal patterns, in Dynamic Generalized Additive Models.
 
 ## Environment setup
@@ -29,13 +31,12 @@ This tutorial relies on the following packages:
 
 
 
-```r
+``` r
 library(mvgam)           # Fit, interrogate and forecast DGAMs
 library(dplyr)           # Tidy and flexible data manipulation
 library(forecast)        # Construct fourier terms for time series
 library(ggplot2)         # Flexible plotting
 theme_set(theme_bw())      # Black and White ggplot2 theme
-library(gratia)          # Graceful plotting of smooth terms
 library(marginaleffects) # Interrogating regression models
 library(patchwork)       # Combining ggplot objects
 library(janitor)         # Creating clean, tidy variable names
@@ -45,7 +46,7 @@ library(janitor)         # Creating clean, tidy variable names
 
 We will work with the `AirPassengers` dataset, which is a time series of monthly international airline passengers from 1949 - 1960 (recorded in thousands). Load the data and plot the series
 
-```r
+``` r
 data("AirPassengers")
 plot(AirPassengers, bty = 'l', lwd = 1.5,
      col = 'darkred')
@@ -55,7 +56,7 @@ plot(AirPassengers, bty = 'l', lwd = 1.5,
 
 It is clear from this plot that there is strong seasonality in the passenger numers, but this pattern also appears to be changing over time. One common way to inpsect possible seasonal patterns is to calculate and plot an STL decomposition (Seasonal and Trend decomposition using Loess), which uses loess smoothing to iteratively smooth and remove certain components of the data (i.e. the long-term *trend*, which may be nonlinear, and the potentially time-varying *seasoanality*)
 
-```r
+``` r
 stl(AirPassengers, s.window = 9) %>%
   autoplot()
 ```
@@ -64,27 +65,37 @@ stl(AirPassengers, s.window = 9) %>%
 
 You can read about ways to modify this plot by changing the the periods over which the trend and seasonal components are smoothed using the `t.window` and `s.window` arguments, but they aren't that important for this post. The key message is that there appears to be a long-term, nonlinear *trend* and a cyclic seasonal pattern that varies over time, not just in magnitude but also perhaps a bit in shape. Now for some models. First let's convert the series to a `data.frame()` object that is suitable for modeling with the {`mgcv`} and {`mvgam`} packages. This function will also automatically split the data into training and testing sets, which makes it easy to evaluate different models on their forecasting abilities.
 
-```r
-airdat <- series_to_mvgam(AirPassengers, freq = frequency(AirPassengers))
+``` r
+airdat <- series_to_mvgam(AirPassengers,
+                          freq = frequency(AirPassengers),
+                          train_prop = 0.85)
 dplyr::glimpse(airdat$data_train)
 ```
 
 ```
 ## Rows: 122
-## Columns: 6
-## $ y      <dbl> 112, 118, 132, 129, 121, 135, 148, 148, 136, 119, 104, 118, 115…
-## $ season <dbl> 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3, 4, 5, 6, 7, 8, …
-## $ year   <dbl> 1949, 1949, 1949, 1949, 1949, 1949, 1949, 1949, 1949, 1949, 194…
-## $ date   <dttm> 1949-01-01 00:00:00, 1949-01-31 10:00:00, 1949-03-02 20:00:01,…
+## Columns: 5
 ## $ series <fct> series_1, series_1, series_1, series_1, series_1, series_1, ser…
 ## $ time   <int> 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, …
+## $ y      <dbl> 112, 118, 132, 129, 121, 135, 148, 148, 136, 119, 104, 118, 115…
+## $ index  <dbl> 1949.000, 1949.083, 1949.167, 1949.250, 1949.333, 1949.417, 194…
+## $ season <int> 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1, 2, 3, 4, 5, 6, 7, 8, …
 ```
 
 Once the data are in the correct *long* format, we can easily plot some features of the time series using some of {`mvgam`}'s `S3` functions
 
-```r
-plot_mvgam_series(data = airdat$data_train,
-                  newdata = airdat$data_test)
+``` r
+mvgam_data(airdat$data_train,
+           y = 'y',
+           family = negbinomial(),
+           newdata = airdat$data_test)
+```
+
+```
+## ✔ Data check passed for family 'negbinomial (link = log)'.
+## • series: 1 level
+## • time:   1 to 122
+## • n obs:  122 (0 NA)
 ```
 
 <img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-6-1.png" alt="Features of the AirPassengers time series in R, including a CDF and ACF to view temporal autocorrelation" width="60%" style="display: block; margin: auto;" />
@@ -93,12 +104,12 @@ The Autocorrelation Function (ACF) plot clearly shows evidence of strong autocor
 
 ## Fit an `mvgam` model using a tensor product interaction
 
-Now we can fit a model to these data to try and capture both components, i.e. the trend and seasonal patterns. Those of you familiar with {`mgcv`} will know that the traditional way to model time-varying effects is to use a [tensor product smooth (using the `te()` wrapper)](https://rdrr.io/cran/mgcv/man/te.html) to capture a nonlinear interaction between 'time' and whatever covariate we are interested in ('season', in this case). This is a useful first step to model smoothly-varying effects, and we have a lot of flexibility to describe the marginal effects within a `te()` smooth. For example, in the below model we set up the effect of 'season' using [a cyclic smooth (`bs = 'cc'`)](https://fromthebottomoftheheap.net/2014/05/09/modelling-seasonal-data-with-gam/) that forces the seasonal pattern to begin and end in the same place (i.e. there is no discontinuity allowed at the end points of the spline, meaning that this effect constrains the smooth to be *periodic*).
+Now we can fit a model to these data to try and capture both components, i.e. the trend and seasonal patterns. Those of you familiar with {`mgcv`} will know that the traditional way to model time-varying effects is to use a [tensor product smooth (using the `te()` wrapper)](https://rdrr.io/cran/mgcv/man/te.html) to capture a nonlinear interaction between 'time' and whatever covariate we are interested in ('season', in this case). {`mvgam`} builds its observation models with {`brms`}, which uses the closely related `t2()` tensor product. This is a useful first step to model smoothly-varying effects, and we have a lot of flexibility to describe the marginal effects within a `t2()` smooth. For example, in the below model we set up the effect of 'season' using [a cyclic smooth (`bs = 'cc'`)](https://fromthebottomoftheheap.net/2014/05/09/modelling-seasonal-data-with-gam/) that forces the seasonal pattern to begin and end in the same place (i.e. there is no discontinuity allowed at the end points of the spline, meaning that this effect constrains the smooth to be *periodic*).
 
-```r
+``` r
 mod1 <- mvgam(y ~ 
                 # A tensor product of season and time
-                te(season, time,
+                t2(season, time,
                    
                    # Cyclic and thin-plate marginal bases
                    bs = c('cc', 'tp'),
@@ -110,27 +121,28 @@ mod1 <- mvgam(y ~
               knots = list(season = c(0.5, 12.5)),
               
               # Allow for overdispersion in the count series
-              family = nb(),
+              family = negbinomial(),
               
               # Define the data and newdata for automatic forecasting
               data = airdat$data_train,
               newdata = airdat$data_test,
               
               # Silence printed messages
-              silent = 2)
+              silent = 2,
+              seed = 1)
 ```
 
-We can conveniently use `gratia::draw()` to view the 'time' * 'season' smooth interaction function from the model's underlying `gam` object (stored in the `mgcv_model` slot of the returned model object)
+We can use `conditional_smooths()` to view the 'time' * 'season' smooth interaction function
 
-```r
-draw(mod1$mgcv_model)
+``` r
+plot(conditional_smooths(mod1), ask = FALSE)
 ```
 
 <img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-8-1.png" alt="Partial effect of time-varying seasonality from a Generalized Additive Model, fitted in mvgam" width="60%" style="display: block; margin: auto;" />
 
 The primary seasonal pattern can be viewed using `plot_predictions()` from the {`marginaleffects`} package, [which is an extremely useful package for using targeted predictions to interrogate nonlinear effects from GAMs](https://ecogambler.netlify.app/blog/interpreting-gams/).
 
-```r
+``` r
 plot_predictions(mod1, condition = 'season', type = 'link')
 ```
 
@@ -138,13 +150,8 @@ plot_predictions(mod1, condition = 'season', type = 'link')
 
 Out-of-sample forecasts from this model aren't too bad here, but perhaps the uncertainty is a bit too wide. This is not unexpected if you take some time to understand how splines extrapolate beyond the training data
 
-```r
-plot(mod1, type = 'forecast')
-```
-
-```
-## Out of sample DRPS:
-## 897.952959
+``` r
+plot(forecast(mod1))
 ```
 
 <img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-10-1.png" alt="Forecasts from a Dynamic Generalized Additive Model with time-varying seasonality using a tensor product, fitted in mvgam" width="60%" style="display: block; margin: auto;" />
@@ -156,7 +163,7 @@ This model is not too bad, but it might not be preferable for a few reasons:
 ## Using Fourier terms to capture time-varying seasonality
 There is another way we can model time-varying seasonality, in this case using a [Fourier transform](https://otexts.com/fpp3/useful-predictors.html#useful-predictors). A Fourier series uses sets of sine and cosine terms at different frequencies, which can be weighted to approximate a huge variety of periodic functions. First compute sine and cosine functions using the `forecast::fourier()` function, which automatically recognises the monthly periodicity of the `AirPassengers` data to calculate Fourier terms of the corrrect frequencies. Here we set the order `K` equal to `4`, which gives us a total of `8` sine and cosine predictors that we can use as regressors in our dynamic model. This sort of model is often referred to as [*harmonic regression*](https://otexts.com/fpp3/dhr.html) because the successive Fourier terms can be thought of as representing harmonics of the previous Fourier terms.
 
-```r
+``` r
 data.frame(forecast::fourier(AirPassengers, K = 4)) %>%
   # Use clean_names as fourier() gives terrible name types
   janitor::clean_names() -> fourier_terms
@@ -178,7 +185,7 @@ dplyr::glimpse(fourier_terms)
 
 Viewing these Fourier terms (for the first 24 time points) gives a sense of how they can be thought of as a particular type of basis expansion
 
-```r
+``` r
 matplot(as.matrix(fourier_terms)[1:24,], type = 'l',
         ylab = 'Function value', xlab = 'Time',
         col = viridis::viridis(8), lty = 1, lwd = 1.5)
@@ -187,7 +194,7 @@ matplot(as.matrix(fourier_terms)[1:24,], type = 'l',
 <img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-12-1.png" alt="Fourier terms for a dynamic harmonic regression" width="60%" style="display: block; margin: auto;" />
 Now we can add these new predictors to the training and testing datasets. It is important that we have these terms for the out-of-sample testing set as well, because these will be used to help compute forecasts from our model
 
-```r
+``` r
 airdat$data_train = airdat$data_train %>%
   dplyr::bind_cols(fourier_terms[1:NROW(airdat$data_train), ])
 airdat$data_test = airdat$data_test %>%
@@ -195,14 +202,12 @@ airdat$data_test = airdat$data_test %>%
                                    NROW(fourier_terms), ])
 ```
 
-Next we can fit an `mvgam()` model that includes a smooth nonlinear temporal trend and time-varying seasonality, but using the Fourier terms in place of the cyclic smooth like we did above. This is done by first using a monotonic smooth of 'time' that ensures the temporal trend never declines, which seems appropriate here. The {`mvgam`} package includes options for monotonically increasing or monotonically decreasing smooths using the [`moi` and `mod` basis constructors](https://nicholasjclark.github.io/mvgam/reference/monotonic.html). This is a nice feature that is difficult to incorporate in normal GAMs fitted in either {`mgcv`} or {`brms`}. The time-varying seasonality is captured by allowing the coefficients on the Fourier terms to vary over time using separate splines that take advantage of the `'by'` argument in the `s()` wrapper. This effectively sets up independent smooths of 'time' that are then interacted with the Fourier terms, formulating a time-varying coefficient model for each Fourier term.
+Next we can fit an `mvgam()` model that includes a smooth nonlinear temporal trend and time-varying seasonality, but using the Fourier terms in place of the cyclic smooth like we did above. The long-term trend is captured with a smooth function of 'time'. The time-varying seasonality is captured by allowing the coefficients on the Fourier terms to vary over time using separate splines that take advantage of the `'by'` argument in the `s()` wrapper. This effectively sets up independent smooths of 'time' that are then interacted with the Fourier terms, formulating a time-varying coefficient model for each Fourier term.
 
-```r
+``` r
 mod2 <- mvgam(y ~ 
-                # Monotonic smooth of time to ensure the trend
-                # either increases or flattens, but does not 
-                # decrease
-                s(time, bs = 'moi', k = 10) +
+                # Smooth of time for the long-term trend
+                s(time, k = 10) +
                 
                 # Time-varying fourier coefficients to capture
                 # possibly changing seasonality
@@ -214,65 +219,47 @@ mod2 <- mvgam(y ~
                 s(time, by = c3_12, k = 5),
               
               # Response family and data as before
-              family = nb(),
+              family = negbinomial(),
               data = airdat$data_train,
               newdata = airdat$data_test,
-              silent = 2)
+              silent = 2,
+              seed = 1)
 ```
 
-Of course this model still uses a spline of 'time' for the trend, but the monotonic restriction ensures that the predictions are at least somewhat controllable. This second model is preferred based on in-sample fits, which we can readily compare using the Approximate Leave-One-Out Cross-Validation with functionality from the wonderful [{`loo`} package](https://mc-stan.org/loo/). A higher Expected Log Predictive Density (ELPD) is preferred here
+Of course this model still uses a spline of 'time' for the trend, so its forecasts are subject to the same extrapolation problems as the first model. We can compare the in-sample fits of the two models using Approximate Leave-One-Out Cross-Validation, with functionality from the wonderful [{`loo`} package](https://mc-stan.org/loo/). A higher Expected Log Predictive Density (ELPD) is preferred here
 
-```r
+``` r
 loo_compare(mod1, mod2)
 ```
 
 ```
-##      elpd_diff se_diff
-## mod2   0.0       0.0  
-## mod1 -16.8       2.8
+##  model elpd_diff se_diff p_worse diag_diff diag_elpd
+##   mod1       0.0     0.0      NA                    
+##   mod2      -5.4     1.4    1.00
 ```
 
-But what about forecasts? Here we plot out-of-sample forecasts from both models, which again show that the second model is slightly preferred
+The first model has the higher ELPD, by about 5 units with a standard error of 1.4, so the tensor product describes the training data better than the Fourier terms do. But what about forecasts? Here we plot out-of-sample forecasts from both models. The two sets of forecasts are hard to tell apart by eye, so in-sample fit alone gives little reason to prefer either model for prediction
 
-```r
-layout(matrix(1:2, nrow = 2))
-plot(mod1, type = 'forecast')
-```
-
-```
-## Out of sample DRPS:
-## 897.952959
-```
-
-```r
-plot(mod2, type = 'forecast')
-```
-
-```
-## Out of sample DRPS:
-## 667.239806
+``` r
+plot(forecast(mod1)) / plot(forecast(mod2))
 ```
 
 <img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-16-1.png" alt="Comparing forecast distributions from two Dynamic Generalized Additive Models with time-varying seasonal components, fitted in mvgam" width="60%" style="display: block; margin: auto;" />
 
-```r
-layout(1)
-```
-
 Look at the partial effect plots for the smooths to see how some of the Fourier coefficients are estimated to change over time
 
-```r
-gratia::draw(mod2$mgcv_model, select = 2:7)
+``` r
+plot(conditional_smooths(mod2), ask = FALSE)
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-17-1.png" alt="Time-varying Fourier coefficients from a Dynamic Harmonic Regression, fitted in mvgam" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-17-1.png" alt="Time-varying Fourier coefficients from a Dynamic Harmonic Regression, fitted in mvgam" width="60%" style="display: block; margin: auto;" /><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-17-2.png" alt="Time-varying Fourier coefficients from a Dynamic Harmonic Regression, fitted in mvgam" width="60%" style="display: block; margin: auto;" /><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-17-3.png" alt="Time-varying Fourier coefficients from a Dynamic Harmonic Regression, fitted in mvgam" width="60%" style="display: block; margin: auto;" /><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-17-4.png" alt="Time-varying Fourier coefficients from a Dynamic Harmonic Regression, fitted in mvgam" width="60%" style="display: block; margin: auto;" /><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-17-5.png" alt="Time-varying Fourier coefficients from a Dynamic Harmonic Regression, fitted in mvgam" width="60%" style="display: block; margin: auto;" /><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-17-6.png" alt="Time-varying Fourier coefficients from a Dynamic Harmonic Regression, fitted in mvgam" width="60%" style="display: block; margin: auto;" /><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-17-7.png" alt="Time-varying Fourier coefficients from a Dynamic Harmonic Regression, fitted in mvgam" width="60%" style="display: block; margin: auto;" />
 
 ## Plotting trend and seasonal components from a harmonic regression
 Plotting this model takes a bit more work, as we need to use targeted predictions from the model to visualise the two primary effects (i.e. the nonlinear trend and the time-varying seasonality). 
 
 First a plot of the trend, which can be done easily in this model using the `'condition'` argument in `plot_predictions()` to compute expectations from the model (i.e. predictions on the outcome scale, but ignoring the overdispersion parameter from the Negative Binomial sampling distribution)
 
-```r
+``` r
 p1 <- plot_predictions(mod2, 
                        condition = 'time', 
                        type = 'expected') +
@@ -283,14 +270,11 @@ p1 <- plot_predictions(mod2,
 
 And now the time-varying seasonal pattern, which requires subtracting the conditional trend predictions from the total predictions
 
-```r
-with_season <- predict(mod2, summary = FALSE,
-                       type = 'expected')
-agg_over_season <- predict(mod2, 
-                           newdata = datagrid(model = mod2,
-                                              time = unique),
-                           summary = FALSE,
-                           type = 'expected')
+``` r
+with_season <- posterior_epred(mod2)
+agg_over_season <- posterior_epred(mod2,
+                                   newdata = datagrid(model = mod2,
+                                                      time = unique))
 season_preds <- with_season - agg_over_season
 p2 <- ggplot(airdat$data_train %>%
                dplyr::mutate(pred = apply(season_preds, 2, mean),
@@ -309,7 +293,7 @@ p2 <- ggplot(airdat$data_train %>%
 
 We can now plot these effects together using functionality from the {`patchwork`} package
 
-```r
+``` r
 p1 + p2 + plot_layout(ncol = 1)
 ```
 
@@ -323,7 +307,7 @@ The above example shows how Fourier terms can be used to capture time-varying se
 First, I define function to construct monotonically increasing or decreasing
 coefficients. This will be helpful to simulate time-varying periodicity
 
-```r
+``` r
 monotonic_fun = function(times, k = 4){
   x <- sort(as.vector(scale(times)))
   exp(k * x) / (1 + exp(k * x))
@@ -332,7 +316,7 @@ monotonic_fun = function(times, k = 4){
 
 Now for the simulation, which involves constructing Fourier series for two different periodicities (`k = 12` and `k = 6` in this example), each with three Fourier terms. I then simulate time-varying coefficients for these terms, forcing the period-12 terms to decline toward zero over time while allowing the period-6 terms to increase over time. These coefficients, together with the simulated Fourier terms themselves, should give us the ingredients to simulate a time series in which the periodicity shrinks from ~12 to ~6 over time
 
-```r
+``` r
 set.seed(123)
 times <- 1:120
 
@@ -360,7 +344,7 @@ for(i in p6_names){
 
 Plot the Fourier coefficients through time
 
-```r
+``` r
 matplot(betas, type = 'l', xlab = 'Time',
         col = viridis::viridis(8), lty = 1, lwd = 1.5)
 ```
@@ -369,7 +353,7 @@ matplot(betas, type = 'l', xlab = 'Time',
 
 Now calculate the linear predictor and plot it
 
-```r
+``` r
 mu <- vector(length = length(times))
 for(i in 1:length(times)){
   mu[i] <- as.matrix(fourier_terms)[i, ] %*% betas[i, ] 
@@ -381,28 +365,30 @@ plot(mu, type = 'l', xlab = 'Time')
 
 Finally, add some Gaussian Random Walk noise and plot the resulting simulated time series
 
-```r
+``` r
 y <- mu + cumsum(rnorm(length(times), sd = 0.25))
 plot(y, type = 'l', xlab = 'Time')
 ```
 
 <img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-25-1.png" alt="Time-varying periodicity simulated in R" width="60%" style="display: block; margin: auto;" />
 
-Now we can construct the data for modeling; this assumes we've thought carefully about the problem and have included the Fourier series for both periodicities as predictors
+Now we can construct the data for modeling; this assumes we've thought carefully about the problem and have included the Fourier series for both periodicities as predictors. One detail matters here. The second period-12 terms (`s2_12` and `c2_12`) complete two cycles every 12 time points, which is exactly one cycle every 6 time points, so they are identical to the first period-6 terms (`s1_6` and `c1_6`). A model that included both copies could not tell their coefficients apart, so the model below uses only the period-12 copies. Each of these estimates the combined effect of its pair
 
-```r
-dat <- data.frame(y, time = times) %>%
+``` r
+dat <- data.frame(y, time = times,
+                  # mvgam needs a factor that names the series
+                  series = factor('simulated')) %>%
   dplyr::bind_cols(fourier_terms)
 ```
 
 And we can now fit the dynamic GAM, which uses a State-Space representation
 to capture time-varying seasonality, periodicity and the Random Walk autocorrelation process
 
-```r
+``` r
 mod3 <- mvgam(
   
   # Observation formula; empty
-  formula = y ~ -1,
+  formula = y ~ 0,
   
   # Process formula contains the seasonal terms
   trend_formula = ~
@@ -415,48 +401,43 @@ mod3 <- mvgam(
     s(time, by = c2_12, k = 5) +
     s(time, by = s3_12, k = 5) +
     s(time, by = c3_12, k = 5) +
-    s(time, by = s1_6, k = 5) +
-    s(time, by = c1_6, k = 5) +
     s(time, by = s2_6, k = 5) +
     s(time, by = c2_6, k = 5) +
-    s(time, by = c3_6, k = 5),
+    s(time, by = c3_6, k = 5) +
   
-  # Random walk for the trend
-  trend_model = RW(),
+    # Random walk for the trend
+    RW(),
   
   # Gaussian observations
   family = gaussian(),
   
   # Realistic priors on variance components
-  priors = c(prior(exponential(2),
-                   class = sigma),
-             prior(exponential(2),
-                   class = sigma_obs)),
+  prior = c(prior(exponential(2),
+                  class = sigma_trend),
+            prior(exponential(2),
+                  class = sigma)),
   
-  # Sampler settings
-  burnin = 1000,
-  samples = 1000,
   silent = 2,
+  seed = 1,
   
   # Data
   data = dat)
 ```
 
-Plot the time-varying Fourier coefficients as before, using `gratia::draw()`
+Plot the time-varying Fourier coefficients as before, using `conditional_smooths()`
 
-```r
-gratia::draw(mod3$trend_mgcv_model)
+``` r
+plot(conditional_smooths(mod3), ask = FALSE)
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-28-1.png" alt="Time-varying Fourier coefficients to model time-varying periodicity in mvgam" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-28-1.png" alt="Time-varying Fourier coefficients to model time-varying periodicity in mvgam" width="60%" style="display: block; margin: auto;" /><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-28-2.png" alt="Time-varying Fourier coefficients to model time-varying periodicity in mvgam" width="60%" style="display: block; margin: auto;" /><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-28-3.png" alt="Time-varying Fourier coefficients to model time-varying periodicity in mvgam" width="60%" style="display: block; margin: auto;" /><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-28-4.png" alt="Time-varying Fourier coefficients to model time-varying periodicity in mvgam" width="60%" style="display: block; margin: auto;" /><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-28-5.png" alt="Time-varying Fourier coefficients to model time-varying periodicity in mvgam" width="60%" style="display: block; margin: auto;" /><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-28-6.png" alt="Time-varying Fourier coefficients to model time-varying periodicity in mvgam" width="60%" style="display: block; margin: auto;" /><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-28-7.png" alt="Time-varying Fourier coefficients to model time-varying periodicity in mvgam" width="60%" style="display: block; margin: auto;" /><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-28-8.png" alt="Time-varying Fourier coefficients to model time-varying periodicity in mvgam" width="60%" style="display: block; margin: auto;" /><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-28-9.png" alt="Time-varying Fourier coefficients to model time-varying periodicity in mvgam" width="60%" style="display: block; margin: auto;" />
 
 As before, our model has successfully captured the time-varying coefficients for these terms. Notice how many of the period-12 terms (i.e. `s1_12` and `c3_12`) are estimated to decline over time, while many of the period-6 terms (i.e. `s2_6` and `c3_6`) are estimated to increase over time. It is encouraging that the model has been able to find these while also dealing with the Random Walk autocorrelation process and the two variance terms (process error and observation error). 
 
 We can also plot the time-varying seasonality using posterior expectations as we did for the first example above. But note that this plot does not include the Random Walk component in its predictions
 
-```r
-season_preds <- predict(mod3, summary = FALSE,
-                        type = 'expected')
+``` r
+season_preds <- posterior_epred(mod3)
 p1 <- ggplot(dat %>%
          dplyr::mutate(pred = apply(season_preds, 2, mean),
                        upper = apply(season_preds, 2, function(x) 
@@ -475,8 +456,8 @@ p1 <- ggplot(dat %>%
 
 Now we can extract the RW trend that was estimated and subtract the seasonal predictions, which will give us a view of the potentially nonlinear trend that was estimated by the model
 
-```r
-trend_preds <- hindcast(mod3, type = 'expected')$hindcasts[[1]] - 
+``` r
+trend_preds <- posterior_epred(mod3, incl_autocor = TRUE) -
   season_preds
 
 p2 <- ggplot(dat %>%
@@ -497,7 +478,7 @@ p2 <- ggplot(dat %>%
 
 Once again, we can plot the two together using {`patchwork`}
 
-```r
+``` r
 p1 + p2 + plot_layout(ncol = 1)
 ```
 

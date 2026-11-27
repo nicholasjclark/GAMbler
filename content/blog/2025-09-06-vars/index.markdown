@@ -22,6 +22,8 @@ layout: single-sidebar
 ---
 
 
+*Updated in November 2026: the code now needs `mvgam` 2.0 or higher. The [package website](https://nicholasjclark.github.io/mvgam/) explains how to install it and what changed.*
+
 [Vector Autoregressions (VAR models)](https://otexts.com/fpp3/VAR.html), also known in the ecological literature as [Multivariate Autoregressions (MAR models)](https://atsa-es.github.io/MARSS/), are a class of Dynamic Linear Models that offer a principled way to model both delayed and contemporaneous interactions among sets of multiple time series. These models are widely used in econometrics and psychology, among other fields, where they can be analyzed to ask many interesting questions about [potential causality](https://www.jstor.org/stable/2951647), [cascading temporal interaction effects](https://www.r-econometrics.com/timeseries/irf/) or [community stability](https://esajournals.onlinelibrary.wiley.com/doi/abs/10.1890/0012-9615%282003%29073%5B0301%3AECSAEI%5D2.0.CO%3B2). A VAR(1) model, where temporal interactions among series can take place at a lag of one time step, is defined as:
 
 
@@ -51,7 +53,7 @@ Where the observation time series `\(y_t\)` are now considered to be noisy obser
 But the above approach does not address the second major limitation of traditional VARS, which is that they assume that the observation series can be captured with a Gaussian observation model. This makes it difficult to fit VARs to many real-world time series such as counts of multiple species over time, time series of non-negative rates or proportions of customers that responded to a set of surveys. It turns out that this limitation is a much bigger issue when it comes to fitting VARs to real-world data. At the time of writing I could not find a single R package that makes these models accessible, apart from my [`mvgam`](https://nicholasjclark.github.io/mvgam/) package. Given that the question of how to fit time series models to non-Gaussian observations comes up [again](https://stats.stackexchange.com/questions/161617/software-or-workarounds-for-vector-autoregression-on-count-data) and [again](https://stats.stackexchange.com/questions/47204/how-to-regress-a-time-series-of-proportions) and [again](https://stats.stackexchange.com/questions/244660/modeling-multivariate-time-series-count-data-in-r) (and [again](https://stats.stackexchange.com/questions/70182/time-series-dynamic-poisson-regression)), often with unsatisfying answers, this post will demonstrate how the [`mvgam`](https://nicholasjclark.github.io/mvgam/) package can fill this gap. Herein I will show how the package can be used to fit complex multivariate autoregressive models to non-Gaussian time series and how to interrogate the models to ask insightful questions about temporal interactions, variance decompositions and community stability.
 
 ## Environment setup
-This tutorial relies on the following packages (note that [`mvgam` version 1.1.3 or higher](https://github.com/nicholasjclark/mvgam/tree/master) is required to carry out these analyses):
+This tutorial relies on the following packages:
 
 
 
@@ -154,35 +156,37 @@ levels(model_data$series)
 ## [1] "Alb"  "BC"   "Sask"
 ```
 
-Plot all three the time series together using `mvgam`'s `plot_mvgam_series()`
+Plot all three time series together using `mvgam`'s `mvgam_data()`, which also checks the data against the family we plan to use
 
 ``` r
-plot_mvgam_series(data = model_data,
-                  y = 'adj_count',
-                  series = 'all')
+mvgam_data(model_data,
+           y = 'adj_count',
+           family = Gamma(link = 'log'))
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-8-1.png" alt="American kestrel adjusted count time series in R" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-7-1.png" alt="American kestrel adjusted count time series in R" width="60%" style="display: block; margin: auto;" />
 
 Now plot some additional features, including the empirical CDF and estimated autocorrelation functions, for just one series at a time
 
 ``` r
-plot_mvgam_series(data = model_data,
-                  y = 'adj_count',
-                  series = 1)
+mvgam_data(model_data,
+           y = 'adj_count',
+           family = Gamma(link = 'log'),
+           series = 'Alb')
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-10-1.png" alt="American kestrel time series features in R" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-8-1.png" alt="American kestrel time series features in R" width="60%" style="display: block; margin: auto;" />
 
 
 
 ``` r
-plot_mvgam_series(data = model_data,
-                  y = 'adj_count',
-                  series = 2)
+mvgam_data(model_data,
+           y = 'adj_count',
+           family = Gamma(link = 'log'),
+           series = 'BC')
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-12-1.png" alt="American kestrel time series features in R" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-9-1.png" alt="American kestrel time series features in R" width="60%" style="display: block; margin: auto;" />
 
 These latter plots make it immediately apparent that our outcome variable, i.e. the adjusted counts of kestrels in each region over time, only takes on non-negative real numbers:
 
@@ -194,188 +198,122 @@ ggplot(model_data,
   hist_theme()
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-13-1.png" alt="Empirical distribution of American kestrel adjusted counts" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-10-1.png" alt="Empirical distribution of American kestrel adjusted counts" width="60%" style="display: block; margin: auto;" />
 
 ## Build a State-Space VAR(1) model
-Fitting a multivariate time series model to these adjusted counts is not easy using existing R packages. We'd almost certainly have to log-transform the outcome and hope that we don't lose too much inferential ability in doing so. But, [as I've shown in other blogposts on this site](https://ecogambler.netlify.app/blog/autocorrelated-gams/), there is a better and simpler way to respect the nature of these observations using `mvgam`. Here we will consider a State-Space model that uses a latent Vector Autoregression as a VAR(1) process. This is done by taking advantage of two key features of the workhorse `mvgam()` function: First, we can use the `trend_formula` argument to specify that we want a State-Space model. And second, we can use the `trend_model` argument to specify that we want the latent process to evolve as a Vector Autoregression of order 1. The [`mvgam` cheatsheet](https://github.com/nicholasjclark/mvgam/raw/master/misc/mvgam_cheatsheet.pdf) goes into some detail about how each of these arguments work, but your best bet is to read the extensive documentation in `?mvgam::mvgam` to fully understand how these models can be constructed. `mvgam` also takes advantage of [a major development in Bayesian VAR modelling, originally published by Sarah Heaps, that enforces stationarity through a principled prior on the autoregressive coefficients](https://www.tandfonline.com/doi/full/10.1080/10618600.2022.2079648). This is extremely helpful for ensuring that we find well-behaving models that don't give nonsensical and unwieldy forecasts where the forecast variance grows without bound. Given that the average counts of these series seems to vary across regions, we will also want to include region-level intercepts in the process model. And finally, given the nature of the response variable (non-negative real values), a suitable observation family would be the Gamma distribution. First we should inspect default prior distributions for the stochastic parameters involved in our model:
+Fitting a multivariate time series model to these adjusted counts is not easy using existing R packages. We'd almost certainly have to log-transform the outcome and hope that we don't lose too much inferential ability in doing so. But, [as I've shown in other blogposts on this site](https://ecogambler.netlify.app/blog/autocorrelated-gams/), there is a better and simpler way to respect the nature of these observations using `mvgam`. Here we will consider a State-Space model that uses a latent Vector Autoregression as a VAR(1) process. This is done by taking advantage of two key features of the workhorse `mvgam()` function: First, we can use the `trend_formula` argument to specify that we want a State-Space model. And second, we can add a `VAR()` term to that formula to specify that we want the latent process to evolve as a Vector Autoregression of order 1. The [`mvgam` cheatsheet](https://nicholasjclark.github.io/mvgam/cheatsheets/mvgam_cheatsheet.pdf) goes into some detail about how each of these arguments work, but your best bet is to read the extensive documentation in `?mvgam::mvgam` to fully understand how these models can be constructed. `mvgam` also takes advantage of [a major development in Bayesian VAR modelling, originally published by Sarah Heaps, that enforces stationarity through a principled prior on the autoregressive coefficients](https://www.tandfonline.com/doi/full/10.1080/10618600.2022.2079648). This is extremely helpful for ensuring that we find well-behaving models that don't give nonsensical and unwieldy forecasts where the forecast variance grows without bound. Given that the average counts of these series seems to vary across regions, we will also want to include region-level intercepts in the process model. And finally, given the nature of the response variable (non-negative real values), a suitable observation family would be the Gamma distribution with a log link. First we should inspect default prior distributions for the stochastic parameters involved in our model:
 
 ``` r
-def_priors <- get_mvgam_priors(adj_count ~ -1,
-                               trend_formula = ~ region,
-                               trend_model = VAR(cor = TRUE),
-                               data = model_data,
-                               family = Gamma())
-def_priors[, 3:4]
+def_priors <- get_prior(adj_count ~ 0,
+                        trend_formula = ~ region + VAR(cor = TRUE),
+                        data = model_data,
+                        family = Gamma(link = 'log'))
+def_priors[, c('prior', 'class', 'coef')]
 ```
 
 ```
-##                                           param_info
-## 1                                        (Intercept)
-## 2                                   process error sd
-## 3           diagonal autocorrelation population mean
-## 4       off-diagonal autocorrelation population mean
-## 5       diagonal autocorrelation population variance
-## 6   off-diagonal autocorrelation population variance
-## 7      shape1 for diagonal autocorrelation precision
-## 8  shape1 for off-diagonal autocorrelation precision
-## 9      shape2 for diagonal autocorrelation precision
-## 10 shape2 for off-diagonal autocorrelation precision
-## 11                             Gamma shape parameter
-## 12                         (Intercept) for the trend
-## 13                             regionBC fixed effect
-## 14                           regionSask fixed effect
-##                                      prior
-## 1    (Intercept) ~ student_t(3, 0.6, 2.5);
-## 2         sigma ~ inv_gamma(1.418, 0.452);
-## 3                               es[1] = 0;
-## 4                               es[2] = 0;
-## 5                     fs[1] = sqrt(0.455);
-## 6                     fs[2] = sqrt(0.455);
-## 7                           gs[1] = 1.365;
-## 8                           gs[2] = 1.365;
-## 9                        hs[1] = 0.071175;
-## 10                       hs[2] = 0.071175;
-## 11              shape ~ gamma(0.01, 0.01);
-## 12 (Intercept)_trend ~ student_t(3, 0, 2);
-## 13    regionBC_trend ~ student_t(3, 0, 2);
-## 14  regionSask_trend ~ student_t(3, 0, 2);
+##                   prior         class       coef    source
+##       gamma(0.01, 0.01)         shape            (unknown)
+##      inv_gamma(3, 1.07)   sigma_trend            (unknown)
+##  normal(0, sqrt(0.455))     Amu_trend            (unknown)
+##  gamma(1.365, 0.071175)  Aomega_trend            (unknown)
+##    lkj_corr_cholesky(2) L_Omega_trend            (unknown)
+##                  (flat)       b_trend            (unknown)
+##                  (flat)       b_trend  regionAlb (unknown)
+##                  (flat)       b_trend   regionBC (unknown)
+##                  (flat)       b_trend regionSask (unknown)
 ```
 
-The priors for regression coefficients (`(Intercept)_trend`, `regionBC_trend` and `regionsSask_trend`) and for the process variances (`sigma`, which represent the diagonals of the process error matrix `\(\Sigma_{process}\)`) are by default set to be quite vague. It is generally good practice to update these using domain knowledge if you want a model that is well-behaved and computationally efficient. Given that the adjusted counts are fairly small and that the Gamma distribution in `mvgam` uses a log-link function, we don't expect massive effect sizes in the linear predictor so a more suitable priors for the regression coefficients would be Standard Normal (i.e. `\(\beta \sim Normal(0, 1)\)`). We can also change the default half-T prior on the process variances to an Exponential prior that places less belief on extremely large variances. We will leave the priors for the Gamma shape parameter and for the autoregressive partial autocorrelations (which are described in detail by [Sarah Heaps in her wonderful VAR stationarity paper](https://www.tandfonline.com/doi/full/10.1080/10618600.2022.2079648)) as default. So our first model to consider is:
+The regional coefficients in the process model (class `b_trend`) have flat priors by default. The process standard deviations (`sigma_trend`, the square roots of the diagonals of the process error matrix `\(\Sigma_{process}\)`) have an inverse Gamma prior. It is generally good practice to update these using domain knowledge if you want a model that is well-behaved and computationally efficient. Given that the adjusted counts are fairly small and that we are using a log link, we don't expect massive effect sizes in the linear predictor so a more suitable prior for the regression coefficients would be Standard Normal (i.e. `\(\beta \sim Normal(0, 1)\)`). We can also change the prior on the process standard deviations to an Exponential prior that places less belief on extremely large values. We will leave the priors for the Gamma shape parameter and for the hyperparameters of the autoregressive partial autocorrelations (`Amu_trend` and `Aomega_trend`, which are described in detail by [Sarah Heaps in her wonderful VAR stationarity paper](https://www.tandfonline.com/doi/full/10.1080/10618600.2022.2079648)) as default. So our first model to consider is:
 
 
 ``` r
 varmod <- mvgam(
   # Observation formula, empty to only consider the Gamma observation process
-  formula = adj_count ~ -1,
+  formula = adj_count ~ 0,
   
-  # Process model formula that includes regional intercepts 
-  trend_formula = ~ region,
-  
-  # A VAR(1) dynamic process with fully parameterized covariance matrix Sigma
-  trend_model = VAR(cor = TRUE),
+  # Process model formula with regional intercepts and a VAR(1) process
+  # that has a fully parameterized covariance matrix Sigma
+  trend_formula = ~ region + VAR(cor = TRUE),
   
   # Modified prior distributions using brms::prior()
-  priors = c(prior(std_normal(), class = Intercept_trend),
-             prior(std_normal(), class = b),
-             prior(exponential(2.5), class = sigma)),
+  prior = c(prior(std_normal(), class = b_trend),
+            prior(exponential(2.5), class = sigma_trend)),
   
   # The time series data in 'long' format
   data = model_data,
   
-  # A Gamma observation family
-  family = Gamma(),
+  # A Gamma observation family with a log link. All three series
+  # share the same Gamma shape parameter
+  family = Gamma(link = 'log'),
   
-  # Forcing all three series to share the same Gamma shape parameter
-  share_obs_params = TRUE,
-  
-  # Stan control arguments
-  adapt_delta = 0.95,
-  burnin = 1000,
-  samples = 1000,
-  silent = 2)
+  silent = 2,
+  seed = 1)
 ```
 
 ### Model diagnostics and inferences
-This model only takes a few seconds to fit four parallel Hamiltonian Monte Carlo chains, though we do get some minor warnings about a few Hamiltonian Monte Carlo divergences which I have mostly mitigated by setting `adapt_delta = 0.95`:
+This model only takes a few seconds to fit four parallel Hamiltonian Monte Carlo chains. The sampler does warn that two chains had a low Bayesian fraction of missing information, and the summary shows why: the regional coefficients have low effective sample sizes. With autoregressive coefficients this close to one, the long-run level of each process is hard to separate from the latent states themselves. The estimates are still useful for this illustration, but longer chains would be worthwhile for a formal analysis:
 
 ``` r
 summary(varmod)
 ```
 
 ```
-## GAM observation formula:
-## adj_count ~ 1
+##  Family: gamma 
+##   Links: mu = log; shape = log 
+## Formula: adj_count ~ 0 
+##    Data: model_data (Number of observations: 120) 
+##  Series: 3 
+##  Trends: VAR(1); formula: ~region 
+##   Draws: 4 chains, each with iter = 2000; warmup = 1000; thin = 1; 
+##          total post-warmup draws = 4000
 ## 
-## GAM process formula:
-## ~region
+## == Observation Model ==
+## Further Distributional Parameters:
+##       Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
+## shape    35.03      9.60    21.50    58.17 1.01      587     1111
 ## 
-## Family:
-## Gamma
+## == Trend Model ==
+## Regression Coefficients:
+##            Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
+## regionAlb      0.69      0.12     0.41     0.89 1.04       98      144
+## regionBC       0.82      0.18     0.43     1.14 1.04       88      166
+## regionSask     0.31      0.08     0.12     0.46 1.04       96      221
 ## 
-## Link function:
-## log
+## Trend Specific Parameters:
+##                   Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
+## sigma_trend[Alb]      0.15      0.05     0.06     0.25 1.00      398      462
+## sigma_trend[BC]       0.23      0.05     0.14     0.32 1.00      620     1388
+## sigma_trend[Sask]     0.08      0.03     0.04     0.15 1.01      322      819
+## Amu_trend[1,1]        0.99      0.37     0.29     1.76 1.01      514     1347
+## Amu_trend[2,1]        0.61      0.29     0.08     1.23 1.00      339      694
+## Aomega_trend[1,1]    20.17     16.52     1.59    62.49 1.00     1692     1662
+## Aomega_trend[2,1]    24.79     17.30     3.63    70.00 1.00     1340     1631
 ## 
-## Trend model:
-## VAR(cor = TRUE)
+## Draws were sampled using sampling(NUTS). For each parameter, Bulk_ESS
+## and Tail_ESS are effective sample size measures, and Rhat is the potential
+## scale reduction factor on split chains (at convergence, Rhat = 1).
 ## 
-## 
-## N process models:
-## 3 
-## 
-## N series:
-## 3 
-## 
-## N timepoints:
-## 40 
-## 
-## Status:
-## Fitted using Stan 
-## 4 chains, each with iter = 2000; warmup = 1000; thin = 1 
-## Total post-warmup draws = 4000
-## 
-## 
-## Observation shape parameter estimates:
-##       2.5% 50% 97.5% Rhat n_eff
-## shape   21  33    58    1   500
-## 
-## GAM observation model coefficient (beta) estimates:
-##             2.5% 50% 97.5% Rhat n_eff
-## (Intercept)    0   0     0  NaN   NaN
-## 
-## Process model VAR parameter estimates:
-##           2.5%    50% 97.5% Rhat n_eff
-## A[1,1]  0.0014  0.570  0.98 1.01   902
-## A[1,2] -0.5200 -0.040  0.26 1.01   701
-## A[1,3] -0.0930  0.560  2.10 1.00   407
-## A[2,1] -0.2300  0.310  1.30 1.01   753
-## A[2,2] -0.5100  0.420  0.85 1.01   545
-## A[2,3] -0.2900  0.690  2.80 1.00   505
-## A[3,1] -0.1000  0.110  0.55 1.00   880
-## A[3,2] -0.1800  0.033  0.23 1.01   586
-## A[3,3]  0.1400  0.650  1.10 1.01   713
-## 
-## Process error parameter estimates:
-##               2.5%      50% 97.5% Rhat n_eff
-## Sigma[1,1]  0.0045  0.02200 0.058 1.01   461
-## Sigma[1,2] -0.0077  0.00880 0.033 1.00  1465
-## Sigma[1,3] -0.0110 -0.00045 0.008 1.00  1207
-## Sigma[2,1] -0.0077  0.00880 0.033 1.00  1465
-## Sigma[2,2]  0.0180  0.04800 0.100 1.00   886
-## Sigma[2,3] -0.0062  0.00460 0.019 1.00  1399
-## Sigma[3,1] -0.0110 -0.00045 0.008 1.00  1207
-## Sigma[3,2] -0.0062  0.00460 0.019 1.00  1399
-## Sigma[3,3]  0.0012  0.00530 0.021 1.00   340
-## 
-## GAM process model coefficient (beta) estimates:
-##                    2.5%   50% 97.5% Rhat n_eff
-## (Intercept)_trend  0.40  0.70  0.95    1  1732
-## regionBC_trend    -0.12  0.15  0.37    1  2606
-## regionSask_trend  -0.54 -0.38 -0.21    1  1778
-## 
-## Stan MCMC diagnostics:
-## ✔ No issues with effective samples per iteration
-## ✔ Rhat looks good for all parameters
-## ✔ No issues with divergences
-## ✔ No issues with maximum tree depth
-## 
-## Samples were drawn using sampling(hmc). For each parameter, n_eff is a
-##   crude measure of effective sample size, and Rhat is the potential scale
-##   reduction factor on split MCMC chains (at convergence, Rhat = 1)
-## 
-## Use how_to_cite() to get started describing this model
+## Next steps:
+##   - `pp_check(fit)`: posterior predictive checks
+##   - `posterior_transition_matrix(fit)` / `irf(fit)`: lagged effects between series
+##   - `residual_cor(fit)`: implied correlations among series
+##   - `forecast(fit, newdata = ...)`: out-of-sample forecasts
+##   - `lfo_cv(fit)`: leave-future-out model comparison
+##   - `conditional_effects(fit)`: covariate effects
+## Use `how_to_cite(fit)` for a methods paragraph and `methods_md(fit)` for its equations.
 ```
 
 We can inspect posterior estimates for some of the key parameters using `bayesplot` functionality. For State-Space models, it is particularly recommended to inspect estimates for process and observation scale parameters (labelled as `sigma` and `shape` in the model's MCMC output):
 
 ``` r
 mcmc_plot(varmod,
-          variable = 'sigma',
+          variable = 'sigma_trend',
           regex = TRUE,
           type = 'trace')
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-17-1.png" alt="mvgam posterior estimates using bayesplot" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-14-1.png" alt="mvgam posterior estimates using bayesplot" width="60%" style="display: block; margin: auto;" />
 
 
 ``` r
@@ -384,19 +322,19 @@ mcmc_plot(varmod,
           type = 'trace')
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-18-1.png" alt="mvgam posterior estimates using bayesplot" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-15-1.png" alt="mvgam posterior estimates using bayesplot" width="60%" style="display: block; margin: auto;" />
 
 Looking at possible coupling between these estimates is also a good idea, which you can do with the `pairs()` function:
 
 ``` r
 pairs(varmod,
-      variable = c('shape', 'sigma'),
+      variable = c('shape', 'sigma_trend'),
       regex = TRUE,
       off_diag_args = list(size = 1,
                            alpha = 0.5))
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-19-1.png" alt="mvgam posterior pairs plots" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-16-1.png" alt="mvgam posterior pairs plots" width="60%" style="display: block; margin: auto;" />
 
 Overall these estimates are quite stable and well-behaved. We can also inspect estimates for any linear predictor effects (in both the process and observation models) using `conditional_effects()`, which makes use of the wonderful [`marginaleffects`](https://marginaleffects.com/) package (see [this post on interpreting Generalized Additive Models using `marginaleffects`](https://ecogambler.netlify.app/blog/interpreting-gams/) for a glimpse into the full power of this package). Since we only have the varying intercepts as regressors in our model, we only get one plot from this call:
 
@@ -404,7 +342,7 @@ Overall these estimates are quite stable and well-behaved. We can also inspect e
 conditional_effects(varmod)
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-20-1.png" alt="mvgam conditional_effects plots" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-17-1.png" alt="mvgam conditional_effects plots" width="60%" style="display: block; margin: auto;" />
 
 By default `conditional_effects()` will return predictions on the response scale (i.e. considering the full uncertainty in posterior predictions). But we can also plot these on the link or expectation scales if we wish: 
 
@@ -413,7 +351,7 @@ conditional_effects(varmod,
                     type = 'link')
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-21-1.png" alt="mvgam posterior pairs plots" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-18-1.png" alt="mvgam posterior pairs plots" width="60%" style="display: block; margin: auto;" />
 
 Posterior predictive checks are also useful for interrogating a Bayesian model. `mvgam` offers multiple ways to do this. First we can compute unconditional posterior predictive checks, which integrate over the possible (stable) temporal states that *could have* been encountered for each series. In other words, these plots show us the types of predictions that we might make if we had no observations to inform the states of the latent VAR(1) process:
 
@@ -421,40 +359,25 @@ Posterior predictive checks are also useful for interrogating a Bayesian model. 
 pp_check(varmod,
          type = "dens_overlay_grouped",
          group = "region",
-         ndraws = 50)
+         ndraws = 50,
+         process_error = TRUE)
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-22-1.png" alt="mvgam posterior predictive checks" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-19-1.png" alt="mvgam posterior predictive checks" width="60%" style="display: block; margin: auto;" />
 
 Obviously these prediction densities are more variable than the actual observation densities. But the main shapes seem to have been reasonably well captured. `mvgam` can also create conditional posterior predictive checks, using the actual latent temporal states that were estimated when the model conditioned on the observed data:
 
 ``` r
-ppc(varmod,
-    series = 1,
-    type = 'density')
+pp_check(varmod,
+         type = "dens_overlay_grouped",
+         group = "region",
+         ndraws = 50,
+         incl_autocor = TRUE)
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-24-1.png" alt="mvgam posterior predictive checks" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-20-1.png" alt="mvgam posterior predictive checks" width="60%" style="display: block; margin: auto;" />
 
-
-``` r
-ppc(varmod,
-    series = 2,
-    type = 'density')
-```
-
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-26-1.png" alt="mvgam posterior predictive checks" width="60%" style="display: block; margin: auto;" />
-
-
-``` r
-ppc(varmod,
-    series = 3,
-    type = 'density')
-```
-
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-28-1.png" alt="mvgam posterior predictive checks" width="60%" style="display: block; margin: auto;" />
-
-These plots match the data more closely, which is expected when using a flexible autoregressive process to capture the unobserved dynamics. Next we can compute and plot probabilistic conditional hindcasts for each series:
+These conditional checks also match the data well, which is expected when using a flexible autoregressive process to capture the unobserved dynamics. Next we can compute and plot probabilistic conditional hindcasts for each series:
 
 ``` r
 hcs <- hindcast(varmod)
@@ -466,7 +389,7 @@ plot(hcs,
      series = 1)
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-31-1.png" alt="mvgam probabilistic hindcasts" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-23-1.png" alt="mvgam probabilistic hindcasts" width="60%" style="display: block; margin: auto;" />
 
 
 ``` r
@@ -474,7 +397,7 @@ plot(hcs,
      series = 2)
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-33-1.png" alt="mvgam probabilistic hindcasts" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-25-1.png" alt="mvgam probabilistic hindcasts" width="60%" style="display: block; margin: auto;" />
 
 
 ``` r
@@ -482,156 +405,114 @@ plot(hcs,
      series = 3)
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-35-1.png" alt="mvgam probabilistic hindcasts" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-27-1.png" alt="mvgam probabilistic hindcasts" width="60%" style="display: block; margin: auto;" />
 
 ### Model expansion
 Given the subtle variations in the shapes of these observed distributions for each series, there may be support for fitting an equivalent model that allows the Gamma shape parameters to vary among series. Let's fit a second model that allows this:
 
 ``` r
 varmod2 <- mvgam(
-    # Observation formula, empty to only consider the Gamma observation process
-  formula = adj_count ~ -1,
+  # Observation formula, with a second formula that gives each
+  # series its own Gamma shape parameter
+  formula = bf(adj_count ~ 0,
+               shape ~ 0 + series),
   
-  # Process model formula that includes regional intercepts 
-  trend_formula = ~ region,
+  # Process model formula as before
+  trend_formula = ~ region + VAR(cor = TRUE),
   
-  # A VAR(1) dynamic process with fully parameterized covariance matrix Sigma
-  trend_model = VAR(cor = TRUE),
-  
-  # Modified prior distributions using brms::prior()
-  priors = c(prior(std_normal(), class = Intercept_trend),
-             prior(std_normal(), class = b),
-             prior(exponential(2.5), class = sigma)),
+  # Modified prior distributions, now including a prior for
+  # the (log) shape parameters
+  prior = c(prior(std_normal(), class = b_trend),
+            prior(exponential(2.5), class = sigma_trend),
+            prior(normal(2.5, 1), class = b, dpar = shape)),
   
   # The time series data in 'long' format
   data = model_data,
   
-  # A Gamma observation family
-  family = Gamma(),
+  # A Gamma observation family with a log link
+  family = Gamma(link = 'log'),
   
-  # Varying Gamma shape parameters per series
-  share_obs_params = FALSE,
-  
-  # Stan control arguments
-  adapt_delta = 0.95,
-  burnin = 1000,
-  samples = 1000,
-  silent = 2
-)
+  silent = 2,
+  seed = 1)
 ```
 
-This model also fits well and encounters few sampling issues
+This model encounters a few divergent transitions (about 1% of draws) but otherwise samples well. The shape parameters are estimated on the log scale:
 
 ``` r
 summary(varmod2)
 ```
 
 ```
-## GAM observation formula:
-## adj_count ~ 1
+##  Family: gamma 
+##   Links: mu = log; shape = log 
+## Formula: adj_count ~ 0 
+##          shape ~ 0 + series 
+##    Data: model_data (Number of observations: 120) 
+##  Series: 3 
+##  Trends: VAR(1); formula: ~region 
+##   Draws: 4 chains, each with iter = 2000; warmup = 1000; thin = 1; 
+##          total post-warmup draws = 4000
 ## 
-## GAM process formula:
-## ~region
+## == Observation Model ==
+## Regression Coefficients:
+##                  Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
+## shape_seriesAlb      3.22      0.47     2.51     4.39 1.01      441      686
+## shape_seriesBC       3.39      0.55     2.42     4.64 1.01      652      559
+## shape_seriesSask     3.58      0.33     3.00     4.30 1.00      779      720
 ## 
-## Family:
-## Gamma
+## == Trend Model ==
+## Regression Coefficients:
+##            Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
+## regionAlb      0.69      0.13     0.40     0.91 1.05       91      273
+## regionBC       0.81      0.21     0.37     1.20 1.05       92      196
+## regionSask     0.30      0.10     0.07     0.47 1.05       95      217
 ## 
-## Link function:
-## log
+## Trend Specific Parameters:
+##                   Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
+## sigma_trend[Alb]      0.13      0.05     0.04     0.24 1.04      237      424
+## sigma_trend[BC]       0.21      0.05     0.11     0.32 1.01      462      343
+## sigma_trend[Sask]     0.08      0.03     0.04     0.16 1.02      306      521
+## Amu_trend[1,1]        0.95      0.41     0.18     1.78 1.00      525      795
+## Amu_trend[2,1]        0.66      0.31     0.10     1.34 1.02      256      262
+## Aomega_trend[1,1]    18.39     16.18     1.15    60.36 1.00      960      645
+## Aomega_trend[2,1]    23.92     17.91     2.70    70.60 1.01      690      634
 ## 
-## Trend model:
-## VAR(cor = TRUE)
+## Draws were sampled using sampling(NUTS). For each parameter, Bulk_ESS
+## and Tail_ESS are effective sample size measures, and Rhat is the potential
+## scale reduction factor on split chains (at convergence, Rhat = 1).
 ## 
-## 
-## N process models:
-## 3 
-## 
-## N series:
-## 3 
-## 
-## N timepoints:
-## 40 
-## 
-## Status:
-## Fitted using Stan 
-## 4 chains, each with iter = 2000; warmup = 1000; thin = 1 
-## Total post-warmup draws = 4000
-## 
-## 
-## Observation shape parameter estimates:
-##          2.5% 50% 97.5% Rhat n_eff
-## shape[1]   12  26   120 1.01   371
-## shape[2]   13  35   190 1.01   301
-## shape[3]   21  39   100 1.00   493
-## 
-## GAM observation model coefficient (beta) estimates:
-##             2.5% 50% 97.5% Rhat n_eff
-## (Intercept)    0   0     0  NaN   NaN
-## 
-## Process model VAR parameter estimates:
-##          2.5%     50% 97.5% Rhat n_eff
-## A[1,1] -0.046  0.5600  1.00 1.00   899
-## A[1,2] -0.430 -0.0089  0.26 1.00  1147
-## A[1,3] -0.090  0.4200  1.60 1.01   796
-## A[2,1] -0.260  0.3900  2.30 1.01   376
-## A[2,2] -0.590  0.3800  0.85 1.01   495
-## A[2,3] -0.370  0.5600  2.60 1.01   704
-## A[3,1] -0.088  0.1700  1.10 1.01   312
-## A[3,2] -0.210  0.0440  0.28 1.00   741
-## A[3,3] -0.035  0.5700  0.98 1.00   693
-## 
-## Process error parameter estimates:
-##               2.5%      50%  97.5% Rhat n_eff
-## Sigma[1,1]  0.0020  0.01800 0.0630 1.03   210
-## Sigma[1,2] -0.0078  0.00800 0.0320 1.00   930
-## Sigma[1,3] -0.0120 -0.00025 0.0083 1.00   938
-## Sigma[2,1] -0.0078  0.00800 0.0320 1.00   930
-## Sigma[2,2]  0.0180  0.05200 0.1100 1.00   673
-## Sigma[2,3] -0.0074  0.00440 0.0200 1.00  1326
-## Sigma[3,1] -0.0120 -0.00025 0.0083 1.00   938
-## Sigma[3,2] -0.0074  0.00440 0.0200 1.00  1326
-## Sigma[3,3]  0.0017  0.00740 0.0280 1.01   321
-## 
-## GAM process model coefficient (beta) estimates:
-##                    2.5%   50% 97.5% Rhat n_eff
-## (Intercept)_trend  0.38  0.71  0.93    1  1358
-## regionBC_trend    -0.12  0.14  0.34    1  2081
-## regionSask_trend  -0.54 -0.40 -0.21    1  1216
-## 
-## Stan MCMC diagnostics:
-## ✔ No issues with effective samples per iteration
-## ✔ Rhat looks good for all parameters
-## ✔ No issues with divergences
-## ✔ No issues with maximum tree depth
-## 
-## Samples were drawn using sampling(hmc). For each parameter, n_eff is a
-##   crude measure of effective sample size, and Rhat is the potential scale
-##   reduction factor on split MCMC chains (at convergence, Rhat = 1)
-## 
-## Use how_to_cite() to get started describing this model
+## Next steps:
+##   - `pp_check(fit)`: posterior predictive checks
+##   - `posterior_transition_matrix(fit)` / `irf(fit)`: lagged effects between series
+##   - `residual_cor(fit)`: implied correlations among series
+##   - `forecast(fit, newdata = ...)`: out-of-sample forecasts
+##   - `lfo_cv(fit)`: leave-future-out model comparison
+##   - `conditional_effects(fit)`: covariate effects
+## Use `how_to_cite(fit)` for a methods paragraph and `methods_md(fit)` for its equations.
 ```
 
 But now we have three shape parameters to inspect:
 
 ``` r
 mcmc_plot(varmod2,
-          variable = 'shape',
+          variable = 'b_shape',
           regex = TRUE,
           type = 'trace')
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-38-1.png" alt="mvgam posterior estimates using bayesplot" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-30-1.png" alt="mvgam posterior estimates using bayesplot" width="60%" style="display: block; margin: auto;" />
 
-The unconditional posterior predictive checks look slightly better for the first and third series (`'Alb'` and `'Sask`'):
+The unconditional posterior predictive checks look similar to those from the first model, with replicates for `'Sask'` matching the sharp peak in its observations a little more closely:
 
 ``` r
 pp_check(varmod2,
          type = "dens_overlay_grouped",
          group = "region",
-         ndraws = 50)
+         ndraws = 50,
+         process_error = TRUE)
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-39-1.png" alt="mvgam posterior predictive checks" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-31-1.png" alt="mvgam posterior predictive checks" width="60%" style="display: block; margin: auto;" />
 
 And so do the probabilistic conditional hindcasts:
 
@@ -645,7 +526,7 @@ plot(hcs,
      series = 1)
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-42-1.png" alt="mvgam probabilistic hindcasts" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-34-1.png" alt="mvgam probabilistic hindcasts" width="60%" style="display: block; margin: auto;" />
 
 
 ``` r
@@ -653,7 +534,7 @@ plot(hcs,
      series = 2)
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-44-1.png" alt="mvgam probabilistic hindcasts" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-36-1.png" alt="mvgam probabilistic hindcasts" width="60%" style="display: block; margin: auto;" />
 
 
 ``` r
@@ -661,7 +542,7 @@ plot(hcs,
      series = 3)
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-46-1.png" alt="mvgam probabilistic hindcasts" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-38-1.png" alt="mvgam probabilistic hindcasts" width="60%" style="display: block; margin: auto;" />
 
 ### Model comparison with `loo_compare()`
 The plots for the second model look *slightly* better for some of the series, but of course this is a more complex model so we may expect that. Generally we may want to select among these two competing models, and the approximate leave-one-out cross-validation routines provided by the [`loo`](https://mc-stan.org/loo/) package allow us to do this. We simply call `loo_compare()` and feed in the set of models that we'd like to compare:
@@ -670,30 +551,57 @@ The plots for the second model look *slightly* better for some of the series, bu
 loo_compare(varmod, varmod2)
 ```
 
-
 ```
-##         elpd_diff se_diff
-## varmod2       0.0     0.0
-## varmod       -3.6     1.9
+##    model elpd_diff se_diff p_worse       diag_diff       diag_elpd
+##  varmod2       0.0     0.0      NA                 22 k_psis > 0.7
+##   varmod      -2.7     1.9    0.93 |elpd_diff| < 4 34 k_psis > 0.7
 ```
 
-The second model has slightly but consistently higher leave-one-out expected log predictive densities than the first model, so it appears to be slightly favoured. But of course we may wish to use other forms of model comparison, such as [computing proper scoring rules for out-of-sample probabilistic forecasts](https://nicholasjclark.github.io/mvgam/articles/forecast_evaluation.html). But for simplicity we will stick with the second model for further interrogation.
+The second model has a higher expected log predictive density than the first (a difference of about 2.7, with a standard error of 1.9), so it appears to be slightly favoured. Notice the warnings about high Pareto `\(k\)` values, though. These are common for State-Space models, because each latent state is informed by very few observations, and they make the leave-one-out approximation less reliable. `lfo_cv()` offers a better comparison by [computing proper scoring rules for out-of-sample probabilistic forecasts](https://nicholasjclark.github.io/mvgam/articles/forecast_evaluation.html). But for simplicity we will stick with the second model for further interrogation.
 
 ## Interrogating VAR(1) models in `mvgam`
 There are *many* useful questions that can be approached using VAR models, which I eluded to at the beginning of this post. `mvgam` has support for a growing number of investigations that can be performed using built-in functions, and this section will highlight some of those functionalities. 
 
 ### Inspecting AR coefficient and covariance estimates
-One of the first things we might want to do with a VAR(1) model is to inspect the `\(A\)` matrix, which includes the autoregressive coefficients that estimate lagged dependence and cross-dependence between the elements of the latent process model. By default `bayesplot` will plot these in the wrong order, so a bit of rearranging of the parameter estimates is needed to show the full matrix of estimates:
+One of the first things we might want to do with a VAR(1) model is to inspect the `\(A\)` matrix, which includes the autoregressive coefficients that estimate lagged dependence and cross-dependence between the elements of the latent process model. `posterior_transition_matrix()` returns posterior draws of this matrix, with rows naming the series that responds and columns naming the series that acts at the previous time step. A little reshaping puts the draws into a format for plotting the full matrix of estimates:
 
 ``` r
-A_pars <- matrix(NA, nrow = 3, ncol = 3)
-for(i in 1:3){
-  for(j in 1:3){
-    A_pars[i, j] <- paste0('A[', i, ',', j, ']')
-  }
-}
+A_draws <- posterior_transition_matrix(varmod2, summary = FALSE)
+A_df <- as.data.frame.table(A_draws, responseName = 'estimate') %>%
+  dplyr::rename(draw = Var1, response = Var2, driver = Var3) %>%
+  # Keep the central 99% of draws for each coefficient
+  dplyr::group_by(response, driver) %>%
+  dplyr::filter(estimate > quantile(estimate, 0.005),
+                estimate < quantile(estimate, 0.995)) %>%
+  dplyr::ungroup()
+ggplot(A_df, aes(x = estimate)) +
+  myhist(bins = 30) +
+  facet_grid(response ~ driver,
+             labeller = label_both,
+             scales = 'free_x') +
+  geom_vline(xintercept = 0,
+             col = 'white',
+             linewidth = 2) +
+  geom_vline(xintercept = 0,
+             linewidth = 1) +
+  labs(x = 'Autoregressive coefficient', y = '') +
+  hist_theme()
+```
+
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-40-1.png" alt="mvgam vector autoregressive coefficient inspection" width="60%" style="display: block; margin: auto;" />
+
+Most of the posterior mass for these coefficients is positive, though the uncertainty is wide. The plot leaves out the most extreme 1% of draws for each coefficient, a few of which reach large values. The clearest lagged interactions run into the process for `'BC'`, from both `'Alb'` (posterior probability of a positive effect 0.89) and `'Sask'` (0.87), and into `'Alb'` from `'Sask'` (0.94). For example, the panel with `response: BC` and `driver: Sask` captures how an *increase* in the process for `'Sask'` at time `\(t\)` is expected to impact the process for `'BC'` at time `\(t+1\)`. This might make biological sense as it could be possible that increasing populations in one region lead to subsequent increases in other regions due to dispersal events.
+
+We might also want to look at evidence for contemporaneous associations among these processes, which are captured in the covariance matrix `\(\Sigma_{process}\)`. The model stores the unique elements of this symmetric matrix, labelled by series:
+
+``` r
 mcmc_plot(varmod2,
-          variable = as.vector(t(A_pars)),
+          variable = c('Sigma_trend[Alb,Alb]',
+                       'Sigma_trend[BC,Alb]',
+                       'Sigma_trend[Sask,Alb]',
+                       'Sigma_trend[BC,BC]',
+                       'Sigma_trend[Sask,BC]',
+                       'Sigma_trend[Sask,Sask]'),
           type = 'hist') +
   geom_vline(xintercept = 0,
              col = 'white',
@@ -702,32 +610,9 @@ mcmc_plot(varmod2,
              linewidth = 1)
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-49-1.png" alt="mvgam vector autoregressive coefficient inspection" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-41-1.png" alt="mvgam vector autoregressive covariance inspection" width="60%" style="display: block; margin: auto;" />
 
-This plot makes it clear that there is broad posterior support for positive interactions among the three latent processes. For example, the estimates in `A[2,3]` capture how an *increase* in the process for series 3 (`'Sask'`) at time `\(t\)` is expected to impact the process for series 2 (`'BC'`) at time  `\(t+1\)`. This might make biological sense as it could be possible that increasing populations in one region lead to subsequent increases in other regions due to dispersal events.
-
-We might also want to look at evidence for contemporaneous associations among these processes, which are captured in the covariance matrix `\(\Sigma_{process}\)`. The same rearrangement of parameters is needed to get these in the right order:
-
-``` r
-Sigma_pars <- matrix(NA, nrow = 3, ncol = 3)
-for(i in 1:3){
-  for(j in 1:3){
-    Sigma_pars[i, j] <- paste0('Sigma[', i, ',', j, ']')
-  }
-}
-mcmc_plot(varmod2,
-          variable = as.vector(t(Sigma_pars)),
-          type = 'hist') +
-  geom_vline(xintercept = 0,
-             col = 'white',
-             linewidth = 2) +
-  geom_vline(xintercept = 0,
-             linewidth = 1)
-```
-
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-50-1.png" alt="mvgam vector autoregressive covariance inspection" width="60%" style="display: block; margin: auto;" />
-
-Again we see many positive covariances which suggests that these processes are not evolving independently, but are rather likely to be co-responding to some broader phenomena
+The contemporaneous covariances are small. The posterior probability of a positive covariance is 0.86 between `'BC'` and `'Alb'`, 0.79 between `'Sask'` and `'BC'` and only 0.48 between `'Sask'` and `'Alb'`. Most of the dependence among these processes therefore arises through the lagged interactions in `\(A\)` rather than through shared shocks within a year. The `residual_cor()` function summarises the correlations that the full model implies once both sources are combined.
 
 
 ### Impulse Response Functions
@@ -745,7 +630,7 @@ plot(irfs,
      series = 1)
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-53-1.png" alt="mvgam vector autoregressive impulse response functions" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-44-1.png" alt="mvgam vector autoregressive impulse response functions" width="60%" style="display: block; margin: auto;" />
 
 
 ``` r
@@ -753,7 +638,7 @@ plot(irfs,
      series = 2)
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-55-1.png" alt="mvgam vector autoregressive impulse response functions" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-46-1.png" alt="mvgam vector autoregressive impulse response functions" width="60%" style="display: block; margin: auto;" />
 
 
 ``` r
@@ -761,9 +646,9 @@ plot(irfs,
      series = 3)
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-57-1.png" alt="mvgam vector autoregressive impulse response functions" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-48-1.png" alt="mvgam vector autoregressive impulse response functions" width="60%" style="display: block; margin: auto;" />
 
-These plots make it clear that, if one region experienced a temporary pulse in the number of American kestrels, we'd expect the remaining regions to show contemporaneous and/or subsequent increases over the following years. Moreover, we'd expect the effects of this pulse to reverberate for many years, thanks to the strong positive dependencies that are shown among all three series.
+These plots suggest that, if one region experienced a temporary pulse in the number of American kestrels, the remaining regions would tend to show increases over the following years, and that these effects would fade slowly. But the uncertainty is wide, and the 95% intervals include zero for most cross-region responses. Forty years of annual counts can only tell us so much about these interactions.
 
 ### Forecast Error Variance Decompositions
 Using the same logic as above, we can inspect forecast error variance decompositions (FEVDs) for each process using the `fevd()` function. This type of analysis asks how orthogonal shocks to all process in the system contribute to the variance of forecast uncertainty for a focal process over increasing horizons. In other words, the proportion of the forecast variance of each latent time series can be attributed to the effects of the other series in the VAR proces. FEVDs are useful because some shocks may not be expected to cause variations in the short-term but may cause longer-term fluctuations
@@ -782,7 +667,7 @@ plot(fevds) +
                                "#5C0000"))
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-59-1.png" alt="mvgam vector autoregressive forecast error variance decompositions" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-50-1.png" alt="mvgam vector autoregressive forecast error variance decompositions" width="60%" style="display: block; margin: auto;" />
 
 This plot shows that the variance of forecast uncertainty for each process is initially dominated by contributions from that same process (i.e. self-dependent effects) but that effects from other processes become more important over increasing forecast horizons. Given what we saw from the IRF plots above, these long-term contributions from interactions among the processes makes sense.
 
@@ -802,7 +687,7 @@ relative magnitude of the *diagonals* in the partial derivative matrix: `\([2~de
 - `var_return_rate`: Asymptotic (long-term) return rate of the variance of the transition distribution to the stationary variance: `\(max(\lambda_{A \otimes{A}})\)`. Again, lower values suggest greater stability of the system
 
 ``` r
-metrics <- stability(varmod2)
+metrics <- stability(varmod2, summary = FALSE)
 ```
 
 We can plot the posterior distribution of reactivity, which is [perhaps the most commonly calculated metric of ecological community stability](https://esajournals.onlinelibrary.wiley.com/doi/full/10.1890/13-0996.1), using `ggplot()`:
@@ -816,7 +701,7 @@ ggplot(metrics, aes(x = reactivity)) +
   hist_theme()
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-61-1.png" alt="mvgam vector autoregressive community reactivity estimates" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-52-1.png" alt="mvgam vector autoregressive community reactivity estimates" width="60%" style="display: block; margin: auto;" />
 
 This system is considered to be "reactive", whereby this index of the community's short-term response to perturbations is mostly estimated to be `>0`. Again this is not surprising, as both the `irf()` and `fevd()` plots show that the time series of adjusted counts in each region is highly dependent on time-lagged adjusted counts in other regions.
 
@@ -899,7 +784,7 @@ df_curves %>%
        y = 'Contribution to stationary distribution')
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-63-1.png" alt="mvgam vector autoregressive community reactivity estimates" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-54-1.png" alt="mvgam vector autoregressive community reactivity estimates" width="60%" style="display: block; margin: auto;" />
 
 And there we have it. This plot demonstrates that, within the contribution of the `\(A\)` matrix to the stable distribution, the off-diagonals (i.e. the lagged autoregressive interaction effects) play a sizable role. However, within the contribution of the `\(\Sigma\)` matrix to the stable distribution, the diagonals (i.e. the process variances) are much more important than are the off-diagonal covariances. This gives us some insights into the relative importances of lagged vs contemporaneous "interactions" and can hopefully facilitate more in-depth ecological analyses. 
 

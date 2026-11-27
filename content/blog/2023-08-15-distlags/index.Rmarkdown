@@ -29,6 +29,8 @@ knitr::opts_chunk$set(
   fig.align = "center")
 ```
 
+*Updated in November 2026: the code now needs `mvgam` 2.0 or higher. The [package website](https://nicholasjclark.github.io/mvgam/) explains how to install it and what changed.*
+
 Here we will use `mgcv` to estimate parameters of nonlinear distributed lag models. These models are used to describe simultaneously non-linear and delayed functional relationships between a covariate and a response, and are sometimes referred to as exposure-lag-response models. If we assume $\tilde{\boldsymbol{y}}_{t}$ is the conditional expectation of a response variable $\boldsymbol{y}$ at time $\boldsymbol{t}$, and that $g$ is a suitable inverse link function, the linear predictor for a distributed lag GAM with one lagged covariate is written as:
   
 $$g(\tilde{\boldsymbol{y}}_{t})={\boldsymbol{B}}_0+\sum\limits_{k=1}^K{f}(\boldsymbol{b}_{k,t}\boldsymbol{x}_{k,t})\,$$
@@ -42,6 +44,7 @@ We will work with time series of rodent captures from the Portal Project, [a lon
 This tutorial relies on the following packages:
 ```{r, include = FALSE}
 library(mvgam)           # Fit, interrogate and forecast DGAMs
+library(mgcv)            # Fit GAMs with list data
 library(dplyr)           # Tidy and flexible data manipulation
 library(ggplot2)         # Flexible plotting
 library(gratia)          # Graceful plotting of smooth terms
@@ -51,6 +54,7 @@ library(patchwork)       # Combining ggplot objects
 
 ```{r, eval = FALSE}
 library(mvgam)           # Fit, interrogate and forecast DGAMs
+library(mgcv)            # Fit GAMs with list data
 library(dplyr)           # Tidy and flexible data manipulation
 library(ggplot2)         # Flexible plotting
 library(gratia)          # Graceful plotting of smooth terms
@@ -62,9 +66,9 @@ A custom `ggplot2` theme; feel free to ignore if you have your own plot preferen
 ```{r}
 theme_set(theme_classic(base_size = 12, base_family = 'serif') +
             theme(axis.line.x.bottom = element_line(colour = "black",
-                                                    size = 1),
+                                                    linewidth = 1),
                   axis.line.y.left = element_line(colour = "black",
-                                                  size = 1)))
+                                                  linewidth = 1)))
 options(ggplot2.discrete.colour = c("#A25050",
                                     "#8F2727",
                                     'darkred',
@@ -103,25 +107,25 @@ dplyr::glimpse(portal_ts)
 levels(portal_ts$series)
 ```
 
-It is important that the number of levels matches the number of unique series in the data to ensure indexing across series works properly in the underlying modelling functions. For more information on how to format data for {`mvgam`} modelling, see [the data formatting vignette in the package](https://nicholasjclark.github.io/mvgam/articles/data_in_mvgam.html)
+It is important that the number of levels matches the number of unique series in the data to ensure indexing across series works properly in the underlying modelling functions. For more information on how to format data for {`mvgam`} modelling, see [the data formatting vignette in the package](https://nicholasjclark.github.io/mvgam/articles/data.html)
 
 Now we can plot all of the time series together, using the `captures` measurement as our outcome variable
 ```{r, fig.alt = "Visualising features of time series data in mvgam and R"}
-plot_mvgam_series(data = portal_ts, y = 'captures', series = 'all')
+mvgam_data(portal_ts, y = 'captures', family = poisson())
 ```
 
 We can also plot some more in-depth features for individual series
 ```{r, fig.alt = "Visualising features of time series data in mvgam and R"}
-plot_mvgam_series(data = portal_ts, y = 'captures', series = 1)
-plot_mvgam_series(data = portal_ts, y = 'captures', series = 2)
-plot_mvgam_series(data = portal_ts, y = 'captures', series = 3)
-plot_mvgam_series(data = portal_ts, y = 'captures', series = 4)
+for(sp in levels(portal_ts$series)){
+  print(mvgam_data(portal_ts, y = 'captures', family = poisson(),
+                   series = sp))
+}
 ```
 
 Inspect some associations between `log(captures + 1)` and minimum temperature / NDVI moving average for each species to get a sense of how their relative abundances vary over seasons and with varying habitat conditions. First for **DM**
 ```{r, fig.alt = "Visualising features of time series data in ggplot2 and R"}
 portal_ts %>% 
-  dplyr::filter(species == 'DM') %>%
+  dplyr::filter(species == 'DM', !is.na(captures)) %>%
   ggplot(aes(x = mintemp, y = log(captures + 1))) +
   geom_point() +
   geom_smooth(method = "gam", formula = y ~ s(x, k = 12),
@@ -131,7 +135,7 @@ portal_ts %>%
        x = 'Minimum temperature') +
   
   portal_ts %>% 
-  dplyr::filter(species == 'DM') %>%
+  dplyr::filter(species == 'DM', !is.na(captures)) %>%
   ggplot(aes(x = ndvi_ma12, y = log(captures + 1))) +
   geom_point() +
   geom_smooth(method = "gam", formula = y ~ s(x, k = 12),
@@ -143,7 +147,7 @@ portal_ts %>%
 And for **PP**
 ```{r, fig.alt = "Visualising features of time series data in ggplot2 and R"}
 portal_ts %>% 
-  dplyr::filter(species == 'PP') %>%
+  dplyr::filter(species == 'PP', !is.na(captures)) %>%
   ggplot(aes(x = mintemp, y = log(captures + 1))) +
   geom_point() +
   geom_smooth(method = "gam", formula = y ~ s(x, k = 12),
@@ -153,7 +157,7 @@ portal_ts %>%
        x = 'Minimum temperature') +
   
   portal_ts %>% 
-  dplyr::filter(species == 'PP') %>%
+  dplyr::filter(species == 'PP', !is.na(captures)) %>%
   ggplot(aes(x = ndvi_ma12, y = log(captures + 1))) +
   geom_point() +
   geom_smooth(method = "gam", formula = y ~ s(x, k = 12),
@@ -165,7 +169,7 @@ portal_ts %>%
 Next for **PB**
 ```{r, fig.alt = "Visualising features of time series data in ggplot2 and R"}
 portal_ts %>% 
-  dplyr::filter(species == 'PB') %>%
+  dplyr::filter(species == 'PB', !is.na(captures)) %>%
   ggplot(aes(x = mintemp, y = log(captures + 1))) +
   geom_point() +
   geom_smooth(method = "gam", formula = y ~ s(x, k = 12),
@@ -175,7 +179,7 @@ portal_ts %>%
        x = 'Minimum temperature') +
   
   portal_ts %>% 
-  dplyr::filter(species == 'PB') %>%
+  dplyr::filter(species == 'PB', !is.na(captures)) %>%
   ggplot(aes(x = ndvi_ma12, y = log(captures + 1))) +
   geom_point() +
   geom_smooth(method = "gam", formula = y ~ s(x, k = 12),
@@ -187,7 +191,7 @@ portal_ts %>%
 And finally for **DO**
 ```{r, fig.alt = "Visualising features of time series data in ggplot2 and R"}
 portal_ts %>% 
-  dplyr::filter(species == 'DO') %>%
+  dplyr::filter(species == 'DO', !is.na(captures)) %>%
   ggplot(aes(x = mintemp, y = log(captures + 1))) +
   geom_point() +
   geom_smooth(method = "gam", formula = y ~ s(x, k = 12),
@@ -197,7 +201,7 @@ portal_ts %>%
        x = 'Minimum temperature') +
   
   portal_ts %>% 
-  dplyr::filter(species == 'DO') %>%
+  dplyr::filter(species == 'DO', !is.na(captures)) %>%
   ggplot(aes(x = ndvi_ma12, y = log(captures + 1))) +
   geom_point() +
   geom_smooth(method = "gam", formula = y ~ s(x, k = 12),
@@ -298,7 +302,7 @@ data_pp <- lapply(data_all, function(x){
 Setting up the model is now very straightforward. We simply wrap the `lag` and `mintemp` matrices in a call to `te()`, which will set up a tensor product smoother (see `?mgcv::te` for details). I also use a smooth term for `ndvi_ma12` in this model, and stick with a Poisson observation model to keep things simple
 ```{r}
 mod1 <- gam(captures ~ 
-              te(mintemp, lag, k = 6) +
+              te(mintemp, lag, k = c(6, 4)) +
               s(ndvi_ma12),
             family = poisson(),
             data = data_pp,
@@ -362,10 +366,10 @@ mod2 <- gam(captures ~
               s(ndvi_ma12, by = series, k = 5) +
               
               # Distributed lags of mintemp
-              te(mintemp, lag, k = 4, by = weights_dm) +
-              te(mintemp, lag, k = 4, by = weights_do) +
-              te(mintemp, lag, k = 4, by = weights_pb) +
-              te(mintemp, lag, k = 4, by = weights_pp),
+              te(mintemp, lag, k = c(6, 4), by = weights_dm) +
+              te(mintemp, lag, k = c(6, 4), by = weights_do) +
+              te(mintemp, lag, k = c(6, 4), by = weights_pb) +
+              te(mintemp, lag, k = c(6, 4), by = weights_pp),
             family = poisson(),
             data = data_all,
             control = list(nthreads = 6),
@@ -416,13 +420,7 @@ plot_dist_lags = function(model, data_all){
     
     # Calculate predictions for when mintemp is zero to find the baseline
     # value for centring the plot
-    if(inherits(model, 'mvgam')){
-      preds <- predict(model, newdata = newdata, 
-                       type = 'link', process_error = FALSE)
-      preds <- apply(preds, 2, median)
-    } else {
-      preds <- predict(model, newdata = newdata, type = 'link')
-    }
+    preds <- predict(model, newdata = newdata, type = 'link')
 
     offset <- mean(preds)
     plot_dat <- do.call(rbind, lapply(seq(1:6), function(lag){
@@ -436,17 +434,10 @@ plot_dist_lags = function(model, data_all){
       
       # Predict on the link scale and shift by the offset 
       # so that values are roughly centred at zero
-      if(inherits(model, 'mvgam')){
-       preds <- predict(model, newdata = newdata, 
-                        type = 'link', process_error = FALSE) 
-       preds <- apply(preds, 2, median)
-      } else {
-       preds <- predict(model, newdata = newdata,
-                        type = 'link') 
-      }
+      preds <- predict(model, newdata = newdata, type = 'link')
       preds <- preds - offset
       
-      data.frame(lag = lag,
+      data.frame(lag = lag - 1,
                  preds = preds,
                  mintemp = seq(min(data_all$mintemp),
                                    max(data_all$mintemp),
@@ -483,62 +474,113 @@ plot_dist_lags(mod2, data_all)
 There we have it. Now it is clear that some species show fairly strong responses to cumulative change in minimum temperature, while others do not. But the fact that we aren't effectively capturing temporal autocorrelation could be influencing these estimates. What happens if we do model temporal dynamics appropriately?
 
 ## Using mvgam to capture dynamic processes
-Just as a quick illustration, I will show how the same model can be used in `mvgam`, except that we replace the smooth functions of `time` with more appropriate dynamic processes that can capture the temporal autocorrelation in the observations. This model uses very similar syntax to the above and can use the same data objects, so there is no need to change much here
-```{r include = FALSE}
-mod3 <- mvgam(captures ~ 
-              # Hierarchical intercepts
-              s(series, bs = 're') +
-              
-              # Smooths of ndvi_ma12
-              s(ndvi_ma12, by = series, k = 5) +
-              
-              # Distributed lags of mintemp
-              te(mintemp, lag, k = 4, by = weights_dm) +
-              te(mintemp, lag, k = 4, by = weights_do) +
-              te(mintemp, lag, k = 4, by = weights_pb) +
-              te(mintemp, lag, k = 4, by = weights_pp),
-              
-              # Latent dynamic processes to capture autocorrelation
-              trend_model = AR(),
-            family = poisson(),
-            data = data_all)
-```
-
-```{r eval = FALSE}
-mod3 <- mvgam(captures ~ 
-              # Hierarchical intercepts
-              s(series, bs = 're') +
-              
-              # Smooths of ndvi_ma12
-              s(ndvi_ma12, by = series, k = 5) +
-              
-              # Distributed lags of mintemp
-              te(mintemp, lag, k = 4, by = weights_dm) +
-              te(mintemp, lag, k = 4, by = weights_do) +
-              te(mintemp, lag, k = 4, by = weights_pb) +
-              te(mintemp, lag, k = 4, by = weights_pp),
-              
-              # Latent dynamic processes to capture autocorrelation
-              trend_model = AR(),
-            family = poisson(),
-            data = data_all)
-```
-
+Just as a quick illustration, I will show how a similar model can be fitted in {`mvgam`}, replacing the smooth functions of `time` with latent dynamic processes that can capture the temporal autocorrelation in the observations. {`mvgam`} builds its observation model with {`brms`}, which accepts matrix covariates stored as columns of a `data.frame`. But {`brms`} does not use the `by` weighting matrices the way {`mgcv`} does. Instead, we give each species its own copy of the lag and temperature matrices, holding zeros in every row that belongs to another species. Each species' tensor product then varies only within that species' rows
 ```{r}
-summary(mod3, include_betas = FALSE)
+model_data <- portal_ts[, c('captures', 'ndvi_ma12', 'time', 'series')]
+model_data$lag <- data_all$lag
+model_data$mintemp <- data_all$mintemp
+for(sp in levels(model_data$series)){
+  in_species <- model_data$series == sp
+  model_data[[paste0('mintemp_', tolower(sp))]] <- model_data$mintemp * in_species
+  model_data[[paste0('lag_', tolower(sp))]] <- model_data$lag * in_species
+}
 ```
 
-Pay no attention to the approximate significances of these smooths, I'm still not convinced that they are being calculated correctly in {`mvgam`}. But notice how the AR terms are all close to `1`, suggesting there is a lot of unmodelled temporal autocorrelation in the data. Has this impacted our inferences of distributed lag effects? The same prediction function can be used to visualize the distributed lag effects of `mintemp`:
-```{r warning=FALSE, fig.alt = "Visualising nonlinear smooths in mgcv, mvgam and R"}
-plot_dist_lags(mod3, data_all)
+The model gives each species an AR(1) process. With `cor = TRUE`, it also estimates correlations among the innovations of these processes. A shock to one species' abundance can then coincide with shocks to the others
+```{r}
+mod3 <- mvgam(captures ~
+                # Hierarchical intercepts
+                (1 | series) +
+
+                # Smooths of ndvi_ma12
+                s(ndvi_ma12, by = series, k = 5) +
+
+                # Distributed lags of mintemp
+                t2(mintemp_dm, lag_dm, k = c(6, 4)) +
+                t2(mintemp_do, lag_do, k = c(6, 4)) +
+                t2(mintemp_pb, lag_pb, k = c(6, 4)) +
+                t2(mintemp_pp, lag_pp, k = c(6, 4)),
+
+              # Latent AR(1) processes with correlated innovations
+              trend_formula = ~ AR(cor = TRUE),
+
+              # A weakly informative prior on the fixed effects
+              prior = prior(normal(0, 1), class = b),
+              family = poisson(),
+              data = model_data,
+              silent = 2,
+              seed = 1)
 ```
 
-These estimates are now more nonlinear, probably because we have more power to detect effects by effectively capturing temporal dynamics with the latent AR processes:
+When you run this model, the sampler warns that almost every transition reached the maximum tree depth. It also reports divergences in about 2% of transitions. Both warnings come from the structure of the model. Every row of the data holds the same lag matrix, with lags 0 to 5. Summing a function of lag alone over that fixed matrix gives the same number in every row of a species. The lag-only part of each tensor product is a constant per species, duplicating the species intercepts. The duplication creates a ridge in the posterior that the sampler must travel along. {`mgcv`} detects such duplicated columns and drops them, while {`brms`} keeps them. The `normal(0, 1)` prior stops the duplicated coefficients from drifting far. The ridge slows sampling but leaves the distributed lag effects untouched: the plots below compare predictions at different temperatures, a comparison in which the duplicated constants cancel
+```{r}
+summary(mod3)
+```
+
+The AR(1) coefficients are all well above zero, with posterior medians between 0.79 and 0.95. This persistence carries much of the variation in these counts, beyond what the covariates explain. Most correlations among the innovations are weak, but `PB` and `PP` share a clear positive correlation (posterior median 0.60):
+```{r, fig.alt = "Correlations among latent process innovations from an mvgam model in R"}
+plot(residual_cor(mod3))
+```
+
+The prediction function from above relies on the `list` data that {`mgcv`} uses. Here is a version for this model that works with the posterior draws directly. For each species, lag and temperature, it computes the difference between the linear predictor at that temperature and the linear predictor with temperature at zero. Because each draw gives its own difference, the plot can show 80% credible intervals in place of the smoothed curves used above
+```{r}
+plot_dist_lags_mvgam = function(model, data){
+  temps <- seq(min(data$mintemp), max(data$mintemp), length.out = 50)
+  n_lag <- ncol(data$lag)
+  zero <- matrix(0, length(temps) * n_lag, n_lag)
+
+  sp_plot_dat <- do.call(rbind, lapply(levels(data$series), function(sp){
+    # One row per temperature and lag; all other predictors are zero
+    newdata <- data[rep(1, nrow(zero)), c('time', 'series', 'ndvi_ma12')]
+    newdata$series <- factor(sp, levels = levels(data$series))
+    newdata$ndvi_ma12 <- 0
+    for(v in grep('^(mintemp|lag)_', names(data), value = TRUE)){
+      newdata[[v]] <- zero
+    }
+    newdata[[paste0('lag_', tolower(sp))]] <- matrix(0:(n_lag - 1), nrow(zero),
+                                                     n_lag, byrow = TRUE)
+
+    # Predictions with temperature at zero give the baseline
+    baseline <- posterior_linpred(model, newdata = newdata,
+                                  process_error = FALSE)
+
+    # Now place each temperature in one lag column at a time
+    lag_id <- rep(seq_len(n_lag), each = length(temps))
+    temp_mat <- zero
+    temp_mat[cbind(seq_len(nrow(zero)), lag_id)] <- rep(temps, n_lag)
+    newdata[[paste0('mintemp_', tolower(sp))]] <- temp_mat
+    effect <- posterior_linpred(model, newdata = newdata,
+                                process_error = FALSE) - baseline
+
+    data.frame(species = sp,
+               lag = factor(lag_id - 1),
+               mintemp = rep(temps, n_lag),
+               est = apply(effect, 2, median),
+               lower = apply(effect, 2, quantile, probs = 0.1),
+               upper = apply(effect, 2, quantile, probs = 0.9))
+  }))
+
+  ggplot(sp_plot_dat, aes(x = mintemp, y = est,
+                          colour = lag, fill = lag)) +
+    facet_wrap(~ species, scales = 'free_y') +
+    geom_hline(yintercept = 0, linetype = 'dashed') +
+    geom_ribbon(aes(ymin = lower, ymax = upper),
+                alpha = 0.12, colour = NA) +
+    geom_line(linewidth = 1) +
+    scale_fill_viridis(discrete = TRUE) +
+    scale_colour_viridis(discrete = TRUE) +
+    labs(x = 'Minimum temperature (z-scored)',
+         y = 'Partial effect')
+}
+```
+
+```{r, fig.alt = "Visualising nonlinear distributed lag effects from an mvgam model in R"}
+plot_dist_lags_mvgam(mod3, model_data)
+```
+
+The broad patterns match the {`mgcv`} estimates. `PP` shows the clearest response: warm months raise captures in the same month but lower them three to five months later. `PB` responds mainly to the current month's temperature. What changes is our certainty. Once the latent AR(1) processes absorb the temporal autocorrelation, the intervals are wide. For `DM` the 80% intervals include zero at every lag, while `DO` keeps only a weak negative response to warm months two and three months earlier. The latent processes themselves show how much variation the covariates leave unexplained:
 ```{r, fig.alt = "Visualising latent dynamic time series processes in mvgam and R"}
-plot(mod3, type = 'trend', series = 1)
-plot(mod3, type = 'trend', series = 2)
-plot(mod3, type = 'trend', series = 3)
-plot(mod3, type = 'trend', series = 4)
+plot(hindcast(mod3, type = 'trend'))
 ```
 
 We will leave it there for this post. Hopefully you find this useful at some point!

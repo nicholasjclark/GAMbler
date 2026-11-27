@@ -46,6 +46,8 @@ details > summary:hover {
 
 
 
+*Updated in November 2026: the code now needs `mvgam` 2.0 or higher. The [package website](https://nicholasjclark.github.io/mvgam/) explains how to install it and what changed.*
+
 Generalized Additive Models (GAMs) are flexible tools that have found particular application in the analysis of time series data. In ecology, a host of recent papers and workshops have drawn attention to the power of GAMs for addressing complex ecological analyses. For example, [Gavin Simpson regularly hosts workshops on GAMs in R](https://fromthebottomoftheheap.net/about/), and [it is common to see GAMs on the workshop list for large international conferences in ecology and statistics](https://github.com/eric-pedersen/mgcv-esa-workshop). 
   
 ### Why are GAMs useful for time series analysis? 
@@ -62,9 +64,10 @@ This tutorial relies on the following packages:
 
 
 
-```r
+``` r
+library(mgcv)            # Fit GAMs with penalized smooths
 library(mvgam)           # Fit, interrogate and forecast DGAMs
-library(dplyr)           # Tidy and flexible data manipulation
+library(dplyr)          # Tidy and flexible data manipulation
 library(marginaleffects) # Compute conditional and marginal effects
 library(ggplot2)         # Flexible plotting
 library(patchwork)       # Combining ggplot objects
@@ -72,7 +75,7 @@ library(patchwork)       # Combining ggplot objects
 
 First I design a custom `ggplot2` theme; feel free to ignore if you have your own plot preferences
 
-```r
+``` r
 theme_set(theme_classic(base_size = 12, base_family = 'serif') +
             theme(axis.line.x.bottom = element_line(colour = "black",
                                                     size = 1),
@@ -102,7 +105,7 @@ The smoothness of the spline is controlled by a [smoothing penalty](https://m-cl
   
 Here I use an exaggerated example to show how a smooth tries to wiggle excessively, leading to overfitting. This can be done by fixing the smoothing penalty `\(λ\)` in a GAM fit with {`mgcv`}'s `gam()` function in R. By fitting models with increasingly relaxed smooths, with `\(λ\)` values approaching zero, we produce increasingly wiggly fits that tend toward fully unpenalized functions.
 
-```r
+``` r
 par(mfrow = c(2, 2),
     mgp = c(2.5, 1, 0),
     mai=c(c(0.4, 0.7, 0.2, 0.2)))
@@ -144,23 +147,25 @@ Notice how wiggly the function becomes in the last plot when `\(λ\)` is very sm
   
 To demonstrate how challenging it can be to work with temporally autocorrelated data in GAMs, I'll load some time series of counts. The data are from the {`tscount`} package and represent the umber of campylobacterosis cases (reported every 28 days) in the North of Québec in Canada from January 1990 to the end of October 2000.
 
-```r
+``` r
 # Download the campy data from the tscount package
 load(url('https://github.com/cran/tscount/raw/master/data/campy.RData'))
 
 # Put data into a data.frame and visualize
 dat <- data.frame(count = as.vector(campy)) %>%
-  dplyr::mutate(time = 1:dplyr::n())
+  dplyr::mutate(time = 1:dplyr::n(),
+                # mvgam needs a factor that names the series
+                series = factor('campy'))
 ggplot(dat, aes(time, count)) + 
   geom_point() +
   geom_line()
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-6-1.png" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-6-1.png" alt="" width="60%" style="display: block; margin: auto;" />
  
 Next I supply a few small convenience functions for inspecting model outputs.
 
-```r
+``` r
 # Replicating mgcv::gam.check() but without the plots
 small_check = function(model){
   cat("Basis dimension (k) checking results. Low p-value (k-index < 1) may\n") 
@@ -200,7 +205,7 @@ plot_links = function(model, n_ahead = 0){
 
 Now onto some GAMs. My goal is to smooth over the temporal trend in the data and inspect the behaviour of the `gam.check()` function from {`mgcv`}. First I impose a restricted smooth of `time` with a very small number of possible basis functions (using the default thin plate basis). For this and all subsequent models, I stick with a `poisson()` observation model as this will make it easier to illustrate how the estimated smooth changes as we increase `k`. After fitting the model, I then check basis dimension and plot the response-scaled predictions
 
-```r
+``` r
 mod1 <- gam(count ~ s(time, k = 6),
             data = dat,
             family = poisson(),
@@ -218,7 +223,7 @@ small_check(mod1)
 ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 ```
 
-```r
+``` r
 plot_fcs(mod1)
 ```
 
@@ -226,7 +231,7 @@ plot_fcs(mod1)
 
 These results strongly indicate that `k` was set too low (i.e. the `k-index` is well below `1` and the estimated degrees of freedom is nearly as large as the maximum allowed degrees of freedom). The plot also suggests that the function is not flexible enough to capture the long-term (or short-term) variation in the observed counts. Now for a second model that allows for more possible complexity
 
-```r
+``` r
 mod2 <- gam(count ~ s(time, k = 23),
             data = dat,
             family = poisson(),
@@ -244,7 +249,7 @@ small_check(mod2)
 ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 ```
 
-```r
+``` r
 plot_fcs(mod2)
 ```
 
@@ -252,7 +257,7 @@ plot_fcs(mod2)
 
 A similar result, with the checking function suggesting that we need to increase `k` further if we want to capture the patterns that are left in the model residuals. Now for the whole hog, increasing `k` to the maximum allowed basis dimension
 
-```r
+``` r
 mod3 <- gam(count ~ s(time, k = 140),
             data = dat,
             family = poisson(),
@@ -265,10 +270,10 @@ small_check(mod3)
 ## indicate that k is too low, especially if edf is close to k'.
 ## 
 ##          k' edf k-index p-value
-## s(time) 139  31    1.14    0.95
+## s(time) 139  31    1.14    0.96
 ```
 
-```r
+``` r
 plot_fcs(mod3)
 ```
 
@@ -276,50 +281,50 @@ plot_fcs(mod3)
 
 Finally the check suggests the smooth was wiggly enough. But how does this wiggly smooth function behave if we want to extrapolate ahead? Here I predict ahead for `10` timesteps from each of the above models to visualize extrapolation behaviours.
 
-```r
+``` r
 plot_fcs(mod1, 10)
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-11-1.png" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-11-1.png" alt="" width="60%" style="display: block; margin: auto;" />
 
-```r
+``` r
 plot_fcs(mod2, 10)
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-11-2.png" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-11-2.png" alt="" width="60%" style="display: block; margin: auto;" />
 
-```r
+``` r
 plot_fcs(mod3, 10)
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-11-3.png" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-11-3.png" alt="" width="60%" style="display: block; margin: auto;" />
 
 The functions give fairly different forecasts for each model because these penalized splines extrapolate linearly into the future (i.e. if the function wiggled downward toward the end of the training data, the forecast will continue linearly downward forever). This is easier visualized on the link scale
 
-```r
+``` r
 plot_links(mod1, 10)
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-12-1.png" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-12-1.png" alt="" width="60%" style="display: block; margin: auto;" />
 
-```r
+``` r
 plot_links(mod2, 10)
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-12-2.png" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-12-2.png" alt="" width="60%" style="display: block; margin: auto;" />
 
-```r
+``` r
 plot_links(mod3, 10)
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-12-3.png" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-12-3.png" alt="" width="60%" style="display: block; margin: auto;" />
 
 ## Autoregressive residuals in `mgcv`
 This behaviour is unwanted, for several reasons. First is the very obvious and unwanted extrapolation behaviour. Not only are these extrapolations typically unrealistic and ignorant of the types of behaviours that occurred within the training data, they are also extremely volatile. Simply by changing `k` to respect the warnings from `gam.check()`, we end up with very different ideas about plausible futures. The second reason we don't want this is that, even if we are not interested in forecasting, chasing autocorrelation with increasingly wiggly smooths increases computational complexity and leads to identifiability issues. Plus there will no doubt be situations in which we cannot capture all of this autocorrelation no matter how wiggly we allow our smooths of `time` to be.
   
 An obvious solution then is to try and include some sort of residual autocorrelation process in the model. For Gaussian responses, this is fairly straightfoward using the `gamm()` function, which allows us to supply a correlation argument like those provided by `nlme::lme()`. We can specify several different forms of stochastic ARMA models that will be used to model the residuals. But we are not using a Gaussian observation model here because our data are non-negative integers. There are other options we can use within `gamm()` that make use of `MASS::glmmPQL()` to fit the model, but this can be temperamental and give unsatisfactory results. Finally though, we have the option to use `bam()` and supply a fixed AR1 coefficient, which will be applied to the working residuals. I'll illustrate here by fixing the coefficient to `0.6` as a simple example
 
-```r
+``` r
 mod4 <- bam(count ~ s(time, k = 140),
             data = dat,
             family = poisson(),
@@ -339,7 +344,7 @@ small_check(mod4)
 ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
 ```
 
-```r
+``` r
 plot_fcs(mod4)
 ```
 
@@ -347,17 +352,17 @@ plot_fcs(mod4)
 
 This leads to a much smoother estimate of the smooth, which is good news. We still have the warnings from `gam.check()` unfortunately, but that is preferable to fitting a smooth that bends all over the place to try and capture the autocorrelation. The extrapolation behaviours are more sensible as well:
 
-```r
+``` r
 plot_fcs(mod4, 10)
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-14-1.png" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-14-1.png" alt="" width="60%" style="display: block; margin: auto;" />
 
-```r
+``` r
 plot_links(mod4, 10)
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-14-2.png" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-14-2.png" alt="" width="60%" style="display: block; margin: auto;" />
 
 There are still several major downsides to this approach. We have to specify the AR1 coefficient, and if we are modeling several time series in a single joint model (which we very often want to do) we have to use the same AR1 dynamics for each series. We also have no way of incorporating more complex dynamics, such as AR2 or multivariate (VAR) processes. Missing values can cause small or very big problems (the residual AR1 model assumes there is a residual for every timepoint, but if you have missing observations these will be thrown out prior to model fitting). And finally, it is difficult to produce accurate forecasts from this model because our extrapolations do not incorporate the residual autoregressive process. To do so, we'd have to:
   
@@ -380,20 +385,23 @@ The `mvgam` package was designed to solve these and many other problems we encou
 
 
 
-```r
+``` r
 mod5 <- mvgam(count ~ 1,
               trend_formula = ~ gp(time, c = 5/4, k = 10,
-                                   scale = FALSE),
-              trend_model = AR(),
-              priors = prior_string(prior ='normal(16, 4)', 
-                                    class = 'rho_gp_trend(time)'),
-            data = dat,
-            family = poisson())
+                                   scale = FALSE) +
+                AR(),
+              prior = prior(normal(16, 4),
+                            class = lscale_trend,
+                            coef = gptime),
+              data = dat,
+              family = poisson(),
+              silent = 2,
+              seed = 1)
 ```
 
 The model fits quickly and encounters few issues. The GP has done an excellent job capturing the nonlinear trend...
 
-```r
+``` r
 plot_links(mod5)
 ```
 
@@ -401,7 +409,7 @@ plot_links(mod5)
 
 ...while also producing sensible extrapolation behaviour:
 
-```r
+``` r
 plot_links(mod5, n_ahead = 10)
 ```
 
@@ -415,7 +423,7 @@ In many time series analyses, we believe the power of past observations to expla
 <details>
   <summary>Click here if you would like to see the `R` code used to produce Gaussian Process simulations </summary>
 
-```r
+``` r
 # set a seed for reproducibility
 set.seed(2222)
 
@@ -464,14 +472,14 @@ for(i in 1:10){
 box(bty = 'l', lwd = 2)
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-19-1.png" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-19-1.png" alt="" width="60%" style="display: block; margin: auto;" />
 </details>
 <br>
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-20-1.png" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-20-1.png" alt="" width="60%" style="display: block; margin: auto;" />
 
 This plot shows that the temporal autocorrelations have a long 'memory', i.e. they tend to change slowly over time. In contrast, let's see what happens when we simulate from a GP with a shorter length scale parameter (the same code as above was used, except the length scale was changed to 4)
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-21-1.png" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-21-1.png" alt="" width="60%" style="display: block; margin: auto;" />
 
 These functions are much 'wigglier' and can be useful for capturing temporal dynamics with short-term 'memory'. A **big advantage** of Gaussian Processes is that they can easily handle data that are irregularly sampled, much like splines can (and in contrast to autoregressive processes like we've been using so far). But although Gaussian Processes may look similar to splines in the functions they return, they are fundamentally different. In particular, a spline has local knowledge, meaning it has no principled way of understanding how the function itself is evolving across time. But a GP directly models how the function changes over time, which means it is better able to generate out-of-sample predictions.
   
@@ -483,7 +491,7 @@ We can plot how covariance is expected to change over increasing distances in ti
 <details>
   <summary>Click here if you would like to see the `R` function `plot_kernels`, used to plot GP kernels </summary>
 
-```r
+``` r
 # Compute the covariance kernel for a given draw
 # of GP alpha and rho parameters
 quad_kernel = function(rho, alpha, times){
@@ -502,8 +510,8 @@ plot_kernels = function(gp_ests, max_time = 50){
   # use a for-loop to estimate the kernel for each draw using
   # our custom quad_kernel() function
   for(i in 1:NROW(gp_ests)){
-    kernels[i,] <- quad_kernel(rho = gp_ests$`rho_gp_trend_time_`[i],
-                               alpha = gp_ests$`alpha_gp_trend_time_`[i],
+    kernels[i,] <- quad_kernel(rho = gp_ests$lscale_gptime_trend[i],
+                               alpha = gp_ests$sdgp_gptime_trend[i],
                                times = draw_seq)
   }
   
@@ -531,52 +539,45 @@ plot_kernels = function(gp_ests, max_time = 50){
 
 Extract posterior estimates of the GP parameters using the `as.data.frame` function that we've been using previously. You can then plot the posterior kernel estimates for model 5 to visualize how temporal error covariance is estimated to change as two time points are further apart. To do this, all we need to supply is the posterior estimates for the GP parameters in the form of a `data.frame`:
 
-```r
-gp_ests <- as.data.frame(mod5, variable = c('rho_gp',
-                                            'alpha_gp'),
+``` r
+gp_ests <- as.data.frame(mod5, variable = c('lscale',
+                                            'sdgp'),
                          regex = TRUE)
 plot_kernels(gp_ests = gp_ests, max_time = 30)
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/Plot mvgam GP covariance kernels-1.png" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/Plot mvgam GP covariance kernels-1.png" alt="" width="60%" style="display: block; margin: auto;" />
 Here we can see how correlations between timepoints decay smoothly as we move further apart in time.
   
 This smooth function is not that complex but works well because we have adequately captured temporal autocorrelation using the latent AR1 process. Estimates of the AR1 parameters come with full uncertainties:
 
-```r
+``` r
 mcmc_plot(mod5, variable = c('ar1', 'sigma'), regex = TRUE, type = 'areas')
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-22-1.png" width="60%" style="display: block; margin: auto;" />
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-22-1.png" alt="" width="60%" style="display: block; margin: auto;" />
 
 Plotting the hindcasts and forecasts won't work directly with {`marginaleffects`} as we want to also include the AR1 process. But this is easy to do with {`mvgam`} functionality
 
-```r
+``` r
 hc <- hindcast(mod5)
 plot(hc)
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-23-1.png" width="60%" style="display: block; margin: auto;" />
-
-```
-## No non-missing values in test_observations; cannot calculate forecast score
-```
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-23-1.png" alt="" width="60%" style="display: block; margin: auto;" />
 
 
-```r
-fc <- forecast(mod5, newdata = data.frame(time = (max(dat$time) + 1):(max(dat$time) + 10)))
+``` r
+fc <- forecast(mod5, newdata = data.frame(time = (max(dat$time) + 1):(max(dat$time) + 10),
+                                          series = factor('campy')))
 plot(fc)
 ```
 
-<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-24-1.png" width="60%" style="display: block; margin: auto;" />
-
-```
-## No non-missing values in test_observations; cannot calculate forecast score
-```
+<img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-24-1.png" alt="" width="60%" style="display: block; margin: auto;" />
 
 If we wanted to ask targeted questions about the nonlinear trend, we could do this readily. For example, here is the 1st derivative (i.e. the marginal effect) of time, which we can use to ask when the trend was changing most rapidly (i.e. at which time points was the derivative *furthest* from zero?)
 
-```r
+``` r
 plot_slopes(mod5, variables = 'time', condition = 'time',
             type = 'link') +
   labs(y = 'First derivative (slope) of linear predictor') +

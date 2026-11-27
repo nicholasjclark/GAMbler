@@ -237,6 +237,8 @@ myscatter = function(x,
 }
 ```
 
+*Updated in November 2026: the code now needs `mvgam` 2.0 or higher. The [package website](https://nicholasjclark.github.io/mvgam/) explains how to install it and what changed.*
+
 Generalized Additive Models (GAMs) are flexible tools that have found particular application in the analysis of time series data. In ecology, a host of recent papers and workshops have drawn attention to the power of GAMs for addressing complex ecological analyses. For example, [Gavin Simpson regularly hosts workshops on GAMs in R](https://fromthebottomoftheheap.net/about/), and [it is common to see GAMs on the workshop list for large international conferences in ecology and statistics](https://github.com/eric-pedersen/mgcv-esa-workshop). 
   
 ### Why are GAMs useful for time series analysis? 
@@ -251,16 +253,18 @@ Given the many ways that GAMs can model temporal data, it is tempting to extrapo
 ## Environment setup
 This tutorial relies on the following packages:
 ```{r, include = FALSE}
+library(mgcv)            # Fit GAMs with penalized smooths
 library(mvgam)           # Fit, interrogate and forecast DGAMs
-library(dplyr)           # Tidy and flexible data manipulation
+library(dplyr)          # Tidy and flexible data manipulation
 library(marginaleffects) # Compute conditional and marginal effects
 library(ggplot2)         # Flexible plotting
 library(patchwork)       # Combining ggplot objects
 ```
 
 ```{r, eval = FALSE}
+library(mgcv)            # Fit GAMs with penalized smooths
 library(mvgam)           # Fit, interrogate and forecast DGAMs
-library(dplyr)           # Tidy and flexible data manipulation
+library(dplyr)          # Tidy and flexible data manipulation
 library(marginaleffects) # Compute conditional and marginal effects
 library(ggplot2)         # Flexible plotting
 library(patchwork)       # Combining ggplot objects
@@ -341,7 +345,9 @@ load(url('https://github.com/cran/tscount/raw/master/data/campy.RData'))
 
 # Put data into a data.frame and visualize
 dat <- data.frame(count = as.vector(campy)) %>%
-  dplyr::mutate(time = 1:dplyr::n())
+  dplyr::mutate(time = 1:dplyr::n(),
+                # mvgam needs a factor that names the series
+                series = factor('campy'))
 ggplot(dat, aes(time, count)) + 
   geom_point() +
   geom_line()
@@ -472,23 +478,29 @@ The `mvgam` package was designed to solve these and many other problems we encou
 ```{r, include = FALSE}
 mod5 <- mvgam(count ~ 1,
               trend_formula = ~ gp(time, c = 5/4, k = 10,
-                                   scale = FALSE),
-              trend_model = AR(),
-              priors = prior_string(prior ='normal(16, 4)', 
-                                    class = 'rho_gp_trend(time)'),
-            data = dat,
-            family = poisson())
+                                   scale = FALSE) +
+                AR(),
+              prior = prior(normal(16, 4),
+                            class = lscale_trend,
+                            coef = gptime),
+              data = dat,
+              family = poisson(),
+              silent = 2,
+              seed = 1)
 ```
 
 ```{r, eval = FALSE}
 mod5 <- mvgam(count ~ 1,
               trend_formula = ~ gp(time, c = 5/4, k = 10,
-                                   scale = FALSE),
-              trend_model = AR(),
-              priors = prior_string(prior ='normal(16, 4)', 
-                                    class = 'rho_gp_trend(time)'),
-            data = dat,
-            family = poisson())
+                                   scale = FALSE) +
+                AR(),
+              prior = prior(normal(16, 4),
+                            class = lscale_trend,
+                            coef = gptime),
+              data = dat,
+              family = poisson(),
+              silent = 2,
+              seed = 1)
 ```
 
 The model fits quickly and encounters few issues. The GP has done an excellent job capturing the nonlinear trend...
@@ -661,8 +673,8 @@ plot_kernels = function(gp_ests, max_time = 50){
   # use a for-loop to estimate the kernel for each draw using
   # our custom quad_kernel() function
   for(i in 1:NROW(gp_ests)){
-    kernels[i,] <- quad_kernel(rho = gp_ests$`rho_gp_trend_time_`[i],
-                               alpha = gp_ests$`alpha_gp_trend_time_`[i],
+    kernels[i,] <- quad_kernel(rho = gp_ests$lscale_gptime_trend[i],
+                               alpha = gp_ests$sdgp_gptime_trend[i],
                                times = draw_seq)
   }
   
@@ -690,8 +702,8 @@ plot_kernels = function(gp_ests, max_time = 50){
 
 Extract posterior estimates of the GP parameters using the `as.data.frame` function that we've been using previously. You can then plot the posterior kernel estimates for model 5 to visualize how temporal error covariance is estimated to change as two time points are further apart. To do this, all we need to supply is the posterior estimates for the GP parameters in the form of a `data.frame`:
 ```{r Plot mvgam GP covariance kernels}
-gp_ests <- as.data.frame(mod5, variable = c('rho_gp',
-                                            'alpha_gp'),
+gp_ests <- as.data.frame(mod5, variable = c('lscale',
+                                            'sdgp'),
                          regex = TRUE)
 plot_kernels(gp_ests = gp_ests, max_time = 30)
 ```
@@ -709,7 +721,8 @@ plot(hc)
 ```
 
 ```{r message=FALSE}
-fc <- forecast(mod5, newdata = data.frame(time = (max(dat$time) + 1):(max(dat$time) + 10)))
+fc <- forecast(mod5, newdata = data.frame(time = (max(dat$time) + 1):(max(dat$time) + 10),
+                                          series = factor('campy')))
 plot(fc)
 ```
 
