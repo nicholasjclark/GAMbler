@@ -21,7 +21,7 @@ layout: single-sidebar
 ---
 
 
-*Updated in November 2026: the code now needs `mvgam` 2.0 or higher. The [package website](https://nicholasjclark.github.io/mvgam/) explains how to install it and what changed.*
+*Updated in November 2026: the code now needs `mvgam` 2.0 or higher. The [2.0 release post](https://ecogambler.netlify.app/blog/mvgam-2/) describes what changed.*
 
 Here we will use `mgcv` to estimate parameters of nonlinear distributed lag models. These models are used to describe simultaneously non-linear and delayed functional relationships between a covariate and a response, and are sometimes referred to as exposure-lag-response models. If we assume `\(\tilde{\boldsymbol{y}}_{t}\)` is the conditional expectation of a response variable `\(\boldsymbol{y}\)` at time `\(\boldsymbol{t}\)`, and that `\(g\)` is a suitable inverse link function, the linear predictor for a distributed lag GAM with one lagged covariate is written as:
   

@@ -237,7 +237,7 @@ myscatter = function(x,
 }
 ```
 
-*Updated in November 2026: the code now needs `mvgam` 2.0 or higher. The [package website](https://nicholasjclark.github.io/mvgam/) explains how to install it and what changed.*
+*Updated in November 2026: the code now needs `mvgam` 2.0 or higher. The [2.0 release post](https://ecogambler.netlify.app/blog/mvgam-2/) describes what changed.*
 
 Generalized Additive Models (GAMs) are flexible tools that have found particular application in the analysis of time series data. In ecology, a host of recent papers and workshops have drawn attention to the power of GAMs for addressing complex ecological analyses. For example, [Gavin Simpson regularly hosts workshops on GAMs in R](https://fromthebottomoftheheap.net/about/), and [it is common to see GAMs on the workshop list for large international conferences in ecology and statistics](https://github.com/eric-pedersen/mgcv-esa-workshop). 
   

@@ -1,0 +1,303 @@
+---
+title: "mvgam 2.0 on CRAN: State-Space models built on brms" # prose-lint-disable-line
+author: "Nicholas Clark"
+subtitle: ""
+excerpt: "Version 2.0 of the mvgam package is on CRAN. In this version brms writes the observation model and mvgam adds a latent dynamic process to it. This post explains how the new formula interface works, describes the dynamic processes that are available, works through a first model and covers the new occupancy, N-mixture and joint species distribution models."
+slug: mvgam-2
+date: 2026-11-27
+draft: false
+images:
+series:
+tags:
+  - rstats
+  - mvgam
+  - package
+  - cran
+  - time-series
+categories:
+  - rstats
+  - package
+  - mvgam
+layout: single-sidebar
+---
+
+
+## Welcoming mvgam 2.0 to CRAN
+Version 2.0 of `mvgam` [has now been published on CRAN](https://cran.r-project.org/package=mvgam). When I [announced the first CRAN release](https://ecogambler.netlify.app/blog/mvgam-on-cran/), I finished with a list of features I wanted to add. Two of those were zero-inflated observation models and correlated random effects. Both are now available, along with many other features, because version 2.0 uses [`brms`](https://paulbuerkner.com/brms/) to write the observation model.
+
+Version 1 of `mvgam` wrote its own `Stan` code for every model. This made it quick to add new types of latent dynamic processes, but the observation side of a model could only ever do what I had written for it. `brms` already handles that side extremely well, with support for random effects, distributional regression, monotonic effects, missing value imputation and a long list of response families. In version 2.0, `brms` writes the observation model and `mvgam` adds the latent dynamic process, along with the tools we need for time series, such as forecasting, forecast evaluation and summaries of the dynamics. Any formula we can write in `brms` can now be paired with a latent dynamic process. For example, here is a model for counts of several species, with a smooth effect of temperature and correlated random intercepts and rainfall slopes for each survey site:
+
+
+``` r
+mvgam(
+  count ~ s(temperature) + (1 + rainfall | site),
+  trend_formula = ~ s(ndvi) + VAR(ma = TRUE),
+  data = surveys,
+  family = negbinomial()
+)
+```
+
+Beneath the observations, each species has a latent process that responds to vegetation greenness (`ndvi`) and evolves as a Vector Autoregressive Moving Average. The dynamics of each species can then influence the others. In this post I explain how models like this one are put together, describe the dynamic processes that are available and work through a first model. I also list the main changes for anyone moving code over from version 1.
+
+## What does mvgam do?
+`mvgam` fits *State-Space* models. These assume that some unobserved *process* evolves through time and that the observations we collect are noisy, possibly non-Gaussian, measurements of that process. Because the process is modelled separately from the observations, we can still estimate it at times where an observation is missing.
+
+![Illustration of a basic State-Space model. A latent dynamic *process* (X) can evolve independently from the way we take *observations* (Y) of that process](SS_model.svg)
+
+Assume `\(\tilde{\boldsymbol{y}}_{i,t}\)` is the conditional expectation of series `\(i\)` at time `\(t\)`, with an invertible link function `\(g\)`. In version 2.0 the model has two linear predictors:
+
+`$$g(\tilde{\boldsymbol{y}}_{i,t}) = \eta_{i,t} + z_{i,t}$$`
+
+`$$z_{i,t} = \mu_{i,t} + x_{i,t}$$`
+
+Where:
+
+- `\(\eta_{i,t}\)` is the linear predictor of the observation model, which we write using the `formula` argument in `brms` syntax
+- `\(z_{i,t}\)` is the latent state
+- `\(\mu_{i,t}\)` is the mean of the latent state, which we write using the `trend_formula` argument
+- `\(x_{i,t}\)` is a dynamic component that follows one of the processes described below
+
+For example, if `\(x\)` follows a first-order autoregression then
+
+`$$x_{i,t} = \phi_i x_{i,t-1} + \epsilon_{i,t}$$`
+
+`$$\epsilon_{i,t} \sim \text{Normal}(0, \sigma_i)$$`
+
+Where `\(\phi_i\)` is the autoregressive coefficient for series `\(i\)` and `\(\sigma_i\)` is the standard deviation of its process errors.
+
+This split matters when deciding where a covariate should go. A covariate in `trend_formula` acts on the latent state. Its effect then carries forward through the dynamics. A covariate in `formula` acts on the observations at their own time point, which is a better place for things like survey effort or detection conditions.
+
+## Supported observation families
+Almost every family that `brms` supports can be used, including the zero-inflated and hurdle families, the ordinal families, and distributional models in which parameters such as `\(\sigma\)` or `\(\phi\)` get their own formulae. Mixture families are the one exception. `mvgam` also adds some families of its own:
+
+|Distribution                  | Function          | Support                                             |
+|:----------------------------:|:-----------------:|:---------------------------------------------------:|
+|Tweedie                       | `tweedie()`       | Non-negative real values, with an atom at zero      |
+|Beta negative binomial        | `beta_nb()`       | Heavy-tailed non-negative integers                  |
+|Conway-Maxwell binomial       | `com_binomial()`  | Over- or under-dispersed counts out of known trials |
+|Occupancy                     | `occ()`           | Binary detections from repeat visits                |
+|N-mixture                     | `nmix()`          | Counts from repeat visits                           |
+|Dirichlet                     | `diri()`          | Compositions that sum to one                        |
+|Multinomial                   | `multi()`         | Counts of categories                                |
+|Categorical                   | `categ()`         | One category per unit                               |
+|Multivariate normal           | `mvn()`           | Several continuous responses per unit               |
+|Multivariate Student-t        | `mvt()`           | Several heavy-tailed responses per unit             |
+
+`occ()` and `nmix()` estimate detection probability together with the latent occupancy or abundance. The composition families (`diri()`, `multi()`, `categ()`) take data in the same *long* format as the other families. They are useful for modelling compositions, a topic I covered in an earlier post on [Dirichlet regression for plant communities](https://ecogambler.netlify.app/blog/plant-community-dirichlet/).
+
+## Supported temporal dynamic processes
+In version 1 we chose the dynamic process with the `trend_model` argument. In version 2.0 the process is a term in `trend_formula`, for example `trend_formula = ~ AR(p = 1)`. Each process can be fitted independently to each series, with correlated process errors across series (using `cor = TRUE`), or as a *dynamic factor* model with fewer latent factors than there are series (using `n_lv`). All of the processes are documented in [`?trend_constructors`](https://nicholasjclark.github.io/mvgam/reference/trend_constructors.html).
+
+### Random Walks and Autoregressions
+For series measured at regular intervals, use `RW()` to set up a Random Walk or `AR(p = ...)` to set up an autoregression. The autoregression can be of any order or use a sparse set of lags. For monthly data, for example, `AR(p = c(1, 12))` captures dependence on the previous month and on the same month in the previous year. Both processes can include a moving average term using `ma = TRUE`.
+
+An autoregression over consecutive lags is kept stationary because `mvgam` samples its partial autocorrelations and then transforms these into the autoregressive coefficients. A sparse set of lags carries no such guarantee. When there are multiple series, the coefficients can be estimated separately for each series, shared among all series (`coef_sharing = "shared"`), or partially pooled toward a common mean (`coef_sharing = "hierarchical"`).
+
+### Vector Autoregressions
+When series are expected to interact with one another, for example when the abundance of a predator in one month influences the abundance of its prey in the next, use `VAR(p = ...)`. A VAR(`\(p\)`) model takes the form:
+
+`$$x_t = \sum_{l=1}^{p} A_l x_{t-l} + \epsilon_t$$`
+
+`$$\epsilon_t \sim \text{MVNormal}(0, \Sigma)$$`
+
+Where:
+
+- `\(x_t\)` is now a vector of latent states for all series at time `\(t\)`
+- `\(A_l\)` is a matrix of autoregressive coefficients at lag `\(l\)`, in which the diagonals capture lagged self-dependence and the off-diagonals capture lagged cross-dependence among series
+- `\(\Sigma\)` is the covariance matrix of the process errors, which captures contemporaneous correlations among series
+
+Stationarity is enforced through the structured prior of [Heaps (2023)](https://www.tandfonline.com/doi/full/10.1080/10618600.2022.2079648). Setting `ma = TRUE` adds a moving average term to give a VARMA model. If the series are nested within a grouping factor, `VAR(gr = region, subgr = species)` fits a hierarchical panel VAR, where each region has its own coefficient and correlation matrices that are drawn from shared hyperparameters. Once the model is fitted, the impulse response, variance decomposition and stability functions (`irf()`, `fevd()`, `stability()`) can be used to ask questions about how the series interact. I described these tools in more detail in an earlier post on [State-Space Vector Autoregressions](https://ecogambler.netlify.app/blog/vector-autoregressions/). The [VAR](https://nicholasjclark.github.io/mvgam/articles/var.html) and [hierarchical VAR](https://nicholasjclark.github.io/mvgam/articles/hierarchical_var.html) articles give worked examples.
+
+### Continuous time AR(1) processes
+Many ecological time series are not measured at regular intervals. We might have weekly samples in one season and monthly samples in another. `CAR()` sets up a first-order autoregression in continuous time, where the dependence decays with the amount of time that has passed between observations:
+
+`$$x_{i,t} \sim \text{Normal}\left(\phi_i^{\Delta_t} x_{i,t-1},\ \sigma_i \sqrt{\frac{1 - \phi_i^{2\Delta_t}}{1 - \phi_i^2}}\right)$$`
+
+Where `\(\Delta_t\)` is the time since the previous observation. When `\(\Delta_t = 1\)` this is the same as an ordinary AR(1). Longer gaps allow the latent state to wander further from its previous value. Each series can be observed at its own set of times. The process errors can also be correlated among series using `cor = TRUE`.
+
+### Local linear trends
+Some series grow or decline over long periods while their seasonal patterns also change. `LLT()` sets up a *level* and a *slope* that both evolve through time, as in exponential smoothing models. The slope can be damped using `damped = TRUE`. We can also add a seasonal component, built from as many harmonics as needed, that is allowed to drift from year to year (for example `LLT(season = 12, harmonics = 3)`). The `seasonality()` function then summarises how the amplitude and timing of the seasonal cycle changed through time, which is a more direct route to the questions I explored with GAMs in my post on [time-varying seasonality](https://ecogambler.netlify.app/blog/time-varying-seasonality/).
+
+### Piecewise logistic and linear trends
+For series where the rate of growth changes abruptly, or where growth saturates at some carrying capacity, `PW()` sets up the piecewise linear and logistic trends described by [Taylor and Letham (2018)](https://www.tandfonline.com/doi/full/10.1080/00031305.2017.1380080). The growth rate is allowed to change at a set of potential changepoints spread across the training period. The logistic version levels off at a carrying capacity.
+
+### Correlated residuals without dynamics
+`ZMVN()` sets up a zero-mean multivariate normal process with no temporal dependence. This is useful for capturing residual correlations among series, or among species that are sampled at the same sites. It is also the process that `jsdgam()` uses to build joint species distribution models.
+
+## Regression formulae
+The observation `formula` accepts the full `brms` syntax. This includes smooths from `mgcv` (`s()`, `te()`, `t2()`), random effects such as `(1 | group)`, Gaussian Processes using `gp()`, monotonic effects using `mo()` and distributional formulae using `bf()`. Several responses can share one latent process when we use `mvbind()` or `mvbf()`. This is how an *integrated distribution model* combines different types of survey data, such as counts from one program and detection / non-detection data from another, to estimate a single underlying process. The [multivariate](https://nicholasjclark.github.io/mvgam/articles/mvbf.html) and [integrated distribution model](https://nicholasjclark.github.io/mvgam/articles/idm.html) articles show how to set these up.
+
+The `trend_formula` accepts the same terms, plus one of the processes above. In a dynamic factor model, `by = lv_axis()` gives each latent factor its own smooth function of a covariate, as in `trend_formula = ~ s(temperature, by = lv_axis()) + AR(n_lv = 2)`. We can also use the `loadings_prior` argument to give the factor loadings a structured prior based on species traits or a phylogeny, which the [dynamic factor vignette](https://nicholasjclark.github.io/mvgam/articles/dfm.html) explains in detail.
+
+## A first model
+To show how this all fits together, we will model monthly captures of the Desert Pocket Mouse (*Chaetodipus penicillatus*), using the `portal_data` that ships with the package. We will hold out the final year of data to evaluate forecasts. Load the data and split it into training and testing sets. `mvgam_data()` then checks the data against the chosen family before any `Stan` code is written. It also plots the series, its distribution and its autocorrelation function, with the testing observations shown in black:
+
+
+``` r
+library(mvgam)
+data(portal_data)
+pp <- droplevels(subset(portal_data, series == "PP"))
+pp_train <- subset(pp, time <= 68)
+pp_test <- subset(pp, time > 68)
+mvgam_data(
+  pp_train,
+  family = poisson(),
+  y = "captures",
+  newdata = pp_test
+)
+```
+
+<img src="{{< blogdown/postref >}}index_files/figure-html/data-1.png" alt="" width="80%" style="display: block; margin: auto;" />
+
+Captures move between long runs of zeros and peaks above 20. The autocorrelation function shows that captures in one month are strongly related to captures in the previous one or two months. We will model captures as a function of minimum temperature and vegetation greenness, with both effects acting on a latent state that follows a first-order autoregression. Before fitting the model, `get_prior()` lists every parameter that will be estimated, along with its default prior. Notice that the list includes parameters for the latent process as well as for the observation model:
+
+
+``` r
+get_prior(
+  captures ~ 1,
+  trend_formula = ~ s(mintemp, k = 6) + s(ndvi_ma12, k = 6) + AR(),
+  data = pp_train,
+  family = poisson()
+)
+```
+
+```
+##                   prior       class                coef group resp dpar nlpar
+##  student_t(3, 1.2, 2.5)   Intercept                                          
+##          exponential(2) sigma_trend                                          
+##          normal(0, 0.5)   ar1_trend                                          
+##                  (flat)     b_trend                                          
+##                  (flat)     b_trend          smintemp_1                      
+##                  (flat)     b_trend        sndvi_ma12_1                      
+##    student_t(3, 0, 2.5)   sds_trend                                          
+##    student_t(3, 0, 2.5)   sds_trend   s(mintemp, k = 6)                      
+##    student_t(3, 0, 2.5)   sds_trend s(ndvi_ma12, k = 6)                      
+##  lb ub tag       source
+##                 default
+##   0             default
+##  -1  1          default
+##                 default
+##            (vectorized)
+##            (vectorized)
+##   0             default
+##   0        (vectorized)
+##   0        (vectorized)
+```
+
+Now fit the model. Supplying `newdata` stores the testing data with the model. `forecast()` and the plotting functions can then use them:
+
+
+``` r
+fit <- mvgam(
+  captures ~ 1,
+  trend_formula = ~ s(mintemp, k = 6) + s(ndvi_ma12, k = 6) + AR(),
+  data = pp_train,
+  newdata = pp_test,
+  family = poisson(),
+  silent = 2,
+  seed = 1
+)
+```
+
+The summary follows the same layout as a `brms` summary, with a separate block for parameters of the latent process:
+
+
+``` r
+summary(fit)
+```
+
+```
+##  Family: poisson 
+##   Links: mu = log 
+## Formula: captures ~ 1 
+##    Data: pp_train (Number of observations: 68) 
+##  Trends: AR(1); formula: ~s(mintemp, k = 6) + s(ndvi_ma12, k = 6) 
+##   Draws: 4 chains, each with iter = 2000; warmup = 1000; thin = 1; 
+##          total post-warmup draws = 4000
+## 
+## == Observation Model ==
+## Regression Coefficients:
+##           Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
+## Intercept     0.83      0.62    -0.52     2.11 1.02      362       94
+## 
+## == Trend Model ==
+## Smoothing Spline Hyperparameters:
+##                   Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
+## sds(smintemp_1)       1.20      1.13     0.03     4.29 1.01      372      123
+## sds(sndvi_ma12_1)     2.31      1.59     0.14     6.29 1.00     1052     1061
+## 
+## Regression Coefficients:
+##              Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
+## smintemp_1       3.21      2.85    -5.45     8.27 1.01      309       97
+## sndvi_ma12_1     2.80      4.24    -5.22    12.48 1.00     1273     1167
+## 
+## Trend Specific Parameters:
+##                 Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
+## sigma_trend[PP]     0.70      0.14     0.45     1.02 1.00     1252     2223
+## ar1_trend[PP]       0.81      0.10     0.58     0.96 1.00     1001     1030
+## 
+## Draws were sampled using sampling(NUTS). For each parameter, Bulk_ESS
+## and Tail_ESS are effective sample size measures, and Rhat is the potential
+## scale reduction factor on split chains (at convergence, Rhat = 1).
+## 
+## Next steps:
+##   - `pp_check(fit)`: posterior predictive checks
+##   - `forecast(fit, newdata = ...)`: out-of-sample forecasts
+##   - `lfo_cv(fit)`: leave-future-out model comparison
+##   - `conditional_effects(fit)`: covariate effects
+## Use `how_to_cite(fit)` for a methods paragraph and `methods_md(fit)` for its equations.
+```
+
+Because the model is built with `brms`, its post-processing functions also work on the fitted model. For example, `conditional_effects()` plots the expected number of captures across each covariate:
+
+
+``` r
+plot(conditional_effects(fit, type = "expected"), ask = FALSE)
+```
+
+<img src="{{< blogdown/postref >}}index_files/figure-html/effects-1.png" alt="" width="90%" style="display: block; margin: auto;" /><img src="{{< blogdown/postref >}}index_files/figure-html/effects-2.png" alt="" width="90%" style="display: block; margin: auto;" />
+
+Expected captures increase with minimum temperature, most steeply in the warmest months, while the effect of vegetation greenness peaks at intermediate values. Both effects are quite uncertain. Next, `forecast()` carries the latent state forward from its final estimated values into the testing period:
+
+
+``` r
+fc <- forecast(fit)
+plot(fc)
+```
+
+<img src="{{< blogdown/postref >}}index_files/figure-html/forecast-1.png" alt="" width="80%" style="display: block; margin: auto;" />
+
+The testing observations, shown as black points to the right of the dashed line, fall within the forecast intervals. But where does all of that forecast uncertainty come from? `forecast_uncertainty()` splits the forecast variance into contributions from uncertainty in the regression coefficients, uncertainty in the parameters of the latent dynamics and the process error that accumulates as the forecast moves further away from the training data:
+
+
+``` r
+plot(forecast_uncertainty(fit, newdata = pp_test))
+```
+
+<img src="{{< blogdown/postref >}}index_files/figure-html/uncertainty-1.png" alt="" width="70%" style="display: block; margin: auto;" />
+
+Process error dominates at every horizon. The total variance roughly triples over the first eight months before levelling off. This process error represents month-to-month variation in the population that none of the covariates in the model can explain. It accumulates with every additional month that the forecast extends beyond the data. The [overview vignette](https://nicholasjclark.github.io/mvgam/articles/mvgam_overview.html) takes this example further with residual checks, a model of all four rodent species with correlated dynamics and comparisons of forecast scores. The [forecast evaluation article](https://nicholasjclark.github.io/mvgam/articles/forecast_evaluation.html) covers `compare_scores()` and `compare_elpds()` for choosing among models.
+
+## Imperfect detection and joint species distribution models
+Ecological surveys rarely detect every individual, or even every species, that is present. `occ()` is a new family in version 2.0. Like `nmix()`, it models the detection process explicitly. The latent process then describes the true occupancy or abundance at each site. `forecast(type = "latent_state")` produces forecasts of that true state. Both families now also have multi-season variants. See the [occupancy](https://nicholasjclark.github.io/mvgam/articles/occupancy.html) and [N-mixture](https://nicholasjclark.github.io/mvgam/articles/nmix.html) articles for worked examples.
+
+`jsdgam()` fits joint species distribution models, in which latent factors capture associations among species that the covariates cannot explain. In version 2.0 these models can also include species traits, trait-by-environment interactions, a phylogeny and the composition families. Three functions (`species_effects()`, `community()`, `residual_cor()`) then summarise how each species responds to the environment and which species co-occur more or less often than the covariates would predict. The [JSDM article](https://nicholasjclark.github.io/mvgam/articles/jsdgam.html) works through an example.
+
+## Moving from version 1
+Most code written for version 1 will need some rewriting. The main changes are:
+
+* `trend_model = AR()` becomes `trend_formula = ~ AR()`. The `n_lv` and `trend_map` arguments move into the trend constructor
+* Data for a model with a latent process need a factor `series` column, even when there is only one series
+* `get_mvgam_priors()` becomes `get_prior()`, `code()` becomes `stancode()`, and the `plot_mvgam_*()` functions become `plot()` methods
+* `gp()` replaces `GP()` and `dynamic()`. `mo()` replaces the monotonic smooth bases
+* Some families are renamed to match `brms`: `nb()` is now `negbinomial()`, `student_t()` is `student()` and `betar()` is `Beta()`
+
+The [NEWS file](https://nicholasjclark.github.io/mvgam/news/index.html) lists every breaking change along with its replacement. The [data vignette](https://nicholasjclark.github.io/mvgam/articles/data.html) explains the required data format.
+
+## See the cheatsheets for a workflow overview
+[![`mvgam` usage cheatsheet](https://nicholasjclark.github.io/mvgam/cheatsheets/mvgam_cheatsheet.png)](https://nicholasjclark.github.io/mvgam/cheatsheets/mvgam_cheatsheet.pdf)
+
+[![`jsdgam` cheatsheet for joint species distribution models](https://nicholasjclark.github.io/mvgam/cheatsheets/jsdgam_cheatsheet.png)](https://nicholasjclark.github.io/mvgam/cheatsheets/jsdgam_cheatsheet.pdf)
+
+## Thanks
+This release relies on the work of Paul Bürkner, the other `brms` developers and the `Stan` team. [@jbogomolovas2](https://github.com/jbogomolovas2) worked out the mathematics of the `com_binomial()` family. Thanks also to everyone who has reported bugs and suggested features. If you find a problem or have an idea, please [open an issue on GitHub](https://github.com/nicholasjclark/mvgam/issues).

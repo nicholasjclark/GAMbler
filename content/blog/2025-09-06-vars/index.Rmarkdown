@@ -32,7 +32,7 @@ knitr::opts_chunk$set(
   warning = FALSE)
 ```
 
-*Updated in November 2026: the code now needs `mvgam` 2.0 or higher. The [package website](https://nicholasjclark.github.io/mvgam/) explains how to install it and what changed.*
+*Updated in November 2026: the code now needs `mvgam` 2.0 or higher. The [2.0 release post](https://ecogambler.netlify.app/blog/mvgam-2/) describes what changed.*
 
 [Vector Autoregressions (VAR models)](https://otexts.com/fpp3/VAR.html), also known in the ecological literature as [Multivariate Autoregressions (MAR models)](https://atsa-es.github.io/MARSS/), are a class of Dynamic Linear Models that offer a principled way to model both delayed and contemporaneous interactions among sets of multiple time series. These models are widely used in econometrics and psychology, among other fields, where they can be analyzed to ask many interesting questions about [potential causality](https://www.jstor.org/stable/2951647), [cascading temporal interaction effects](https://www.r-econometrics.com/timeseries/irf/) or [community stability](https://esajournals.onlinelibrary.wiley.com/doi/abs/10.1890/0012-9615%282003%29073%5B0301%3AECSAEI%5D2.0.CO%3B2). A VAR(1) model, where temporal interactions among series can take place at a lag of one time step, is defined as:
 
